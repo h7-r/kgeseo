@@ -13,7 +13,7 @@ import { audio } from "../../scene/immersion/audio";
 import { focusCamera } from "../../scene/cameraFocus";
 import { CORRIDOR, getUnderwater } from "../cave/caveState";
 import { makeGlowTexture } from "../glowTexture";
-import { registerInteractable, showNotice } from "../interaction";
+import { interactableFor, noticeFor } from "../interaction";
 import { inventory } from "../inventory";
 import { buildFloatStoneGeometry } from "../itemLooks";
 import { makeToonMaterial } from "../materials";
@@ -21,6 +21,10 @@ import { prewarmShaders } from "../prewarm";
 import { setPuzzlePanel } from "../puzzlePanel";
 import { M, groundY } from "../units";
 import { getWaterLevel, ritual, useRitualStage } from "./ritualState";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("ritual");
+const registerInteractable = interactableFor("ritual");
 
 /** 뜬 돌 자리(미터) — 어귀(서쪽)에 하나, 나머지 셋은 마법진 앞쪽(강 쪽·동쪽) 자갈밭에. 마법진 · 장독대 · 배를 비킨다 */
 const SPOTS = [

@@ -7,11 +7,14 @@ import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
 import { makeGlowPoints, pointScaleFor } from "../glowPoints";
-import { showNotice } from "../interaction";
+import { noticeFor } from "../interaction";
 import { isAbisaStoryOwed } from "../leftBehind";
 import { M, groundY } from "../units";
 import { fishTrapPuzzle } from "./fishTrapState";
 import { GUIDE_HEIGHT, GUIDE_PATH } from "./site";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("fishTrap");
 
 /** 윤곽선 점 — 촘촘하고 작아야 모양이 또렷하다 */
 const OUTLINE_POINTS = 170;
@@ -204,7 +207,7 @@ export default function SmokeGuide() {
         fishTrapPuzzle.markGuideAhead();
         phaseRef.current = "fade";
         clockRef.current = 0;
-        showNotice("연기가 바위 아래에서 흩어진다.", 4);
+        showNotice("연기가 바위 아래에서 흩어진다. 그날 아랑사를 본 사람이 있을지 모른다.", 5);
       }
     } else if (phaseRef.current === "fade" && clockRef.current >= FADE_SECONDS) {
       phaseRef.current = "done";

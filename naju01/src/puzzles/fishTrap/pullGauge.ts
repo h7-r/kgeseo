@@ -93,7 +93,12 @@ function roundFor(hits: number): Pick<GaugeState, "zone" | "center" | "sweep" | 
     isSecondRight = Math.random() < 0.5;
     center = isSecondRight ? 1 - left : left;
   } else if (hits >= 2) center = isSecondRight ? left : 1 - left;
-  return { zone: round.zone, center, sweep: round.sweep, startedAt: performance.now() + (hits > 0 ? ROUND_LEAD_MS : 0) };
+  return {
+    zone: round.zone,
+    center,
+    sweep: round.sweep,
+    startedAt: performance.now() + (hits > 0 ? ROUND_LEAD_MS : 0),
+  };
 }
 
 /** 막대 자리 0~1 — 왼쪽 끝에서 출발해 오간다 */

@@ -20,12 +20,15 @@ import { isCameraFocused } from "../../scene/cameraFocus";
 import { isTalkTaken } from "../../scene/firstScene/npcSpeech";
 import { StoryTalk, isTalkPaused } from "../../scene/firstScene/storyTalk";
 import { makeGlowTexture } from "../glowTexture";
-import { isNoticePending, showNotice } from "../interaction";
+import { isNoticePending, noticeFor } from "../interaction";
 import { inventory } from "../inventory";
 import { M, groundY } from "../units";
 import { getBoxLock, getBoxPhase } from "./boxPhase";
 import { ridge } from "./ridgeState";
 import { PLATFORM } from "./ridgeShape";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("box");
 
 const TALK_ID = "companion-box-place";
 const SAVE_KEY = "companion.boxPlaceHeard";

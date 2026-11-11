@@ -1,12 +1,15 @@
 /**
- * 함에서 솟은 빛 속의 영상 — 그날 밤이 영화처럼 컷으로 지나간다. 글은 없다.
- *   달 앞 벼랑을 초롱 들고 걷는 아랑사 → 벼랑 끝에 서서 강 건너를 본다(발치 바위에 번들거리는 소똥). 뒤 풀숲이 한 번 흔들린다
- *   → 뒤꿈치가 미끄러진다 → 풀숲에서 놀란 손들이 뻗어 나오지만 늦었다(셋은 골탕만 먹일 셈이었다) → 추락
- *   → 느려진 시간 속, 얼굴에서 눈물 한 방울이 달빛에 반짝이며 떠오른다 → 달아나는 셋의 뒷모습(어부 둘 · 댕기 여인)이 잠깐
- *   → 물보라 → 가라앉는 수면, 떠 있던 초롱이 꺼지고 빛이 약해지며 영상이 사라진다. 누가 밀었다거나 구렁이가 된 것은 안 보여 준다.
+ * 함에서 솟은 빛 속의 영상 — 그날 밤이 영화처럼 컷으로 지나간다.
+ *   달 앞 벼랑을 초롱 들고 걷는 아랑사 → 벼랑 끝에 서서 강 건너를 본다. 발치 바위에 번들거리는 것(셋이 발라 둔 덫),
+ *   뒤 풀숲에 숨은 셋의 머리 → 뒤꿈치가 미끄러진다 → 벼랑 밖으로 넘어간다. 셋이 풀숲에서 일어나 지켜본다 → 추락(벼랑 끝에서 셋이 내려다본다)
+ *   → 느려진 시간 속, 눈가에 눈물 한 방울 → 물보라 → 달아나는 셋(어부 둘 · 댕기 여인)
+ *   → 가라앉는 수면, 떠 있던 초롱이 꺼지고 빛이 약해지며 영상이 사라진다. 구렁이가 된 것은 안 보여 준다.
+ * 11/11 미르 결정(최종) — 「세 사람의 계략으로 미끄러져 떨어졌다」. 그림은 그 느낌까지만, 뜻은 자막이 짚는다.
+ * 떠미는 그림은 원문을 넘는 각색이라 넣지 않는다(잠깐 넣었다가 뺐다). 계략이었음은 반드시 글로 남긴다 — 사고로만 읽히면 안 된다(사실 계약서 F-07 · NG-03).
  * 판은 재생하는 동안만 올린다. 시각은 초.
  */
 import * as THREE from "three";
+import type { FilmCaption } from "../filmCaption";
 
 import { M } from "../units";
 import {
@@ -25,7 +28,6 @@ import {
   makeLayer,
   mixPose,
   smooth,
-  tracePath,
   walkPose,
   type Figure,
   type Pen,
@@ -42,12 +44,27 @@ const DRAWS_PER_SECOND = 30;
 const PLANE = { width: 3.2, height: 1.8 };
 
 /** 컷 시작 시각 */
-const CUT = { walk: 0, edge: 1.7, slip: 3.7, hands: 4.25, fall: 4.95, tear: 5.75, flee: 7.0, impact: 7.75, after: 8.7 };
+// 11/11 독해 시험 — 미끄러짐 → 손 → 추락이 1.25초에 지나가 원인이 안 읽혔고, 달아남 뒤에 물보라가 와서
+// 「셋이 뒤따라 뛰어들었다」로 읽혔다. 세 컷을 늘리고, 물보라(떨어진 소리)를 듣고 달아나는 차례로 바꿨다.
+// slip = 미끄러지는 컷 · hands = 벼랑 밖으로 넘어가고 셋이 일어나 지켜보는 컷(굿판 그림패가 slip 의 시각을 쓴다)
+const CUT = { walk: 0, edge: 1.7, slip: 3.9, hands: 4.7, fall: 5.9, tear: 6.8, impact: 8.1, flee: 9.1, after: 10.4 };
 /** 풀숲이 흔들리는 때(벼랑 컷 안에서) */
 const RUSTLE_AT = 1.3;
-export const SHADOW_PLAY_SECONDS = 12.4;
+export const SHADOW_PLAY_SECONDS = 14.2;
 /** 빛이 약해지며 영상이 사라지는 시간(끝에서) */
 export const SHADOW_PLAY_FADE = 2.4;
+/**
+ * 자막 — 컷마다 한 줄(영상을 튼 뒤 흐른 초). 그림만으로는 「혼자 미끄러진 사고」로 읽힌다 — 숨은 이들의 계략이었음과 달아남을 글이 짚는다.
+ * 누가 왜 그랬는지(시기 · 속임)는 굿판의 그림패와 엔딩이 말한다
+ */
+export const SHADOW_PLAY_CAPTIONS: readonly FilmCaption[] = [
+  { from: 0.4, to: CUT.edge + RUSTLE_AT, text: "그 밤, 아랑사는 초롱을 들고 바위에 올랐어요." },
+  { from: CUT.edge + RUSTLE_AT, to: CUT.slip, text: "풀숲에 누군가 숨어 있었어요." },
+  { from: CUT.slip, to: CUT.tear, text: "그들이 꾸민 계략에, 아랑사는 발이 미끄러졌어요." },
+  { from: CUT.tear, to: CUT.flee, text: "아랑사는 강으로 떨어졌어요." },
+  { from: CUT.flee, to: CUT.after, text: "그들은 달아났어요." },
+  { from: CUT.after, to: SHADOW_PLAY_SECONDS - 0.8, text: "초롱이 꺼졌어요. 아랑사는 돌아오지 못했어요." },
+];
 export const SHADOW_PLAY_CUES: { at: number; sound: "우르릉" | "징" | "첨벙" | "전환"; shake?: number }[] = [
   { at: CUT.edge + RUSTLE_AT, sound: "우르릉" },
   { at: CUT.slip, sound: "징", shake: 0.16 },
@@ -63,29 +80,6 @@ interface Layers {
 }
 
 const ARANG: Figure = { kind: "man", facing: 1, rim: 1, lantern: true };
-
-/** 바위 위에 번들거리는 소똥 — 납작하고 젖은 덩어리, 달빛이 비친다 */
-function drawDung(g: Pen, x: number, y: number, size: number, shine: number) {
-  g.fillStyle = "#1E1007";
-  tracePath(
-    g,
-    [
-      [x - size, y],
-      [x - size * 0.5, y - size * 0.22],
-      [x + size * 0.1, y - size * 0.28],
-      [x + size * 0.8, y - size * 0.12],
-      [x + size * 1.1, y + size * 0.05],
-      [x + size * 0.4, y + size * 0.12],
-      [x - size * 0.6, y + size * 0.1],
-    ],
-    true,
-  );
-  g.fill();
-  g.fillStyle = `rgba(255,226,180,${0.55 * shine})`;
-  g.beginPath();
-  g.ellipse(x + size * 0.25, y - size * 0.14, size * 0.3, size * 0.05, -0.1, 0, Math.PI * 2);
-  g.fill();
-}
 
 /** 강 — 달빛 줄기가 일렁이는 검은 물 */
 export function drawRiver(g: Pen, top: number, moonX: number, time: number, strength = 1) {
@@ -139,11 +133,11 @@ function cutWalk(g: Pen, art: Layers, t: number) {
   const x = W * (0.2 + 0.11 * t);
   const size = H * 0.155;
   const hand = drawPerson(g, x, H * 0.405 - size * 0.5, size, walkPose(t * 7.5), ARANG, t);
-  drawLantern(g, hand.x, hand.y, 4.2, 0.95, Math.sin(t * 7.5) * 0.15);
+  drawLantern(g, hand.x, hand.y, 6.5, 0.95, Math.sin(t * 7.5) * 0.15);
   g.restore();
 }
 
-/** 벼랑 끝 — 옆에서 본다. 강 건너를 바라보며 초롱을 든다. 발치 바위에 소똥이 번들거린다 */
+/** 벼랑 끝 — 옆에서 본다. 강 건너를 바라보며 초롱을 든다. 뒤 풀숲에 숨은 셋의 머리가 올라온다 */
 function cutEdge(g: Pen, art: Layers, t: number, length: number) {
   const u = t / length;
   g.save();
@@ -169,14 +163,37 @@ function cutEdge(g: Pen, art: Layers, t: number, length: number) {
     settle,
   );
   const x = W * 0.43;
-  drawDung(g, x + size * 0.14, feetY + size * 0.01, size * 0.1, 0.8 + Math.sin(t * 3) * 0.2);
+  drawSlick(g, x + size * 0.14, feetY + size * 0.012, size * 0.1, 0.75 + Math.sin(t * 3) * 0.25);
   drawHidingBush(g, W * 0.16, feetY, size, t, Math.max(0, 1 - Math.abs(t - RUSTLE_AT - 0.2) / 0.45));
   const hand = drawPerson(g, x, feetY - size * 0.5, size, pose, ARANG, t);
-  drawLantern(g, hand.x, hand.y, 12, 0.95, Math.sin(t * 2.2) * 0.05);
+  drawLantern(g, hand.x, hand.y, 17, 0.95, Math.sin(t * 2.2) * 0.05);
   g.restore();
 }
 
-/** 미끄러짐 — 뒤꿈치가 소똥을 밟아 앞으로 쭉 밀려 나간다. 세상이 기울고 초롱이 튄다 */
+/** 풀숲에 숨은 셋 — 서는 순서 · 키 · 누구 */
+const HIDERS: readonly { lag: number; scale: number; kind: "man" | "woman" }[] = [
+  { lag: 0, scale: 0.95, kind: "man" },
+  { lag: 0.46, scale: 0.86, kind: "woman" },
+  { lag: 0.86, scale: 0.92, kind: "man" },
+];
+
+/** 바위에 발라 둔 미끄러운 것 — 납작하게 번들거리는 얼룩. 셋의 덫이다(무엇인지는 그리지 않는다) */
+function drawSlick(g: Pen, x: number, y: number, size: number, shine: number) {
+  g.fillStyle = "#1E1007";
+  g.beginPath();
+  g.ellipse(x, y, size * 1.5, size * 0.16, 0, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = `rgba(255,226,180,${0.75 * shine})`;
+  g.beginPath();
+  g.ellipse(x + size * 0.2, y - size * 0.05, size * 0.75, size * 0.05, -0.05, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = `rgba(255,244,214,${0.9 * shine})`;
+  g.beginPath();
+  g.ellipse(x - size * 0.55, y - size * 0.02, size * 0.22, size * 0.035, 0, 0, Math.PI * 2);
+  g.fill();
+}
+
+/** 미끄러짐 — 뒤꿈치가 번들거리는 데를 밟아 앞으로 쭉 밀려 나간다. 세상이 기울고 초롱이 튄다. 풀숲의 셋이 고개를 든다 */
 function cutSlip(g: Pen, art: Layers, t: number, length: number) {
   const u = t / length;
   g.save();
@@ -201,8 +218,8 @@ function cutSlip(g: Pen, art: Layers, t: number, length: number) {
   };
   const x = W * 0.43 + slid;
   drawHidingBush(g, W * 0.16, H * 0.5, size, 3.7 + t, 0.5 + u * 0.5);
-  drawDung(g, W * 0.43 + size * 0.14, H * 0.5 + size * 0.01, size * 0.1, 0.5);
-  // 뭉개진 똥이 뒤꿈치를 따라 번진다
+  drawSlick(g, W * 0.43 + size * 0.14, H * 0.5 + size * 0.012, size * 0.1, 0.6);
+  // 밟힌 자리가 뒤꿈치를 따라 길게 번진다
   g.fillStyle = "rgba(30,16,7,0.8)";
   g.beginPath();
   g.ellipse(
@@ -218,7 +235,7 @@ function cutSlip(g: Pen, art: Layers, t: number, length: number) {
   const hand = drawPerson(g, x, feetY - size * 0.5, size, pose, ARANG, t);
   // 초롱이 손을 떠나 날아오른다
   const fly = smooth((u - 0.45) / 0.55);
-  drawLantern(g, hand.x + fly * size * 0.3, hand.y - fly * size * 0.25, 12, 0.95, -fly * 1.4);
+  drawLantern(g, hand.x + fly * size * 0.3, hand.y - fly * size * 0.25, 17, 0.95, -fly * 1.4);
   // 돌가루
   for (let k = 0; k < 8; k++) {
     const age = u * (0.8 + hash(k) * 0.6);
@@ -236,86 +253,63 @@ function cutSlip(g: Pen, art: Layers, t: number, length: number) {
   g.restore();
 }
 
-/** 벼랑 위 풀숲 — 셋이 숨은 덤불. shake 가 크면 거세게 흔들리고 머리 둘이 살짝 비친다 */
+/**
+ * 벼랑 위 풀숲 — 셋이 숨은 덤불. shake 가 크면 거세게 흔들리고, 풀 위로 머리와 어깨 셋이 올라온다.
+ * 11/11 독해 시험: 전에는 풀 끝 위에 뜬 동그라미 둘이라 「점 두 개 · 부들 이삭」으로 읽혔다. 상투 · 댕기 · 어깨선을 넣어 사람으로 읽히게 한다
+ */
 function drawHidingBush(g: Pen, x: number, baseY: number, size: number, time: number, shake: number) {
   g.save();
   const sway = Math.sin(time * 2.1) * 0.06 + Math.sin(time * 23) * 0.22 * shake;
+  const peek = smooth(shake / 0.6);
+  // 숨은 셋 — 풀 뒤에 먼저 그린다(가슴 아래는 풀이 가린다)
+  for (const [dx, h, kind] of [
+    [-0.2, 0.42, "man"],
+    [0.02, 0.38, "woman"],
+    [0.22, 0.44, "man"],
+  ] as const) {
+    const hx = x + dx * size;
+    const hy = baseY - size * (h + peek * 0.09);
+    const r = size * 0.058;
+    g.fillStyle = INK;
+    // 어깨 · 목
+    g.beginPath();
+    g.moveTo(hx - r * 2.6, hy + r * 3.4);
+    g.quadraticCurveTo(hx - r * 2.2, hy + r * 1.3, hx - r * 0.6, hy + r * 1.0);
+    g.lineTo(hx + r * 0.6, hy + r * 1.0);
+    g.quadraticCurveTo(hx + r * 2.2, hy + r * 1.3, hx + r * 2.6, hy + r * 3.4);
+    g.closePath();
+    g.fill();
+    // 머리
+    g.beginPath();
+    g.ellipse(hx, hy, r, r * 1.15, 0, 0, Math.PI * 2);
+    g.fill();
+    if (kind === "man") {
+      // 상투
+      g.beginPath();
+      g.ellipse(hx - r * 0.1, hy - r * 1.35, r * 0.42, r * 0.5, 0, 0, Math.PI * 2);
+      g.fill();
+    } else {
+      // 땋은 머리 — 어깨 뒤로
+      g.beginPath();
+      g.ellipse(hx - r * 0.9, hy + r * 1.3, r * 0.4, r * 1.5, 0.25, 0, Math.PI * 2);
+      g.fill();
+    }
+    // 달빛 드는 쪽 윤곽 — 얼굴이 벼랑 쪽(오른쪽)을 본다
+    g.strokeStyle = RIM;
+    g.lineWidth = Math.max(1, size * 0.006);
+    g.beginPath();
+    g.ellipse(hx, hy, r, r * 1.15, 0, -1.1, 1.0);
+    g.stroke();
+  }
   g.translate(x, baseY);
   g.transform(1, 0, sway, 1, 0, 0);
   g.translate(-x, -baseY);
-  drawGrass(g, x - size * 0.2, baseY + 2, size * 0.78, 26, 5, time);
-  drawGrass(g, x + size * 0.25, baseY + 2, size * 0.7, 22, 13, time);
-  const peek = smooth(shake / 0.6) * (1 - smooth((shake - 0.85) / 0.15));
-  g.fillStyle = INK;
-  for (const [dx, h] of [
-    [-0.12, 0.66],
-    [0.14, 0.7],
-  ] as const) {
-    g.beginPath();
-    g.ellipse(x + dx * size, baseY - size * h - peek * size * 0.05, size * 0.045, size * 0.05, 0, 0, Math.PI * 2);
-    g.fill();
-  }
+  drawGrass(g, x - size * 0.2, baseY + 2, size * 0.5, 26, 5, time);
+  drawGrass(g, x + size * 0.25, baseY + 2, size * 0.46, 22, 13, time);
   g.restore();
 }
 
-/** 손이 뻗어 나온다 — 풀숲에서 팔 셋이 벼랑 끝으로 급히 뻗는다. 손가락을 벌린 채. reach 0~1 */
-function drawReachingArms(
-  g: Pen,
-  fromX: number,
-  fromY: number,
-  toX: number,
-  toY: number,
-  size: number,
-  reach: number,
-  time: number,
-) {
-  const arms: [number, number, number][] = [
-    [-0.08, -0.06, 0],
-    [0.1, 0.02, 0.08],
-    [-0.22, 0.1, 0.16],
-  ];
-  for (const [ox, oy, delay] of arms) {
-    const r = smooth((reach - delay) / (1 - delay));
-    if (r <= 0) continue;
-    const sx = fromX + ox * size;
-    const sy = fromY + oy * size;
-    const ex = sx + (toX - sx) * (0.55 + 0.45 * r) + Math.sin(time * 30) * 3 * (1 - r);
-    const ey = sy + (toY - sy) * (0.55 + 0.45 * r);
-    const dx = ex - sx;
-    const dy = ey - sy;
-    const len = Math.hypot(dx, dy);
-    const angle = Math.atan2(dy, dx);
-    g.fillStyle = INK;
-    g.strokeStyle = INK;
-    g.lineCap = "round";
-    const elbowX = sx + dx * 0.5;
-    const elbowY = sy + dy * 0.5 - len * (0.28 - r * 0.14);
-    g.lineWidth = size * 0.13;
-    g.beginPath();
-    g.moveTo(sx, sy);
-    g.lineTo(elbowX, elbowY);
-    g.stroke();
-    g.lineWidth = size * 0.095;
-    g.beginPath();
-    g.moveTo(elbowX, elbowY);
-    g.lineTo(ex, ey);
-    g.stroke();
-    g.beginPath();
-    g.ellipse(ex, ey, size * 0.055, size * 0.042, angle, 0, Math.PI * 2);
-    g.fill();
-    g.lineWidth = size * 0.022;
-    for (let f = 0; f < 5; f++) {
-      const spread = (f - 2) * 0.28 * r;
-      const length = size * (0.075 + (f === 2 ? 0.015 : 0) - (f === 0 ? 0.02 : 0));
-      g.beginPath();
-      g.moveTo(ex, ey);
-      g.lineTo(ex + Math.cos(angle + spread) * length, ey + Math.sin(angle + spread) * length);
-      g.stroke();
-    }
-  }
-}
-
-/** 손 — 미끄러진 몸은 벌써 벼랑 밖으로 넘어가고, 풀숲에서 놀란 손들이 뻗어 나오지만 닿지 않는다 */
+/** 넘어감 — 미끄러진 몸이 벼랑 밖으로 넘어간다. 풀숲의 셋이 일어나 걸어 나오며 지켜본다(손을 대지 않는다 · 붙잡지도 않는다) */
 function cutHands(g: Pen, art: Layers, t: number, length: number) {
   const u = t / length;
   g.save();
@@ -325,6 +319,29 @@ function cutHands(g: Pen, art: Layers, t: number, length: number) {
   g.drawImage(art.cliffSide, 0, 0);
   const size = H * 0.4;
   const feetY = H * 0.5;
+  drawSlick(g, W * 0.43 + size * 0.14, feetY + size * 0.012, size * 0.1, 0.5);
+  g.fillStyle = "rgba(30,16,7,0.8)";
+  g.beginPath();
+  g.ellipse(W * 0.43 + size * 0.29, feetY + size * 0.015, size * 0.16, size * 0.012, 0, 0, Math.PI * 2);
+  g.fill();
+  // 셋 — 풀숲에서 일어나 천천히 걸어 나온다. 팔은 내린 채, 고개만 벼랑 끝을 향한다
+  const out = smooth(u / 0.7);
+  drawGrass(g, W * 0.16 - size * 0.2, feetY + 2, size * 0.5, 26, 5, 4.3 + t);
+  drawGrass(g, W * 0.16 + size * 0.25, feetY + 2, size * 0.46, 22, 13, 4.3 + t);
+  for (const { lag, scale, kind } of [...HIDERS].reverse()) {
+    const pose = mixPose(STAND, walkPose(t * 5 + lag * 4), 0.6 * (1 - smooth((u - 0.6) / 0.3)));
+    pose.arms = { back: [0.2, 0.3], front: [0.25, 0.4] };
+    pose.head = 0.12;
+    drawPerson(
+      g,
+      lerp(W * 0.19, W * 0.3, out) - size * lag * 0.42,
+      feetY - size * scale * (0.34 + 0.16 * out),
+      size * scale,
+      pose,
+      { kind, facing: 1, rim: 1 },
+      t,
+    );
+  }
   const fall = u * u;
   drawPerson(
     g,
@@ -336,74 +353,54 @@ function cutHands(g: Pen, art: Layers, t: number, length: number) {
     t,
     0.2 + u * 0.9,
   );
-  drawLantern(g, W * 0.43 + size * 0.6 + u * size * 0.3, feetY - size * 0.9 + u * size * 0.5, 12, 0.95, -1.4 - u * 2);
-  // 풀숲에서 몸을 반쯤 일으킨 셋 — 어깨까지만 풀 위로
-  const rise = smooth(u / 0.4);
-  for (const [dx, scale, kind] of [
-    [-0.12, 0.9, "man"],
-    [0.1, 0.85, "woman"],
-    [-0.02, 0.95, "man"],
-  ] as const) {
-    const figure: Figure = { kind, facing: 1, rim: 1 };
-    const pose: Pose = {
-      ...STAND,
-      torso: 0.55,
-      head: -0.1,
-      arms: STAND.arms,
-      legs: { back: [-0.9, 0.9], front: [0.8, 1.5] },
-    };
-    drawPerson(g, W * 0.18 + dx * size, feetY - size * scale * 0.2 - rise * size * 0.12, size * scale, pose, figure, t);
-  }
-  drawHidingBush(g, W * 0.16, feetY, size, 4.3 + t, 0.9);
-  const reach = smooth(u / 0.5);
-  const armFrom = [W * 0.21, feetY - size * 0.62] as const;
-  const armTo = [W * 0.21 + size * 0.62, feetY - size * 0.4] as const;
-  for (let k = 3; k >= 1; k--) {
-    g.save();
-    g.globalAlpha = 0.14;
-    drawReachingArms(g, armFrom[0], armFrom[1], armTo[0], armTo[1], size, Math.max(0, reach - k * 0.12), t);
-    g.restore();
-  }
-  drawReachingArms(g, armFrom[0], armFrom[1], armTo[0], armTo[1], size, reach, t);
+  drawLantern(g, W * 0.43 + size * 0.6 + u * size * 0.3, feetY - size * 0.9 + u * size * 0.5, 17, 0.95, -1.4 - u * 2);
   g.restore();
 }
 
-/** 달아남 — 낮은 뒷모습. 셋이 풀을 헤치고 달빛 쪽으로 달아난다. 아주 잠깐 */
+/**
+ * 달아남 — 물소리를 듣고 셋이 달을 등지고(벼랑 반대쪽, 화면 왼쪽으로) 풀을 헤치며 달아난다. 맨 뒤 하나가 벼랑 쪽을 돌아본다.
+ * 11/11 독해 시험: 전에는 셋이 달 쪽(오른쪽)으로 팔을 뻗고 달려 「떨어진 쪽으로 뒤따라 뛰어든다」로 읽혔다
+ */
 function cutFlee(g: Pen, art: Layers, t: number, length: number) {
   const u = t / length;
   g.save();
-  camera(g, 1.06 + u * 0.03, W * 0.01 * u, 0);
+  camera(g, 1.06 + u * 0.03, W * 0.015 * u, 0);
   g.drawImage(art.skyWide, 0, 0);
-  g.filter = "blur(1.5px)";
-  g.drawImage(art.cliffWide, -W * 0.1, H * 0.02);
-  g.filter = "none";
   g.restore();
+  // 벼랑 끝은 화면 오른쪽 밖 — 여기는 벼랑 위 풀밭이다. 땅이 왼쪽으로 낮아진다
   g.fillStyle = INK;
   g.beginPath();
   g.moveTo(0, H);
-  g.lineTo(0, H * 0.72);
-  g.quadraticCurveTo(W * 0.5, H * 0.62, W, H * 0.7);
+  g.lineTo(0, H * 0.76);
+  g.quadraticCurveTo(W * 0.5, H * 0.66, W, H * 0.6);
   g.lineTo(W, H);
   g.closePath();
   g.fill();
-  const runners: { x: number; depth: number; figure: Figure; phase: number }[] = [
-    { x: W * 0.38, depth: 0.0, figure: { kind: "man", facing: 1, rim: 1 }, phase: 0.2 },
-    { x: W * 0.52, depth: 0.25, figure: { kind: "woman", facing: 1, rim: 1 }, phase: 2.1 },
-    { x: W * 0.64, depth: 0.12, figure: { kind: "man", facing: 1, rim: 1 }, phase: 4.0 },
+  const runners: { x: number; depth: number; figure: Figure; phase: number; lookBack: number }[] = [
+    { x: W * 0.36, depth: 0.25, figure: { kind: "man", facing: -1, rim: 1 }, phase: 0.2, lookBack: 0 },
+    { x: W * 0.52, depth: 0.12, figure: { kind: "woman", facing: -1, rim: 1 }, phase: 2.1, lookBack: 0 },
+    { x: W * 0.7, depth: 0.0, figure: { kind: "man", facing: -1, rim: 1 }, phase: 4.0, lookBack: 1 },
   ];
-  for (const { x, depth, figure, phase } of runners) {
-    const gone = u * (0.9 - depth * 0.5);
-    const size = H * (0.5 - depth * 0.12) * (1 - gone * 0.55);
-    const stride = t * 13 + phase;
+  for (const { x, depth, figure, phase, lookBack } of runners) {
+    const size = H * (0.46 - depth * 0.1);
+    const stride = t * 17 + phase;
     const pose = walkPose(stride);
-    pose.torso = 0.3;
-    pose.legs.back[0] *= 1.6;
-    pose.legs.front[0] *= 1.6;
-    pose.arms.back[0] -= 0.8;
-    pose.arms.front = [0.9 + Math.sin(stride) * 0.6, 1.9];
+    // 달아나는 몸 — 깊이 숙이고 보폭을 크게, 팔꿈치를 굽혀 주먹을 가슴께에서 젓는다.
+    // 팔이 앞으로 펴지면 「미는 자세로 굳어 있다」로 읽혔다(11/11 독해 시험 3회차)
+    pose.torso = 0.52;
+    pose.legs.back[0] *= 2.0;
+    pose.legs.front[0] *= 2.0;
+    pose.legs.back[1] += 0.5;
+    const swing = Math.sin(stride) * 0.7;
+    pose.arms.back = [-0.1 - swing, 1.5 - swing];
+    pose.arms.front = [-0.1 + swing, 1.5 + swing];
+    // 맨 뒤 사람은 벼랑 쪽(뒤)을 돌아본다 — 달리던 고개가 잠깐 뒤로 젖혀진다
+    pose.head = lookBack ? -0.3 - 0.75 * smooth((u - 0.15) / 0.3) * (1 - smooth((u - 0.7) / 0.25)) : 0.1;
     const bob = Math.abs(Math.sin(stride)) * size * 0.03;
-    const y = H * (0.78 - depth * 0.08) - gone * H * 0.22 - size * 0.5 + bob;
-    drawPerson(g, x + (x - W * 0.5) * gone * 0.4, y, size, pose, figure, t, 0.08);
+    const run = u * W * (0.52 + depth * 0.1);
+    // 발이 비탈(왼쪽이 낮다)에 닿게
+    const y = H * (0.775 - 0.15 * ((x - run) / W)) - size * 0.5 + bob;
+    drawPerson(g, x - run, y, size, pose, figure, t, -0.08);
   }
   drawGrass(g, W * 0.1, H * 1.0, H * 0.4, 30, 3, t);
   drawGrass(g, W * 0.42, H * 1.02, H * 0.36, 30, 9, t);
@@ -432,24 +429,44 @@ function cutFall(g: Pen, art: Layers, t: number, length: number) {
   drawRiver(g, H * 1.55, W * 0.66, 4 + t, 0.7);
   g.drawImage(art.cliffSide, 0, 0);
   const size = H * 0.4;
-  for (let k = 6; k >= 1; k--) {
-    const back = u - k * 0.04;
+  // 벼랑 끝의 셋 — 다가와 아래를 내려다본다. 이 컷에 셋이 없으면 「혼자 뛰어내린다」로 읽혔다(11/11 독해 시험 3회차)
+  for (const { lag, scale, kind } of [...HIDERS].reverse()) {
+    const pose: Pose = {
+      ...STAND,
+      torso: 0.42,
+      head: 0.45,
+      arms: { back: [0.4, 0.7], front: [0.7, 1.0] },
+      legs: { back: [-0.25, 0.1], front: [0.3, 0.35] },
+    };
+    drawPerson(
+      g,
+      W * 0.43 - size * (0.02 + lag * 0.55),
+      H * 0.5 - size * scale * 0.5,
+      size * scale,
+      pose,
+      { kind, facing: 1, rim: 1 },
+      t,
+    );
+  }
+  // 지나온 궤적 — 옅게 두 장만(여섯 장을 겹치니 달 앞의 「회색 얼룩」으로 보였다)
+  for (let k = 2; k >= 1; k--) {
+    const back = u - k * 0.05;
     if (back < 0) continue;
     g.save();
-    g.globalAlpha = 0.11 * (1 - k / 7);
+    g.globalAlpha = 0.07;
     drawPerson(g, bodyX(back), bodyY(back), size, fallingPose(back), { ...ARANG, lantern: false }, t, 0.3 + back * 2.4);
     g.restore();
   }
   const lx = W * 0.5 + Math.sin(u * 4) * 20;
   const ly = H * 0.4 + u * u * H * 1.0;
-  for (let k = 0; k < 18; k++) {
-    const back = k / 18;
-    g.fillStyle = `rgba(255,${190 - back * 90},90,${(1 - back) * 0.85})`;
+  for (let k = 0; k < 8; k++) {
+    const back = k / 8;
+    g.fillStyle = `rgba(255,${190 - back * 90},90,${(1 - back) * 0.5})`;
     g.beginPath();
     g.arc(lx + Math.sin(k * 3 + t * 9) * back * 30, ly - back * 170, (1 - back) * 3.2, 0, Math.PI * 2);
     g.fill();
   }
-  drawLantern(g, lx, ly, 10, 0.95, u * 3);
+  drawLantern(g, lx, ly, 15, 0.95, u * 3);
   drawPerson(g, bodyX(u), bodyY(u), size, fallingPose(u), { ...ARANG, lantern: false }, t, 0.3 + u * 2.4);
   g.restore();
 }
@@ -502,7 +519,13 @@ function cutTear(g: Pen, art: Layers, t: number, length: number) {
   g.quadraticCurveTo(-0.5, 0.4, -0.38, 0.05);
   g.quadraticCurveTo(-0.48, -0.3, -0.3, -0.5);
   g.quadraticCurveTo(-0.15, -0.6, 0.02, -0.56);
-  for (const [x, y] of profile) g.lineTo(x, y);
+  // 꺾은선 그대로면 턱 · 입이 톱니처럼 각진다(11/11 독해 시험 「돌 조각상」) — 점과 점 사이를 둥글게 잇는다
+  for (let i = 0; i < profile.length - 1; i++) {
+    const [px, py] = profile[i];
+    const [qx, qy] = profile[i + 1];
+    g.quadraticCurveTo(px, py, (px + qx) / 2, (py + qy) / 2);
+  }
+  g.lineTo(profile[profile.length - 1][0], profile[profile.length - 1][1]);
   g.closePath();
   g.fill();
   g.beginPath();
@@ -513,17 +536,18 @@ function cutTear(g: Pen, art: Layers, t: number, length: number) {
   g.lineCap = "round";
   g.lineJoin = "round";
   g.beginPath();
-  profile.slice(0, 15).forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+  g.moveTo(profile[0][0], profile[0][1]);
+  for (let i = 0; i < 14; i++) {
+    const [px, py] = profile[i];
+    const [qx, qy] = profile[i + 1];
+    g.quadraticCurveTo(px, py, (px + qx) / 2, (py + qy) / 2);
+  }
   g.stroke();
-  g.lineWidth = 0.014;
+  // 감은 눈 — 아래로 휜 한 줄(속눈썹). 눈썹 줄은 뺐다(줄 셋이 「아가미 · 주름」으로 읽혔다)
+  g.lineWidth = 0.012;
   g.beginPath();
-  g.moveTo(0.1, -0.15);
-  g.quadraticCurveTo(0.18, -0.2 + u * 0.03, 0.245, -0.14);
-  g.stroke();
-  g.lineWidth = 0.016;
-  g.beginPath();
-  g.moveTo(0.08, -0.27);
-  g.quadraticCurveTo(0.18, -0.32, 0.265, -0.27);
+  g.moveTo(0.12, -0.15);
+  g.quadraticCurveTo(0.19, -0.105, 0.25, -0.14);
   g.stroke();
   g.restore();
   // 눈물이 떠나는 자리 — 돌린 얼굴 좌표를 화면으로
@@ -532,12 +556,13 @@ function cutTear(g: Pen, art: Layers, t: number, length: number) {
   // 눈물 — 눈가에서 떨어져 나와 떨어지는 몸보다 느리게, 위로 흘러간다
   const born = smooth((u - 0.15) / 0.2);
   if (born > 0) {
-    const tx = eyeX + (u - 0.15) * size * 0.25;
-    const ty = eyeY - smooth((u - 0.2) / 0.8) * size * 0.7;
-    const r = size * 0.028 * born;
+    // 눈가에 맺혀 커진 뒤(앞 절반) 떨어져 나와 얼굴 곁에서 천천히 떠오른다 — 멀리 가면 「놓친 물건의 반짝임」으로 읽혔다
+    const tx = eyeX + smooth((u - 0.45) / 0.55) * size * 0.1;
+    const ty = eyeY - smooth((u - 0.45) / 0.55) * size * 0.3;
+    const r = size * 0.04 * born;
     const glow = g.createRadialGradient(tx, ty, 0, tx, ty, r * 6);
-    glow.addColorStop(0, "rgba(220,240,255,0.9)");
-    glow.addColorStop(0.3, "rgba(160,210,255,0.35)");
+    glow.addColorStop(0, "rgba(220,240,255,0.4)");
+    glow.addColorStop(0.3, "rgba(160,210,255,0.08)");
     glow.addColorStop(1, "rgba(120,180,255,0)");
     g.fillStyle = glow;
     g.fillRect(tx - r * 6, ty - r * 6, r * 12, r * 12);
@@ -551,16 +576,7 @@ function cutTear(g: Pen, art: Layers, t: number, length: number) {
     g.beginPath();
     g.ellipse(tx - r * 0.3, ty - r * 0.4, r * 0.25, r * 0.4, 0.3, 0, Math.PI * 2);
     g.fill();
-    // 반짝임
-    g.strokeStyle = "rgba(255,255,255,0.75)";
-    g.lineWidth = 1.2;
-    const spark = r * 4 * Math.max(0, Math.sin(u * 9));
-    g.beginPath();
-    g.moveTo(tx - spark, ty);
-    g.lineTo(tx + spark, ty);
-    g.moveTo(tx, ty - spark);
-    g.lineTo(tx, ty + spark);
-    g.stroke();
+    // 별 모양 반짝임은 뺐다 — 눈이 번쩍 빛나 「각성 · 변신」으로 읽혔다(11/11 독해 시험 3회차). 물방울의 흰 점만 남긴다
   }
 }
 
@@ -575,11 +591,12 @@ function cutImpact(g: Pen, art: Layers, t: number) {
   const fade = 1 - smooth((t - 0.45) / 0.5);
   // 물기둥 — 둥근 안개 덩이가 위로 겹겹이 솟아 기둥을 이룬다. 가운데가 가장 높고, 옆은 늦게 낮게
   const plumes: [number, number, number, number][] = [
-    [0, 0.6, 0.065, 0],
-    [-0.07, 0.38, 0.035, 0.05],
-    [0.08, 0.42, 0.035, 0.07],
-    [-0.14, 0.2, 0.028, 0.12],
-    [0.15, 0.22, 0.028, 0.1],
+    // 가운데 한 덩이로 뭉친다 — 따로 선 기둥 다섯은 「촛불 · 혼불」로 읽혔다(11/11 독해 시험)
+    [0, 0.5, 0.085, 0],
+    [-0.045, 0.34, 0.06, 0.04],
+    [0.05, 0.37, 0.06, 0.06],
+    [-0.09, 0.16, 0.05, 0.1],
+    [0.095, 0.18, 0.05, 0.09],
   ];
   for (const [dx, tall, wide, delay] of plumes) {
     const grow = 1 - (1 - Math.min(1, Math.max(0, t - delay) / 0.5)) ** 3;
@@ -674,7 +691,7 @@ function cutAfter(g: Pen, art: Layers, t: number, length: number) {
   g.save();
   g.translate(cx + W * 0.06 + t * 8, waterY + 14 + bob);
   g.rotate(1.25 + Math.sin(t * 1.4) * 0.08);
-  drawLantern(g, 0, 0, 9, light * 0.9);
+  drawLantern(g, 0, 0, 14, light * 0.9);
   g.restore();
   // 초롱이 물에 비친 빛
   g.fillStyle = `rgba(255,190,120,${0.3 * light})`;
@@ -695,8 +712,12 @@ export function createFilmScreen(width: number, height: number) {
   const material = new THREE.MeshBasicMaterial({
     map: texture,
     transparent: true,
-    depthWrite: false,
-    depthTest: false,
+    // 깊이는 쓴다 — 화면의 먹선(만화 효과)은 깊이 차이로 긋는데, 안 쓰면 판 뒤 나무 · 바위의 선이 영상 위에 비쳤다
+    // (11/11 독해 시험 「달 위의 낙서 같은 잡선」). 늘 맨 위에 그리는 것은 그대로다 — 깊이 검사를 끄면 깊이도 안 써지므로
+    // 「늘 통과」로 켜 둔다
+    depthWrite: true,
+    depthTest: true,
+    depthFunc: THREE.AlwaysDepth,
     fog: false,
     toneMapped: false,
     side: THREE.DoubleSide,
@@ -798,9 +819,9 @@ export function createShadowPlay() {
     else if (time < CUT.hands) cutSlip(g, art, time - CUT.slip, CUT.hands - CUT.slip);
     else if (time < CUT.fall) cutHands(g, art, time - CUT.hands, CUT.fall - CUT.hands);
     else if (time < CUT.tear) cutFall(g, art, time - CUT.fall, CUT.tear - CUT.fall);
-    else if (time < CUT.flee) cutTear(g, art, time - CUT.tear, CUT.flee - CUT.tear);
-    else if (time < CUT.impact) cutFlee(g, art, time - CUT.flee, CUT.impact - CUT.flee);
-    else if (time < CUT.after) cutImpact(g, art, time - CUT.impact);
+    else if (time < CUT.impact) cutTear(g, art, time - CUT.tear, CUT.impact - CUT.tear);
+    else if (time < CUT.flee) cutImpact(g, art, time - CUT.impact);
+    else if (time < CUT.after) cutFlee(g, art, time - CUT.flee, CUT.after - CUT.flee);
     else cutAfter(g, art, time - CUT.after, SHADOW_PLAY_SECONDS - CUT.after);
     g.restore();
     finishFilm(g, art.grain, time, frame, [CUT.edge, CUT.hands, CUT.fall, CUT.flee, CUT.impact]);

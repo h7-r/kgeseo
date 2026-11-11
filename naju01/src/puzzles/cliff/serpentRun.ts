@@ -11,7 +11,8 @@ import { EDGE_RIFT, FALL_SPOT, SERPENT_STONE } from "./cliffShape";
 import { floorAt } from "./riteScene";
 
 /** 몸 — 길이 · 가장 굵은 데의 반지름(미터) · 등뼈를 나눈 고리 수 · 고리 하나의 꼭짓점 수 */
-const BODY = { length: 1.75, girth: 0.034, rings: 84, sides: 12 };
+// 11/11 움직임 점검 — 밤 바위 위에서 거의 안 보였다(굵기 0.034 · 제 빛 0.32). 조금 굵게, 제 빛을 올린다
+const BODY = { length: 1.75, girth: 0.043, rings: 84, sides: 12 };
 /** 기는 빠르기(m/s) */
 const SPEED = 0.95;
 /** 굽잇길 — 좌우 너비(미터) · 한 굽이의 길이(미터) */
@@ -137,7 +138,7 @@ export function buildSerpentRun() {
     map: scales,
     emissive: new THREE.Color("#FFFFFF"),
     emissiveMap: scales,
-    emissiveIntensity: 0.32,
+    emissiveIntensity: 0.62,
   });
   const body = new THREE.Mesh(geometry, skin);
   body.frustumCulled = false;

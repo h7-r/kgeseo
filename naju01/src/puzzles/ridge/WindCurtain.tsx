@@ -20,7 +20,7 @@ import { focus } from "../../scene/immersion/focusFog";
 import { fishTrapPuzzle } from "../fishTrap/fishTrapState";
 import { pointScaleFor } from "../glowPoints";
 import { teleportPlayer } from "../cave/caveState";
-import { showNotice } from "../interaction";
+import { noticeFor } from "../interaction";
 import { inventory } from "../inventory";
 import { ritual } from "../ritual/ritualState";
 import { prewarmShaders } from "../prewarm";
@@ -28,6 +28,9 @@ import { M, groundY } from "../units";
 import { DEBRIS, SINK, buildCurtain, setPropWarmer, type Drifter } from "./curtainMesh";
 import { CURTAIN, PLATFORM, curtainPoint, isInsideCurtain } from "./ridgeShape";
 import { ridge, ridgeCarry, ridgeQuest, useRidgeStage } from "./ridgeState";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("curtain");
 
 /** 들어선 뒤 바람만 부는 시간 → 지붕이 닫히고 → 벽이 내려온다(초) */
 const WIND_ONLY = 5;
@@ -198,7 +201,7 @@ export default function WindCurtain() {
       });
       const timer = gameSetTimeout(
         () =>
-          showNotice("엇갈린 두 돌새가 그날 밤의 바람을 붙들고 있다. 둘의 눈이 한곳에 맞아야 장막이 걷힐 것 같다.", 6, {
+          showNotice("장막이 능선을 가렸다. 그 안에 돌새 두 마리가 서 있다.", 6, {
             isValid: isCurtainUp,
           }),
         6000,

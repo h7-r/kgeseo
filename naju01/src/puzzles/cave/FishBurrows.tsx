@@ -19,7 +19,7 @@ import { buildBakedRockPrototypes } from "../../models/nature";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { makeGlowTexture } from "../glowTexture";
-import { registerInteractable, showNotice } from "../interaction";
+import { interactableFor, noticeFor } from "../interaction";
 import { inventory } from "../inventory";
 import { makeToonMaterial } from "../materials";
 import { setPuzzlePanel } from "../puzzlePanel";
@@ -28,6 +28,10 @@ import AirColumn from "./AirColumn";
 import { FISH_BURROWS, floorY, guardBreathFor, stirSand, useCaveShown } from "./caveState";
 import { SPECIES, buildFishGeometry } from "./fishLooks";
 import { normalizePrototype } from "./seabed";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("burrows");
+const registerInteractable = interactableFor("burrows");
 
 /** 굴 넷 — 동쪽 벽 밑에 남북으로. 입이 서쪽(−x, 방 가운데)을 본다. 왼쪽(북)부터 피라미 · 쉬리 · 붕어 · 메기 */
 const BURROWS = [-1.5, -0.5, 0.5, 1.5].map((k) => ({ x: FISH_BURROWS.x + 0.55, z: FISH_BURROWS.z + k * 0.78 }));

@@ -18,7 +18,7 @@ import { recall, remember } from "../../save/puzzleMemory";
 import { playerPush } from "../../movement/playerPush";
 import { buildBakedRockPrototypes } from "../../models/nature";
 import { audio } from "../../scene/immersion/audio";
-import { showNotice } from "../interaction";
+import { noticeFor } from "../interaction";
 import { inventory } from "../inventory";
 import { makeToonMaterial } from "../materials";
 import { setPuzzlePanel } from "../puzzlePanel";
@@ -26,6 +26,9 @@ import { M } from "../units";
 import { FLOOR_Y, SURFACE_Y, floorY, getUnderwater, stirSand, useCaveShown } from "./caveState";
 import { SPECIES, buildFishGeometry } from "./fishLooks";
 import { normalizePrototype } from "./seabed";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("fishes");
 
 /** 돌 고리 — 은빛 떼를 몰아넣는 자리 */
 const RING = { x: 40.2, z: 65.4, radius: 1.3, need: 12, holdSeconds: 1.2 };

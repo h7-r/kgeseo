@@ -30,7 +30,7 @@ import { fishTrapPuzzle } from "../../puzzles/fishTrap/fishTrapState";
 import { isGaugeActive } from "../../puzzles/fishTrap/pullGauge";
 import { HEARTH } from "../../puzzles/fishTrap/site";
 import { isLetterOpenNow } from "../../puzzles/cliff/letters";
-import { registerInteractable, showNotice } from "../../puzzles/interaction";
+import { interactableFor, noticeFor } from "../../puzzles/interaction";
 import { setAbisaReachable } from "../../puzzles/leftBehind";
 import { isWindowHeld } from "../../puzzles/pointerHold";
 import { isPaperOpenNow } from "../../puzzles/ridge/oldPaper";
@@ -58,11 +58,15 @@ import {
 } from "./abisaLines";
 import { ActorRig } from "./actorRig";
 import { firstScenePoints } from "./firstScenePoints";
-import { writeAbisaPose, writeSerpentPose, type AbisaPose, type SerpentPose } from "./bendShader";
+import { stepFace, writeAbisaPose, writeSerpentPose, type AbisaPose, type SerpentPose } from "./bendShader";
 import { claimTalk, isTalkTaken, registerTalkInterrupter, releaseTalk, setNpcSpeech } from "./npcSpeech";
 import { isTalkPaused } from "./storyTalk";
 import { SerpentEcho } from "./serpentEcho";
 import { betaSignals } from "../../beta/betaSignals";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("abisa");
+const registerInteractable = interactableFor("abisa");
 
 /** 저장 키 — 앞서 시험한 인사 저장(abisaGreeted · abisaGuided)은 새 의뢰를 들은 것으로 치지 않는다(Codex 04) */
 const SERPENT_DRIVEN_KEY = "firstScene.serpentDriven";
@@ -106,7 +110,10 @@ const ECHO = {
 /** 구렁이가 물러나 들어가는 물가(미터) — 이 일대는 z 45 부터 물로 내려간다 */
 const RETREAT_TO = { x: 22.6, z: 46.4 };
 /** 물러나기 — 움찔(초) · 미끄러져 가라앉기 끝(초) · 첨벙(초) · 가라앉는 깊이(모형 공간, 키 1 규약 · 구렁이 지름 2.6 m 기준) */
-const RETREAT = { recoil: 0.45, end: 2.5, splash: 2.0, sink: 0.62 };
+// 11/11 움직임 점검 — 2.5초에 통째로 밀려가 「미끄러지는 조각상」으로 보였다. 조금 길게(3.4초) + 몸 물결로 기어가게
+const RETREAT = { recoil: 0.45, end: 3.4, splash: 2.7, sink: 0.62 };
+/** 구렁이 몸 물결 — 가만히 있을 때 · 기어갈 때 세기(모형 공간), 흐르는 빠르기(라디안/초) */
+const SERPENT_WAVE = { idle: 0.004, crawl: 0.034, idleRate: 0.9, crawlRate: 9 };
 
 /** 시험 상한(Codex 03 — 승인값 아님). 라디안 */
 const LIMITS = { headYaw: 0.7, torsoYaw: 0.3, headUp: -0.25, headDown: 0.35, bow: 0.28, snakeYaw: 0.6 };
@@ -130,6 +137,10 @@ const SNAKE_HEAD = new THREE.Vector3(0.24, 0.5, 0.4);
 const smooth = (current: number, target: number, rate: number, dt: number) =>
   current + (target - current) * (1 - Math.exp(-rate * dt));
 const clamp = THREE.MathUtils.clamp;
+/** 각을 −π~π 로 */
+const wrapAngle = (angle: number) => Math.atan2(Math.sin(angle), Math.cos(angle));
+/** 몸 돌리기 — 고개 · 허리에 남기는 각(라디안) · 돌리는 빠르기 · 제자리로 돌아오는 빠르기 */
+const BODY_TURN = { comfort: 0.3, turnRate: 2.4, returnRate: 0.9 };
 const ease = (t: number) => THREE.MathUtils.smootherstep(clamp(t, 0, 1), 0, 1);
 /** 0 → 1(올림) → 머묾 → 0(내림) */
 const envelope = (t: number, rise: number, hold: number, fall: number) =>
@@ -166,6 +177,9 @@ function createBrain() {
     headPitch: 0,
     torsoYaw: 0,
     bow: 0,
+    bodyYaw: 0,
+    blink: 0,
+    mouth: 0,
     armL: new THREE.Vector4(1, 0, 0, 0),
     armR: new THREE.Vector4(1, 0, 0, 0),
   };
@@ -175,6 +189,8 @@ function createBrain() {
     lift: 0,
     tongue: 0,
     shift: new THREE.Vector3(),
+    wave: 0,
+    wavePhase: 0,
     isGone: false,
   };
   const state = {
@@ -425,6 +441,9 @@ function updateSerpent(brain: Brain, rig: ActorRig, eye: THREE.Vector3, dt: numb
     const go = ease((t - RETREAT.recoil) / (RETREAT.end - RETREAT.recoil));
     serpent.lift = 0.45 * recoil - 0.25 * go;
     serpent.yaw = Math.sin(t * 9) * 0.22 * go;
+    // 가는 동안 몸 물결 — 출발할 때 커지고 물에 잠기며 잦아든다
+    serpent.wave = SERPENT_WAVE.idle + SERPENT_WAVE.crawl * Math.sin(Math.PI * clamp(go, 0, 1)) ** 0.6;
+    serpent.wavePhase += dt * SERPENT_WAVE.crawlRate;
     serpent.tongue = t < 0.4 ? 1 : 0;
     serpent.shift.copy(state.retreatShift).multiplyScalar(go);
     serpent.shift.y = -RETREAT.sink * ease((t - RETREAT.recoil - 0.3) / (RETREAT.end - RETREAT.recoil - 0.3));
@@ -442,6 +461,8 @@ function updateSerpent(brain: Brain, rig: ActorRig, eye: THREE.Vector3, dt: numb
   }
   serpent.isGone = false;
   serpent.shift.set(0, 0, 0);
+  serpent.wave = SERPENT_WAVE.idle;
+  serpent.wavePhase += dt * SERPENT_WAVE.idleRate;
 
   const wantsAlert = state.serpentDistance < 7 ? 1 : 0;
   firstScenePoints.isSerpentClose = wantsAlert === 1;
@@ -529,6 +550,8 @@ function updateEcho(brain: Brain, echo: SerpentEcho, eye: THREE.Vector3, abisaAt
       pose.shift.set(0, -0.55 * (1 - t), 0.15 * (1 - t));
       pose.lift = -0.3 + 0.4 * t;
       pose.yaw = Math.sin(state.echoTime * 5) * 0.12 * (1 - t);
+      pose.wave = SERPENT_WAVE.idle + SERPENT_WAVE.crawl * 0.7 * (1 - t);
+      pose.wavePhase += dt * SERPENT_WAVE.crawlRate * 0.7;
       if (state.echoTime >= ECHO.emerge) setPhase("staying");
       return;
     }
@@ -538,6 +561,8 @@ function updateEcho(brain: Brain, echo: SerpentEcho, eye: THREE.Vector3, abisaAt
       const sway = Math.sin(state.time * 0.6 + 0.4) * 0.08 + Math.sin(state.time * 0.27) * 0.05;
       pose.yaw = sway;
       pose.lift = 0.1 + Math.sin(state.time * 0.45) * 0.02;
+      pose.wave = SERPENT_WAVE.idle;
+      pose.wavePhase += dt * SERPENT_WAVE.idleRate;
       // 혀 — 가끔
       if (Math.sin(state.time * 0.9) > 0.985) pose.tongue = 1;
       const isTalking = !!state.talk;
@@ -552,6 +577,8 @@ function updateEcho(brain: Brain, echo: SerpentEcho, eye: THREE.Vector3, abisaAt
       pose.isGone = false;
       pose.lift = 0.1 + 0.3 * recoil - 0.35 * go;
       pose.yaw = Math.sin(t * 9) * 0.18 * go;
+      pose.wave = SERPENT_WAVE.idle + SERPENT_WAVE.crawl * 0.7 * clamp(go, 0, 1);
+      pose.wavePhase += dt * SERPENT_WAVE.crawlRate * 0.7;
       pose.shift.set(0, -0.6 * go, 0.25 * go);
       if (t >= ECHO.dive) {
         pose.isGone = true;
@@ -587,20 +614,41 @@ function updateAbisa(brain: Brain, rig: ActorRig, eye: THREE.Vector3, camera: TH
   // 구렁이가 있거나 막 물러난 동안은 그쪽을 가만히 지켜본다(두려워하지 않는다 — Codex 04)
   const isWatchingSerpent = !state.isSerpentDriven || isRetreating || state.afterRetreat < 1.4;
 
+  // 몸 돌리기 — 말하는 동안은 듣는 사람 쪽으로 몸을 돌린다. 고개 · 허리로 편하게 닿는 만큼은 남긴다.
+  // 전에는 옆 · 뒤에서 말을 걸면 몸은 딴 데를 본 채 말했다(11/11 움직임 점검). 말이 끝나면 천천히 제자리로
+  const toPlayerYaw = lookAngles(rig, eye).yaw;
+  const wantBody = talk ? Math.sign(toPlayerYaw) * Math.max(0, Math.abs(toPlayerYaw) - BODY_TURN.comfort) : 0;
+  // 가까운 쪽으로 돈다 — 등 뒤(±180°) 경계를 넘나들어도 한 바퀴 되감지 않게(Codex 리뷰 2)
+  abisa.bodyYaw = wrapAngle(
+    smooth(
+      abisa.bodyYaw,
+      abisa.bodyYaw + wrapAngle(wantBody - abisa.bodyYaw),
+      talk ? BODY_TURN.turnRate : BODY_TURN.returnRate,
+      dt,
+    ),
+  );
+
   // 바라볼 곳 — 구렁이(사라진 자리) · 대사가 가리키는 곳 · 가까운 플레이어 · 아니면 천천히 둘러보기
   let yaw = Math.sin(state.time * 0.23) * 0.25 + Math.sin(state.time * 0.11 + 0.7) * 0.12;
   let pitch = 0.05;
   if (isWatchingSerpent && !talk) {
     ({ yaw, pitch } = lookAngles(rig, state.isSerpentDriven ? state.goneAt : tmp.snakeHead));
+    yaw = wrapAngle(yaw - abisa.bodyYaw);
   } else if (line?.lookAt) {
     ({ yaw, pitch } = lookAngles(rig, lookSpot(rig, line.lookAt, tmp.target, brain)));
+    yaw = wrapAngle(yaw - abisa.bodyYaw);
   } else if (!talk && state.echoPhase === "staying" && state.abisaDistance > 6) {
     // 다시 나타난 구렁이를 가만히 바라본다(두려워하지 않는다)
     ({ yaw, pitch } = lookAngles(rig, state.echoHead));
+    yaw = wrapAngle(yaw - abisa.bodyYaw);
   } else if (state.abisaDistance < 10 || talk) {
     const look = lookAngles(rig, eye);
+    const residual = wrapAngle(look.yaw - abisa.bodyYaw);
     // 뒤쪽(110° 넘게)이면 억지로 목을 꺾지 않는다
-    if (Math.abs(look.yaw) < 1.9) ({ yaw, pitch } = look);
+    if (Math.abs(residual) < 1.9) {
+      yaw = residual;
+      pitch = look.pitch;
+    }
   }
   const limitYaw = LIMITS.headYaw + LIMITS.torsoYaw;
   state.lookYaw = smooth(state.lookYaw, clamp(yaw, -limitYaw, limitYaw), 3, dt);
@@ -608,6 +656,8 @@ function updateAbisa(brain: Brain, rig: ActorRig, eye: THREE.Vector3, camera: TH
   abisa.torsoYaw = clamp(state.lookYaw * 0.3, -LIMITS.torsoYaw, LIMITS.torsoYaw);
   abisa.headYaw = clamp(state.lookYaw - abisa.torsoYaw, -LIMITS.headYaw, LIMITS.headYaw);
   abisa.breath = 0.05 * Math.sin((state.time * Math.PI * 2) / 4.2);
+  // 입은 실제로 줄이 나오는 동안만 — 창을 열어 대화가 멈췄거나 첫 줄 전이면 다문다(Codex 리뷰 3)
+  stepFace(abisa, dt, !!talk && !talk.isPaused && !!line);
   abisa.armRest = POSE.armRest;
   // 구렁이를 지켜보는 동안은 몸이 잠깐 굳는다(흔들림을 거의 멈춘다)
   const sway = isWatchingSerpent && !talk ? 0.15 : 1;
@@ -638,7 +688,7 @@ function updateAbisa(brain: Brain, rig: ActorRig, eye: THREE.Vector3, camera: TH
     talk.gestureTime += dt;
     const lift = envelope(talk.gestureTime - 0.3, 0.7, Math.max(0.5, lineSeconds(line.text) - 2.2), 0.7);
     rig.toLocal(lookSpot(rig, line.lookAt, tmp.target, brain), tmp.local);
-    const away = Math.atan2(tmp.local.x, tmp.local.z) - abisa.torsoYaw;
+    const away = Math.atan2(tmp.local.x, tmp.local.z) - abisa.torsoYaw - abisa.bodyYaw;
     const isLeft = Math.sin(away) > 0;
     tmp.desired.set(Math.sin(away) * 0.62, -0.62, Math.cos(away) * 0.62).normalize();
     const rest = isLeft ? REST_ARM_L : REST_ARM_R;
@@ -686,7 +736,19 @@ function updateAbisa(brain: Brain, rig: ActorRig, eye: THREE.Vector3, camera: TH
 
 function writeRest(brain: Brain) {
   const { abisa, serpent } = brain;
-  Object.assign(abisa, { breath: 0, armRest: 0, swayX: 0, swayY: 0, headYaw: 0, headPitch: 0, torsoYaw: 0, bow: 0 });
+  Object.assign(abisa, {
+    breath: 0,
+    armRest: 0,
+    swayX: 0,
+    swayY: 0,
+    headYaw: 0,
+    headPitch: 0,
+    torsoYaw: 0,
+    bow: 0,
+    bodyYaw: 0,
+    blink: 0,
+    mouth: 0,
+  });
   abisa.armL.set(1, 0, 0, 0);
   abisa.armR.set(1, 0, 0, 0);
   // 편집 중엔 원래 모형 그대로(혀도 내민 채) 보인다 — 쫓아낸 뒤라도 자리를 잡을 수 있게
@@ -722,7 +784,10 @@ export default function FirstSceneActors({ enabled, groundY }: FirstSceneActorsP
   const abisaHead = useMemo(() => new THREE.Vector3(0, -1e6, 0), []);
   const serpentHead = useMemo(() => new THREE.Vector3(0, -1e6, 0), []);
   const frame = useMemo(() => ({ count: 0 }), []);
-  const lastPose = useMemo(() => ({ headYaw: 0, torsoYaw: 0, bow: 0, snakeYaw: 0, snakeLift: 0, shift: 0 }), []);
+  const lastPose = useMemo(
+    () => ({ bodyYaw: 0, headYaw: 0, torsoYaw: 0, bow: 0, snakeYaw: 0, snakeLift: 0, shift: 0 }),
+    [],
+  );
   const dev = useMemo(() => ({ frozen: null as FrozenPose | null }), []);
   const colliders = useMemo(() => ({ isReleased: false }), []);
   const echo = useMemo(() => new SerpentEcho(), []);
@@ -888,6 +953,7 @@ export default function FirstSceneActors({ enabled, groundY }: FirstSceneActorsP
     // 그림자는 평소 몇 초에 한 번만 다시 그린다 — 가까이서 고개 · 몸이 크게 움직이는 동안은 촘촘히(Codex 리뷰)
     const shift = brain.serpent.shift.length();
     const motion =
+      Math.abs(brain.abisa.bodyYaw - lastPose.bodyYaw) +
       Math.abs(brain.abisa.headYaw - lastPose.headYaw) +
       Math.abs(brain.abisa.torsoYaw - lastPose.torsoYaw) +
       Math.abs(brain.abisa.bow - lastPose.bow) +
@@ -898,6 +964,7 @@ export default function FirstSceneActors({ enabled, groundY }: FirstSceneActorsP
     if (dt > 0 && motion / dt > 0.04 && Math.min(brain.state.abisaDistance, brain.state.serpentDistance) < 20)
       requestShadowUpdates(0.3);
     Object.assign(lastPose, {
+      bodyYaw: brain.abisa.bodyYaw,
       headYaw: brain.abisa.headYaw,
       torsoYaw: brain.abisa.torsoYaw,
       bow: brain.abisa.bow,

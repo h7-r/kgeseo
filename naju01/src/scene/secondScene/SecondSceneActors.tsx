@@ -17,15 +17,18 @@ import { exposeDevHook } from "@/debug/devHooks";
 import { requestShadowUpdates } from "@/engine/shadowUpdates";
 
 import { GROUP_IDS } from "../../placement/editFile";
-import { registerInteractable } from "../../puzzles/interaction";
+import { interactableFor } from "../../puzzles/interaction";
 import { M } from "../../puzzles/units";
 import { recall, remember } from "../../save/puzzleMemory";
 import { ActorRig } from "../firstScene/actorRig";
-import { personNeck, writePersonPose, type PersonPose } from "../firstScene/bendShader";
+import { personNeck, stepFace, writePersonPose, type PersonPose } from "../firstScene/bendShader";
 import { isTalkTaken, registerTalkInterrupter } from "../firstScene/npcSpeech";
 import { StoryTalk } from "../firstScene/storyTalk";
 import { FISHER_SCRIPTS, stepHint, type FisherId } from "./fisherLines";
 import { currentRockStep } from "./rockStep";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const registerInteractable = interactableFor("fisher");
 
 const FISHER_IDS: FisherId[] = ["fisher3", "fisher", "fisher2"];
 const GROUPS: Record<FisherId, string> = {
@@ -56,6 +59,15 @@ const TEMPO: Record<FisherId, { speed: number; phase: number }> = {
 const saveKey = (id: FisherId) => `secondScene.${id}.next`;
 
 const clamp = THREE.MathUtils.clamp;
+/**
+ * 손짓으로 아래팔을 드는 가장 큰 각(라디안) — 화면에서 보고 정했다(11/11). 0.5 를 넘기면 손에 붙은 옷 · 그물이 늘어난다.
+ * 늙은 어부(fisher3)는 손이 밧줄 · 옷자락과 한 덩어리라 조금만 들어도 늘어나 보여 아주 작게 둔다
+ */
+const ARM_LIFT: Record<FisherId, number> = { fisher: 0.46, fisher2: 0.46, fisher3: 0.1 };
+/** 각을 −π~π 로 */
+const wrapAngle = (angle: number) => Math.atan2(Math.sin(angle), Math.cos(angle));
+/** 몸 돌리기 — 고개 · 허리에 남기는 각(라디안) · 돌리는 빠르기 · 제자리로 돌아오는 빠르기 */
+const BODY_TURN = { comfort: 0.3, turnRate: 2.4, returnRate: 0.9 };
 const smooth = (current: number, target: number, rate: number, dt: number) =>
   current + (target - current) * (1 - Math.exp(-rate * dt));
 const ease = (t: number) => THREE.MathUtils.smootherstep(clamp(t, 0, 1), 0, 1);
@@ -73,8 +85,20 @@ function createFisher(id: FisherId) {
     neck: personNeck(id),
     /** 처음 증언을 이만큼 들었다(다음에 이 줄부터) */
     next: recall<number>(saveKey(id), 0),
-    pose: { breath: 0, swayX: 0, swayY: 0, headYaw: 0, headPitch: 0, torsoYaw: 0, bow: 0 } as PersonPose,
-    last: { headYaw: 0, torsoYaw: 0, bow: 0 },
+    pose: {
+      breath: 0,
+      swayX: 0,
+      swayY: 0,
+      headYaw: 0,
+      headPitch: 0,
+      torsoYaw: 0,
+      bow: 0,
+      bodyYaw: 0,
+      blink: 0,
+      mouth: 0,
+      arm: 0,
+    } as PersonPose,
+    last: { headYaw: 0, torsoYaw: 0, bow: 0, bodyYaw: 0, arm: 0 },
     lookYaw: 0,
     lookPitch: 0,
     time: 0,
@@ -144,13 +168,35 @@ function updateFisher(fisher: Fisher, eye: THREE.Vector3, dt: number) {
   const t = fisher.time + tempo.phase;
   let yaw = Math.sin(t * 0.21) * 0.28 + Math.sin(t * 0.09 + 0.5) * 0.12;
   let pitch = 0.06;
+  // 몸 돌리기 — 말하는 동안은 듣는 사람 쪽으로 몸을 돌린다. 고개 · 허리로 편하게 닿는 만큼(BODY_TURN.comfort)은 남기고
+  // 나머지를 몸이 맡는다. 전에는 뒤에서 말을 걸면 등을 보인 채 증언했다(11/11 움직임 점검). 말이 끝나면 천천히 제자리로
+  const toPlayer = lookAngles(fisher, eye);
+  const wantBody = talk.isActive
+    ? Math.sign(toPlayer.yaw) * Math.max(0, Math.abs(toPlayer.yaw) - BODY_TURN.comfort)
+    : 0;
+  // 가까운 쪽으로 돈다 — 등 뒤(±180°) 경계를 넘나들어도 한 바퀴 되감지 않게(Codex 리뷰 2)
+  pose.bodyYaw = wrapAngle(
+    smooth(
+      pose.bodyYaw,
+      pose.bodyYaw + wrapAngle(wantBody - pose.bodyYaw),
+      talk.isActive ? BODY_TURN.turnRate : BODY_TURN.returnRate,
+      dt,
+    ),
+  );
+  /** 몸을 돌린 만큼 뺀 각 — 고개 · 허리가 맡을 몫 */
+  const fromBody = (angle: number) => wrapAngle(angle - pose.bodyYaw);
   if (line?.lookAt === "rock") {
     tmp.target.set(ROCK.x * M, rig.position.y + ROCK.up * M, ROCK.z * M);
-    ({ yaw, pitch } = lookAngles(fisher, tmp.target));
+    const look = lookAngles(fisher, tmp.target);
+    yaw = fromBody(look.yaw);
+    pitch = look.pitch;
   } else if (talk.isActive || fisher.distance < TALK.lookReach) {
-    const look = lookAngles(fisher, eye);
+    const residual = fromBody(toPlayer.yaw);
     // 뒤쪽(110° 넘게)이면 억지로 목을 꺾지 않는다
-    if (Math.abs(look.yaw) < 1.9) ({ yaw, pitch } = look);
+    if (Math.abs(residual) < 1.9) {
+      yaw = residual;
+      pitch = toPlayer.pitch;
+    }
   }
   const down = talk.isActive && line?.isDown ? envelope(talk.lineTime, 0.6, 99, 0.6) : 0;
   // 고개 돌림 줄 — 시선을 떨구며 옆으로 비킨다
@@ -161,6 +207,22 @@ function updateFisher(fisher: Fisher, eye: THREE.Vector3, dt: number) {
   pose.torsoYaw = clamp(fisher.lookYaw * 0.3, -LIMITS.torsoYaw, LIMITS.torsoYaw);
   pose.headYaw = clamp(fisher.lookYaw - pose.torsoYaw, -LIMITS.headYaw, LIMITS.headYaw);
   pose.breath = 0.045 * Math.sin((fisher.time * Math.PI * 2) / 4.2);
+  // 입 · 손짓은 실제로 줄이 나오는 동안만 — 창을 열어 대화가 멈췄거나 첫 줄 전이면 쉰다(Codex 리뷰 3)
+  const isSpeaking = talk.isActive && !talk.isPaused && !!line;
+  stepFace(pose, dt, isSpeaking);
+  // 손짓 — 말하는 줄마다 아래팔을 한 번 들었다 내린다(고개를 떨군 줄은 빼고). 줄마다 높이를 달리해 되풀이로 안 보이게
+  const lift = isSpeaking && !line?.isDown ? envelope(talk.lineTime - 0.25, 0.5, 1.1, 0.7) : 0;
+  pose.arm = smooth(
+    pose.arm,
+    lift * ARM_LIFT[fisher.id] * (0.8 + 0.2 * Math.sin(talk.index * 2.3 + tempo.phase)),
+    6,
+    dt,
+  );
+  // 개발 서버에서 팔 자리를 맞출 때 — 콘솔에서 __faceForce = { arm: 0.8 } 로 굳혀 놓고 본다
+  if (import.meta.env?.DEV) {
+    const forced = (globalThis as { __faceForce?: { arm?: number } }).__faceForce;
+    if (forced?.arm !== undefined) pose.arm = forced.arm;
+  }
   pose.swayX = 0.01 * Math.sin(fisher.time * 0.6);
   pose.swayY = 0.007 * Math.sin(fisher.time * 0.43 + 1);
 
@@ -185,7 +247,19 @@ function updateFisher(fisher: Fisher, eye: THREE.Vector3, dt: number) {
 }
 
 function writeRest(fisher: Fisher) {
-  Object.assign(fisher.pose, { breath: 0, swayX: 0, swayY: 0, headYaw: 0, headPitch: 0, torsoYaw: 0, bow: 0 });
+  Object.assign(fisher.pose, {
+    breath: 0,
+    swayX: 0,
+    swayY: 0,
+    headYaw: 0,
+    headPitch: 0,
+    torsoYaw: 0,
+    bow: 0,
+    bodyYaw: 0,
+    blink: 0,
+    mouth: 0,
+    arm: 0,
+  });
   fisher.lookYaw = 0;
   fisher.lookPitch = 0;
 }
@@ -273,10 +347,14 @@ export default function SecondSceneActors({ enabled }: SecondSceneActorsProps) {
       }
       // 그림자는 고개 · 몸이 크게 움직이는 동안만 촘촘히(아비사와 같다)
       const motion =
+        Math.abs(fisher.pose.arm - fisher.last.arm) +
+        Math.abs(fisher.pose.bodyYaw - fisher.last.bodyYaw) +
         Math.abs(fisher.pose.headYaw - fisher.last.headYaw) +
         Math.abs(fisher.pose.torsoYaw - fisher.last.torsoYaw) +
         Math.abs(fisher.pose.bow - fisher.last.bow);
       if (dt > 0 && motion / dt > 0.04 && fisher.distance < 20) isMoving = true;
+      fisher.last.bodyYaw = fisher.pose.bodyYaw;
+      fisher.last.arm = fisher.pose.arm;
       fisher.last.headYaw = fisher.pose.headYaw;
       fisher.last.torsoYaw = fisher.pose.torsoYaw;
       fisher.last.bow = fisher.pose.bow;

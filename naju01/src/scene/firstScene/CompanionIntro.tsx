@@ -64,9 +64,9 @@ const TOP_PAD = { desktop: 24, touch: 48 };
 
 /** 초안(이야기팀 승인 전) */
 const LINES = {
-  hello: { text: "안녕하세요, 조사관님. 저는 이번 조사에 함께하는 동행이에요. 곁에서 도울게요." },
-  place: { text: "여기는 영산강 앙암바위 아래 나루터예요." },
-  go: { text: "저기 물가에 누가 있어요. 먼저 가까이 가서 살펴봐요." },
+  hello: { text: "안녕하세요, 조사관님. 이번 조사는 저도 함께할게요." },
+  place: { text: "여기는 영산강, 앙암바위 아래 나루터예요." },
+  go: { text: "저기 물가에 한 분 계세요. 말을 걸어 봐요." },
   request: { text: "아비사의 부탁부터 차근차근 풀어 봐요." },
 } satisfies Record<string, StoryLine>;
 

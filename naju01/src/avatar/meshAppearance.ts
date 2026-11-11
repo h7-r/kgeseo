@@ -6,7 +6,7 @@ import { sharedAssetUrl } from "@/config/env";
 // 몸 GLB 를 다시 구울 때마다 올린다. 파일 이름이 그대로라 판을 올려야 브라우저가 새 GLB 를 받는다.
 //   22 = 상·하의 경계 표식을 텍스처 밑단에 맞춤(bake-bottom-markers.mjs hem)
 //   23 = 긴 머리 숱 줄이기·몸에서 띄우기·몸통 따라가기, 몸 모프 earTuck(fit-long-hair.mjs)
-export const MESH_MODEL_VERSION = 23;
+export const MESH_MODEL_VERSION = 24;
 
 export type MeshPartKey = "hair" | "top" | "bottom" | "shoes";
 

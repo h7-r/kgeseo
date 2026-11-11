@@ -15,13 +15,16 @@ import { cancelCameraFocus, focusCamera } from "../../scene/cameraFocus";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { teleportPlayer } from "../cave/caveState";
-import { showNotice } from "../interaction";
+import { noticeFor } from "../interaction";
 import { inventory } from "../inventory";
 import { M, groundY } from "../units";
 import { GATE } from "./ridgeShape";
 import { RIFT_ENTRY, riftEntrySince, startRiftEntry, tickRiftEntry } from "./riftEntry";
 import { makeRiftMaterial, pointBeyondRift } from "./riftPortal";
 import { ridge, ridgeBox, useRidgeStage } from "./ridgeState";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("rift");
 
 /** 틈에 들어서면 건너가는 곳 — Z3(바위 위 · 절벽 상단) 들머리. 길(Z4 → Z3)을 안 걸어도 된다 */
 const NEXT_STAGE = { x: 52, z: 11, heading: "+Z" as const };

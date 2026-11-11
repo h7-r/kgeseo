@@ -5,6 +5,7 @@ import { AMBER, CREAM, HUD_FONT as FONT, KEY_FONT, KEY_INK } from "./hudTheme";
 import { aimedTarget, useAimedLabel, useAimedTalkId, useAimedTalkLabel, useNotice, usesWithHand } from "./interaction";
 import { ITEMS, SLOT_COUNT, inventory, useHandItem, useHeldItems } from "./inventory";
 import { usePaperOpen } from "./ridge/oldPaper";
+import { inCompanionVoice } from "../dialogue/gameVoice";
 import { isTalkInterruptible, useSpeechBoxShown, useTalkOwner, useTalkTaken } from "../scene/firstScene/npcSpeech";
 
 /**
@@ -66,7 +67,12 @@ export default function InteractionHud() {
           style={labels.isTouch ? noticeStyle : pcNoticeStyle}
           data-hud="알림"
         >
-          {labels.isTouch ? labels.text(notice.text) : <p style={pcNoticeTextStyle}>{labels.text(notice.text)}</p>}
+          {/* 알림은 화면에 해요체로 낸다(미르 11/11) — 원문(「~다」)은 표의 열쇠로만 쓴다. 표에 없으면 원문 그대로 */}
+          {labels.isTouch ? (
+            labels.text(inCompanionVoice(notice.text))
+          ) : (
+            <p style={pcNoticeTextStyle}>{labels.text(inCompanionVoice(notice.text))}</p>
+          )}
         </div>
       )}
     </>

@@ -9,10 +9,14 @@ import * as THREE from "three";
 
 import { createCompressedGltfLoader } from "../../loaders/compressedGlb";
 import { audio } from "../../scene/immersion/audio";
-import { registerInteractable, showNotice } from "../interaction";
+import { interactableFor, noticeFor } from "../interaction";
 import { inventory } from "../inventory";
 import { M } from "../units";
 import { makgeolliBottle } from "./makgeolliState";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("bottle");
+const registerInteractable = interactableFor("bottle");
 
 /** 술병(자기) — 라이브러리 경량본(CC BY 4.0). 막걸리 통은 라이브러리에 없어 가장 가까운 술병을 쓴다 */
 const BOTTLE_MODEL = "/_sf_local/lib/ast-prop-liquor-bottle-porcelain-01.glb";

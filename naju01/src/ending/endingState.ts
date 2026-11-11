@@ -31,6 +31,8 @@ let phase: EndingPhase = "off";
 let caption: Caption | null = null;
 let captionTimer = 0;
 let captionKey = 0;
+/** 이번 끝 연출에서 아비사의 작별을 현장에서 봤다 — 못 봤으면(도중에 나감 · 이어 하기 · 다시 보기) 필름이 그 대목을 글로 보충한다 */
+let isFarewellShown = false;
 
 function setPhase(next: EndingPhase) {
   if (phase === next) return;
@@ -66,10 +68,17 @@ export const ending = {
     signal.notify();
     captionTimer = gameSetTimeout(clearCaption, seconds * 1000);
   },
+  /** 작별을 현장에서 끝까지 봤다(TorchRite) */
+  noteFarewellShown() {
+    isFarewellShown = true;
+  },
+  wasFarewellShown: () => isFarewellShown,
   /** 전체화면 엔딩 필름 */
   openFilm: () => setPhase("film"),
   /** 필름이 끝났거나 건너뛰었다 — 다 본 것으로 적고 클리어 화면으로 */
   finishFilm() {
+    // 다음에 다시 볼 때는 필름이 작별 대목까지 담는다
+    isFarewellShown = false;
     remember(SEEN_KEY, ENDING_VERSION);
     setPhase("clear");
   },

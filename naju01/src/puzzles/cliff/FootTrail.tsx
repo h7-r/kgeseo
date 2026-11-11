@@ -19,7 +19,7 @@ import { addHint } from "@/game/hintBox";
 import { audio } from "../../scene/immersion/audio";
 import { makeGlowPoints, pointScaleFor } from "../glowPoints";
 import { makeGlowTexture } from "../glowTexture";
-import { registerInteractable, showNotice } from "../interaction";
+import { interactableFor, noticeFor } from "../interaction";
 import { inventory } from "../inventory";
 import { POUCH_MODEL } from "../itemLooks";
 import { loadModel } from "../itemModel";
@@ -41,6 +41,10 @@ import { closeLetters, letterHints, loadLetterFont, openLetters, setPouchCanvas 
 import { renderPouchView } from "./pouchView";
 import { buildGroundRibbon, floorAt, planar } from "./riteScene";
 import { useGroundReady } from "./useGroundReady";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("trail");
+const registerInteractable = interactableFor("trail");
 
 type Point = readonly [number, number];
 /** 걷는 발 · 달리는 발 — 보폭과 두 발 사이(미터) */
@@ -273,12 +277,6 @@ function FootTrailScene() {
       later(7.5, () =>
         showNotice("둘째 장은 낱말이 이상한 데서 꺾인다. 첫째 장이 이른 대로 읽으면 — 아랑사가 숨겨 둔 말이 있다.", 7),
       );
-      later(15.5, () =>
-        showNotice(
-          "그 말을 읽었다면, 아랑사의 함에 왜 구렁이상이 들어 있었는지 알 것이다. 구렁이는 아랑사가 떨어진 바로 그 틈에서 올라왔다.",
-          8,
-        ),
-      );
     };
 
     /** 바위 사이에서 주머니를 꺼낸다 */
@@ -289,10 +287,7 @@ function FootTrailScene() {
       }
       cliff.advance("found");
       audio.play("단서");
-      showNotice(
-        "바위 사이에 삼베 주머니가 떨어져 있다. 귀퉁이에 물고기 하나 — 아랑사의 표시다. 달아나던 사내가 여기 던지고 갔다.",
-        5,
-      );
+      showNotice("바위 사이에 삼베 주머니가 떨어져 있다. 귀퉁이에 물고기 표시가 있다.", 5);
       later(2.2, () => openLetters(finish));
     };
 
@@ -380,7 +375,7 @@ function FootTrailScene() {
         use: () =>
           showNotice(
             cliff.isAtLeast("traced")
-              ? "미끄러진 자국 곁에 벗겨져 남은 짚신 한 짝. 신코 안쪽에 물고기가 새겨져 있다 — 나루터 통발에 걸려 올라온 것과 한 켤레다."
+              ? "미끄러진 자국 곁에 벗겨져 남은 짚신 한 짝. 신코 안쪽에 물고기가 새겨져 있다."
               : "벼랑 끝 바위 틈에 짚신 한 짝이 놓여 있다. 신코 안쪽에 물고기가 새겨져 있다.",
             5.5,
           ),
@@ -394,7 +389,7 @@ function FootTrailScene() {
         use: () =>
           showNotice(
             cliff.isAtLeast("traced")
-              ? "바위 밑에 끼인 붉은 댕기. 달아난 작은 발자국 곁이다 — 숨어 있던 셋 가운데 여인의 것이다."
+              ? "바위 밑에 끼인 붉은 댕기. 달아난 작은 발자국 곁이다 — 숨어 있던 이가 흘리고 갔다."
               : "바위 밑에 붉은 댕기가 끼어 있다. 누가 흘리고 갔다.",
             5,
           ),

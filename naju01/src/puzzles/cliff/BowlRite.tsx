@@ -20,7 +20,7 @@ import { focusCamera } from "../../scene/cameraFocus";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { teleportPlayer } from "../cave/caveState";
-import { registerInteractable, showNotice } from "../interaction";
+import { clearPendingNotices, interactableFor, noticeFor } from "../interaction";
 import { inventory, type ItemKind } from "../inventory";
 import { loadModel } from "../itemModel";
 import { setPuzzlePanel } from "../puzzlePanel";
@@ -28,7 +28,8 @@ import { M } from "../units";
 import { usePrewarm } from "../usePrewarm";
 import { BOWLS, BOWL_SIZES, BOWL_WATER, JAR, JUG, JUG_POURS, SEAT, STANDING, type BowlSize } from "./cliffShape";
 import { cliff, type SavedCliff } from "./cliffState";
-import { MOON_PLAY_CUES, MOON_PLAY_FADE, MOON_PLAY_SECONDS } from "./moonPlay";
+import { MOON_PLAY_CAPTIONS, MOON_PLAY_CUES, MOON_PLAY_FADE, MOON_PLAY_SECONDS } from "./moonPlay";
+import { captionAt, setFilmCaption } from "../filmCaption";
 import {
   MODELS,
   SEAT_TOP,
@@ -48,6 +49,10 @@ import { addScoopVessel, buildScoop, startPull, startScoop, updateScoop, type Sc
 import { SPILL, buildSpill, fitPieces, measureSpill, updateSpill, type Spill } from "./spill";
 import { IS_STAGE4_JUMP, STAGE4_START } from "./stageJump";
 import { useGroundReady } from "./useGroundReady";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("bowls");
+const registerInteractable = interactableFor("bowls");
 
 const EMPTY_BOWL: Record<BowlSize, ItemKind> = { large: "bowlLarge", medium: "bowlMedium", small: "bowlSmall" };
 const DEW_BOWL: Record<BowlSize, ItemKind> = { large: "dewBowlLarge", medium: "dewBowlMedium", small: "dewBowlSmall" };
@@ -123,6 +128,8 @@ function BowlRiteScene() {
       if (cliff.stage() !== "idle") return;
       cliff.advance("vision");
       vision.current = { time: 0, fired: new Set() };
+      // 영상 앞의 글은 거둔다 — 자막 동안 줄을 섰다가 영상이 끝난 뒤 뒤늦게 이어 나왔다
+      clearPendingNotices();
       rite.play.mesh.visible = true;
       focusCamera({
         id: "cliff-vision",
@@ -138,6 +145,7 @@ function BowlRiteScene() {
     /** 그림이 깨졌다 — 시선이 사발로 옮겨 가고, 사발 셋이 조각나며 물이 흘러내린다 */
     const breakBowls = () => {
       vision.current.time = -1;
+      setFilmCaption(null);
       rite.play.mesh.visible = false;
       cliff.advance("flowing");
       const bowlsAt = new THREE.Vector3();
@@ -165,12 +173,7 @@ function BowlRiteScene() {
         audio.play("단서");
         showNotice("물이 귀때동이 둘레의 굳은 흙을 씻어 낸다. 둔덕이 풀려 둘레가 파였다 — 이제 뽑힐 것 같다.", 5);
       });
-      later(settled + 5.5, () =>
-        showNotice(
-          "아비사는 밤마다 물 세 그릇을 떠 놓았고, 구렁이는 벼랑 끝 바위 틈에서 올라왔다 — 아랑사가 떨어진 그 자리다.",
-          7,
-        ),
-      );
+      later(settled + 5.5, () => showNotice("구렁이가 올라온 벼랑 끝 바위 틈 — 아랑사가 떨어진 그 자리다.", 6));
       later(settled + 13, () =>
         showNotice("받침돌 곁에서 발자국이 벼랑 쪽으로 나 있다. 얼마 못 가 끊긴다 — 마른 흙에 덮였다.", 6),
       );
@@ -375,7 +378,7 @@ function BowlRiteScene() {
       jumpAt.current -= dt;
       if (jumpAt.current < 0) {
         teleportPlayer(STAGE4_START.x, STAGE4_START.z, STAGE4_START.heading);
-        showNotice("4스테이지 — 바위 위. 시공간 틈을 지나 그 밤 아랑사가 오른 절벽 꼭대기에 섰다.", 5);
+        showNotice("바위 위. 시공간 틈을 지나 그 밤 아랑사가 오른 절벽 꼭대기에 섰다.", 5);
       }
     }
 
@@ -452,6 +455,8 @@ function BowlRiteScene() {
       v.time += Math.min(dt, 1 / 30);
       const t = v.time;
       rite.play.draw(t);
+      // 자막 — 컷마다 한 줄, 영상 시각에 맞춰
+      setFilmCaption(captionAt(MOON_PLAY_CAPTIONS, t));
       rite.play.material.opacity =
         THREE.MathUtils.smootherstep(t, 0.2, 1.0) *
         (1 - THREE.MathUtils.smootherstep(t, MOON_PLAY_SECONDS - MOON_PLAY_FADE, MOON_PLAY_SECONDS));
@@ -492,6 +497,9 @@ function BowlRiteScene() {
       distance,
     });
   };
+
+  // 영상 도중에 이 장면이 내려가도 자막이 남지 않게(남으면 다른 알림이 계속 줄을 선다)
+  useEffect(() => () => setFilmCaption(null), []);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;

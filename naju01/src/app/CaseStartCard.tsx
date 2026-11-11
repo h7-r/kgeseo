@@ -21,7 +21,7 @@ import { RATING_PREVIEW, type CaseStartMode } from "./caseStart";
 const CASE = {
   label: "CASE 01 · 나주 영산강",
   title: "앙암바위의 전설",
-  goal: "물가의 인물에게 다가가 이야기를 들어 보세요.",
+  goal: "앙암바위의 기억과 기록이 어긋나고 있어요. 물가의 여인에게 무슨 일이 있었는지 물어보세요.",
 } as const;
 
 const START_KEYS = new Set(["Enter", "NumpadEnter", "KeyW", "KeyA", "KeyS", "KeyD"]);

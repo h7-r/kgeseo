@@ -288,25 +288,38 @@ export function drawLantern(g: Pen, x: number, y: number, size: number, strength
   glow.addColorStop(1, "rgba(255,110,40,0)");
   g.fillStyle = glow;
   g.fillRect(-size * 7, -size * 6, size * 14, size * 14);
+  // 손잡이 줄
   g.fillStyle = INK;
-  g.fillRect(-size * 0.06, 0, size * 0.12, size * 0.35);
-  tracePath(
-    g,
-    [
-      [-size * 0.3, size * 0.35],
-      [size * 0.3, size * 0.35],
-      [size * 0.38, size * 0.9],
-      [size * 0.3, size * 1.5],
-      [-size * 0.3, size * 1.5],
-      [-size * 0.38, size * 0.9],
-    ],
-    true,
-  );
+  g.fillRect(-size * 0.05, 0, size * 0.1, size * 0.4);
+  // 한지 몸통 — 불빛이 비쳐 밝다. 전에는 먹색 몸통에 작은 불빛 점뿐이라 「고리 · 장신구」로 읽혔다(11/11 독해 시험)
+  const body: [number, number][] = [
+    [-size * 0.34, size * 0.4],
+    [size * 0.34, size * 0.4],
+    [size * 0.5, size * 1.0],
+    [size * 0.34, size * 1.7],
+    [-size * 0.34, size * 1.7],
+    [-size * 0.5, size * 1.0],
+  ];
+  const paper = g.createRadialGradient(0, size * 1.05, 0, 0, size * 1.05, size * 0.75);
+  paper.addColorStop(0, `rgba(255,244,206,${strength})`);
+  paper.addColorStop(1, `rgba(255,176,86,${strength})`);
+  g.fillStyle = paper;
+  tracePath(g, body, true);
   g.fill();
-  g.fillStyle = `rgba(255,236,190,${strength})`;
+  // 먹 테 · 살 · 위아래 마구리
+  g.strokeStyle = INK;
+  g.lineWidth = Math.max(1, size * 0.09);
+  g.lineJoin = "round";
+  tracePath(g, body, true);
+  g.stroke();
+  g.lineWidth = Math.max(0.8, size * 0.05);
   g.beginPath();
-  g.ellipse(0, size * 0.95, size * 0.2, size * 0.36, 0, 0, Math.PI * 2);
-  g.fill();
+  g.moveTo(0, size * 0.4);
+  g.lineTo(0, size * 1.7);
+  g.stroke();
+  g.fillStyle = INK;
+  g.fillRect(-size * 0.4, size * 0.32, size * 0.8, size * 0.16);
+  g.fillRect(-size * 0.4, size * 1.64, size * 0.8, size * 0.16);
   g.restore();
 }
 

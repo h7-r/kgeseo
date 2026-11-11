@@ -15,7 +15,15 @@ import { createMoonPlay } from "../puzzles/cliff/moonPlay";
 import { createShadowPlay } from "../puzzles/ridge/shadowPlay";
 import { getBgmVolume } from "../transition/loadingVideo";
 import { ending, useEndingCaption, useEndingPhase } from "./endingState";
-import { CLEAR_TEXT, ENDING_MUSIC, FILM_SHOTS, VISIT_TEXT, shotSeconds, type FilmShot } from "./endingScript";
+import {
+  CLEAR_TEXT,
+  ENDING_MUSIC,
+  FILM_SHOTS,
+  VISIT_TEXT,
+  filmShots,
+  shotSeconds,
+  type FilmShot,
+} from "./endingScript";
 import "./ending.css";
 import { BetaPostSurveyGate } from "@/beta/BetaSurveyCard";
 
@@ -72,15 +80,17 @@ type Films = { box: ReturnType<typeof createShadowPlay>; moon: ReturnType<typeof
 function EndingFilm() {
   const [index, setIndex] = useState(0);
   const [holdLevel, setHoldLevel] = useState(0);
-  const shot = FILM_SHOTS[index];
-  const isLast = index >= FILM_SHOTS.length - 1;
+  // 작별을 현장에서 못 봤으면 그 대목을 글로 넣는다(열릴 때 한 번 정한다)
+  const [shots] = useState(() => filmShots(ending.wasFarewellShown()));
+  const shot = shots[index];
+  const isLast = index >= shots.length - 1;
   const films = useRef<Films | null>(null);
   const filmHost = useRef<HTMLDivElement>(null);
 
   const next = useCallback(() => {
     if (isLast) ending.finishFilm();
-    else setIndex((current) => Math.min(current + 1, FILM_SHOTS.length - 1));
-  }, [isLast]);
+    else setIndex((current) => Math.min(current + 1, shots.length - 1));
+  }, [isLast, shots.length]);
 
   // 장 시계 — 화면이 그려질 때만 흐른다(탭을 숨기거나 앱을 바꾸면 필름도 선다. 세계가 멈춘 것과는 따로, Codex).
   // 장 길이가 차면 다음으로. 게임 속 영상(함의 그림자극 · 선바위 영상)은 그 대목만 같은 시계로 다시 튼다 — 플레이어가 본 그 장면
@@ -176,7 +186,7 @@ function EndingFilm() {
 
   return (
     <div className="naju-ending-film" data-hud="엔딩 필름" onClick={next}>
-      {FILM_SHOTS.map((each, k) =>
+      {shots.map((each, k) =>
         each.kind === "image" ? (
           <img
             key={each.id}
@@ -216,7 +226,7 @@ function EndingFilm() {
       </div>
       <div className="naju-ending-film__hint">클릭 · Space 다음 장면</div>
       <div className="naju-ending-film__dots" aria-hidden>
-        {FILM_SHOTS.map((each, k) => (
+        {shots.map((each, k) => (
           <i key={each.id} className={k === index ? "is-on" : k < index ? "is-past" : undefined} />
         ))}
       </div>

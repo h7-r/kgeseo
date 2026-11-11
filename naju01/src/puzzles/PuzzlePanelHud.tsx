@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { inCompanionVoice } from "../dialogue/gameVoice";
 
 import { addPointerActiveListener, isPointerActive, useKeyLabels, useTouchMode } from "@/engine/input";
 
@@ -49,7 +50,7 @@ export default function PuzzlePanelHud() {
       <TouchPuzzlePanel
         key={panel.title}
         title={panel.title}
-        rule={panel.rule}
+        rule={inCompanionVoice(panel.rule)}
         rows={panel.rows}
         diagram={panel.diagram}
       />
@@ -63,7 +64,7 @@ export default function PuzzlePanelHud() {
       data-yield={isYielding ? "1" : undefined}
     >
       <div style={titleStyle}>{panel.title}</div>
-      <div style={ruleStyle}>{panel.rule}</div>
+      <div style={ruleStyle}>{inCompanionVoice(panel.rule)}</div>
       {panel.diagram && <div style={diagramStyle}>{panel.diagram}</div>}
       {panel.rows && panel.rows.length > 0 && (
         <div style={rowsStyle}>

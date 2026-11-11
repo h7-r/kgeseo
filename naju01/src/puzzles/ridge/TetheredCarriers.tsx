@@ -18,7 +18,7 @@ import { releasePropColliders } from "../../movement/propColliders";
 import { addDynamicSolid, type DynamicSolid } from "../../movement/solidField";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
-import { aimedId, registerInteractable, showNotice } from "../interaction";
+import { aimedId, interactableFor, noticeFor } from "../interaction";
 import { prewarmShaders } from "../prewarm";
 import { M, groundY } from "../units";
 import {
@@ -33,6 +33,10 @@ import {
 import { isPointerActive } from "@/engine/input/virtualLock";
 import { RIDGE_CENTER } from "./ridgeShape";
 import { ridge, ridgeCarry, ridgeQuest, useRidgeStage } from "./ridgeState";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("cart");
+const registerInteractable = interactableFor("cart");
 
 /** 빈 지게를 허공 E 로 내려놓으면 발 앞에 둔다(예전: 바람이 채 간다) */
 const KEEPS_JIGE_ON_PUT_DOWN = true;

@@ -6,6 +6,7 @@
  * 카메라는 건드리지 않는다 — 번개 · 비 · 바람만 연출 큐로 건다.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { RAIN_REASON } from "../../story/storyVariants";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
@@ -17,7 +18,7 @@ import { director, setZoneRainGate } from "../../scene/immersion/director";
 import { CORRIDOR, getPartOpenness } from "../cave/caveState";
 import { cliff } from "../cliff/cliffState";
 import { gut } from "../gut/gutState";
-import { registerInteractable, setKeyInterceptor, showNotice } from "../interaction";
+import { interactableFor, setKeyInterceptor, noticeFor } from "../interaction";
 import { noteOfferingExamined, noteOfferingPlaced } from "../leftBehind";
 import { onEscapeUnlock } from "../pointerHold";
 import { setPuzzlePanel } from "../puzzlePanel";
@@ -44,6 +45,10 @@ import {
 import { buildRitualEffects, partRiverSheets } from "./ritualEffects";
 import { getWaterLevel, ritual, setStormRain, setWaterLevel, useRitualStage } from "./ritualState";
 import { createBoatRock, createRopeFlutter } from "./scenePatches";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("ritual");
+const registerInteractable = interactableFor("ritual");
 
 const OFFERINGS: ItemKind[] = ["lightFish", "rice", "makgeolli"];
 /** 이어 하기 시계의 시작값(초). 지나간 연출이 모두 끝난 뒤로 잡는다 */
@@ -473,7 +478,9 @@ export default function RitualCircle() {
         // 단계별 — 돌탑(아직 못 올림) · 그려지는 중(기다림) · 제물(올릴 수 있음). 제출은 offering 부터(코덱스 구현 08회차)
         rule:
           panelStage === "cairns"
-            ? "소반 둘레 땅에 돌탑이 설 자리가 새겨져 있다. 소반에는 제물 세 가지를 올려야 한다 — 소반이 빛나면 올릴 수 있다."
+            ? RAIN_REASON === "why"
+              ? "비를 청하는 상이다 — 강이 삼킨 것을 돌려받으려는 자리. 둘레 땅에 돌탑이 설 자리가 새겨져 있고, 소반에는 제물 세 가지를 올려야 한다."
+              : "소반 둘레 땅에 돌탑이 설 자리가 새겨져 있다. 소반에는 제물 세 가지를 올려야 한다 — 소반이 빛나면 올릴 수 있다."
             : panelStage === "drawing"
               ? "땅에 무늬가 번져 간다. 소반이 빛날 때까지 기다리자 — 제물은 세 가지."
               : "소반이 빛난다. 제물 세 가지를 손에 들고 소반에 올리자.",

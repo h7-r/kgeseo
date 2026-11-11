@@ -9,6 +9,7 @@
  *  - 셋의 말을 다 들었다고 모순을 확인한 것으로 치지 않는다(P01 증언 대조 퍼즐은 아직 없다).
  * 늙은 어부는 하오체, 젊은 둘은 해요체.
  */
+import { RAIN_REASON } from "../../story/storyVariants";
 import type { StoryLine } from "../firstScene/storyTalk";
 
 export type FisherId = "fisher" | "fisher2" | "fisher3";
@@ -92,7 +93,11 @@ const STEP_HINTS: Record<RockStep, Record<Voice, string>> = {
     young: "돌탑이랑 둘레 자리를 잘 살펴보세요.",
   },
   offering: {
-    elder: "소반 둘레에 남은 흔적을 살펴보시오.",
+    // 기우제의 까닭 — Claude · Codex 안이 갈려 미르가 화면에서 고른다(story/storyVariants ?rain=why)
+    elder:
+      RAIN_REASON === "why"
+        ? "강에서 사람을 잃으면 저리 상을 차리고 비를 청한다는 말을 들었소. 큰물이 져야 강이 삼킨 것을 내놓는다고."
+        : "그 소반 말이오? 누가 차렸는지는 모르오. 둘레에 남은 흔적부터 살펴보시오.",
     young: "소반 둘레를 잘 살펴보세요.",
   },
   floats: {

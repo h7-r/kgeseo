@@ -35,7 +35,7 @@ import { recall, track, useRememberedState } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { focusCamera } from "../../scene/cameraFocus";
 import { director } from "../../scene/immersion/director";
-import { aimedId, registerInteractable, setKeyInterceptor, showNotice } from "../interaction";
+import { aimedId, interactableFor, setKeyInterceptor, noticeFor } from "../interaction";
 import { onEscapeUnlock } from "../pointerHold";
 import { inventory } from "../inventory";
 import { buildFloatStoneGeometry, buildGearStoneGeometry } from "../itemLooks";
@@ -87,6 +87,10 @@ import {
   wrapDegrees,
 } from "./ringDoorShape";
 import { ringDoorAnswer } from "./ringDoorAnswer";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("ringDoor");
+const registerInteractable = interactableFor("ringDoor");
 
 const FLOAT_SLOT_NAMES = ["위", "오른쪽", "아래", "왼쪽"];
 /** 물레를 겨누는 너비 — 돌판에 살 손잡이까지. 뜬 돌 끼우기도 돌리기도 이 안이면 된다 */

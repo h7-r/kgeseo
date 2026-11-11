@@ -3,6 +3,7 @@
  * 좌표는 미터.
  */
 import * as THREE from "three";
+import { DEATH_WORDING } from "../../story/storyVariants.ts";
 
 /** 소반 — 기우제 때의 그 상(ritual/magicCircle 의 가운데). top 은 상판 높이 */
 export const TABLE = { x: 45, z: 37, top: 0.38 };
@@ -53,7 +54,10 @@ export const TAGS: readonly RiteTag[] = [
   {
     title: "미끄러진 발",
     look: "벼랑 끝에서 뒤꿈치가 미끄러진다. 함에서 솟은 빛 속에서 본 장면이다.",
-    told: "벼랑 끝에서 발이 미끄러졌다. 숨어 있던 셋이 보는 앞이었다.",
+    told:
+      DEATH_WORDING === "soft"
+        ? "두 사람을 시기한 진부촌 젊은이들에게 속아, 아랑사는 벼랑 아래로 떨어졌다."
+        : "두 사람을 시기한 진부촌 젊은이들이 아랑사를 속여 바위 아래로 떨어뜨려 죽였다.",
   },
   {
     title: "물 세 그릇",
@@ -68,7 +72,7 @@ export const TAGS: readonly RiteTag[] = [
   {
     title: "횃불 든 사내들",
     look: "횃불을 든 사내들이 길 쪽에서 올라온다. 여인이 그 앞을 막아섰다. 선바위에 비친 장면이다.",
-    told: "횃불 든 사내들이 바위에 올라왔다 — 그 뒤의 일은 아무도 말하지 않는다.",
+    told: "마을 젊은이들이 아비사와 구렁이를 함께 바위 아래로 굴려 버렸다.",
   },
 ];
 /** 말뚝마다 걸린 그림패 번호 — 둘레를 돌며 보면 차례가 뒤섞여 있다 */

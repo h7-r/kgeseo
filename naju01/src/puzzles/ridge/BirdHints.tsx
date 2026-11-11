@@ -13,7 +13,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { addDynamicSolid } from "../../movement/solidField";
 import { audio } from "../../scene/immersion/audio";
-import { registerInteractable, showNotice } from "../interaction";
+import { interactableFor, noticeFor } from "../interaction";
 import { buildScaleGeometry } from "../itemLooks";
 import { makeToonMaterial } from "../materials";
 import { prewarmShaders } from "../prewarm";
@@ -27,6 +27,10 @@ import {
   makeSerpentTexture,
 } from "./birdHintArt";
 import { ridge, ridgeQuest } from "./ridgeState";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("birds");
+const registerInteractable = interactableFor("birds");
 
 /** 두 돌새(씬2 솟대 0 · 1) 사이 · 물동이(씬2 물동이 0) */
 const STATUES = [

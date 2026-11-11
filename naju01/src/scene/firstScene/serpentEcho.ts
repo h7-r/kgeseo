@@ -43,6 +43,8 @@ export class SerpentEcho {
     lift: 0,
     tongue: 0,
     shift: new THREE.Vector3(),
+    wave: 0,
+    wavePhase: 0,
     isGone: true,
   };
   private body: THREE.Mesh | null = null;
