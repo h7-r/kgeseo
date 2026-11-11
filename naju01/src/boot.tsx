@@ -6,6 +6,7 @@ import { LandscapeGuard } from "@/engine/input";
 import { initGameSave } from "@/save/gameSave";
 
 import { registerNajuSave } from "./save/najuSaveData";
+import { initNajuBeta } from "./beta/najuBeta";
 
 import App from "./app/App";
 // 본편 기차에서 텔레포트로 넘어오면 본편이 틀던 로딩 영상을 같은 장면부터 이어 틀고, 이 맵이 다 뜨면 걷는다
@@ -16,6 +17,9 @@ import "./index.css";
 
 const container = document.getElementById("root");
 if (!container) throw new Error("#root 가 없다");
+
+// 베타 기록(참여 코드가 있을 때만) — 회차 · 신호 연결. 검수 작업대 판은 세지 않는다
+if (!IS_REVIEW_REQUESTED) initNajuBeta();
 
 // StrictMode 를 씌우지 않는다 — 개발 모드에서 useMemo 를 두 번 돌리고 effect 를 붙였다 떼었다 다시 붙여,
 // 지형·무리를 전부 memo 로 세우는 이 씬은 첫 진입 CPU·GPU 업로드·fetch 가 통째로 두 배가 된다. 본편은 그대로 둔다.

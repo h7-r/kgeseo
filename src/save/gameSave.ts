@@ -3,6 +3,7 @@
  * 로그인하지 않았으면 조용히 꺼진다 — 게임은 저장 없이 그대로 돈다.
  * 본편과 나주는 페이지가 달라도 같은 저장본의 칸(section)을 나눠 쓴다.
  */
+import { betaLog } from "@/beta/betaLog";
 import { apiUrl } from "@/config/env";
 
 const SAVE_URL = apiUrl("/api/v1/me/game-save");
@@ -181,7 +182,10 @@ export function readSavedSection<T>(name: string): T | null {
 
 export function setGameStage(next: GameStage): void {
   if (stage === next) return;
+  const previous = stage;
   stage = next;
+  // 베타 기록 — 단계가 바뀌었다(참여 코드가 없으면 아무 일도 없다). previous 가 null 이면 이 페이지에서 처음 정한 단계
+  betaLog.track("stage_reached", next, { withRun: false, data: { prev: previous, logged_in: isLoggedIn } });
   scheduleGameSave();
 }
 
@@ -222,6 +226,11 @@ function writeNow(keepalive: boolean): Promise<void> {
   return writing;
 }
 
+/** 베타 기록 — 저장 실패(게임은 다음 차례에 다시 쓴다). 같은 사유는 한 번만(betaBoot.trackError 가 거른다) */
+function noteSaveFailure(reason: string) {
+  betaLog.track("client_error", "save_failed", { data: { code: `game_save_${reason}`, blocking: false } });
+}
+
 async function sendState(state: string, key: string, keepalive: boolean): Promise<void> {
   // 보내는 동안 단계가 바뀌어도 이 요청은 모은 그때의 단계로 — 열쇠(key)와 본문이 같은 순간을 가리키게
   const sentStage = stage;
@@ -243,9 +252,13 @@ async function sendState(state: string, key: string, keepalive: boolean): Promis
       lastWritten = key;
     } else if (answer.status === 401) {
       isLoggedIn = false;
+      noteSaveFailure("401");
+    } else {
+      noteSaveFailure(String(answer.status));
     }
   } catch {
     // 다음 차례에 다시 쓴다.
+    noteSaveFailure("network");
   }
 }
 

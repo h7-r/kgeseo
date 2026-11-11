@@ -38,6 +38,7 @@ import {
   type PanelSight,
 } from "./objectives.ts";
 import type { Observation } from "./situations.ts";
+import { betaSignals } from "../beta/betaSignals";
 
 /** 알림 문장의 첫머리 → 무슨 일인가. 문장은 puzzles/* 의 showNotice 원문 */
 // 틀린 줄을 당겨 빈 통발이 올라오는 것은 통발이 찬 뒤(줄 고르기 · 당기기 단계)의 일이라 P02-2 에 센다
@@ -72,8 +73,9 @@ let noticeCount = 0;
 /** 숨이 다해 되돌려진 횟수 — 퍼즐 쪽에 따로 알리는 장치가 없어 그 알림으로 센다 */
 let sentBackCount = 0;
 
-export function reportMistake(objective: ObjectiveId) {
+export function reportMistake(objective: ObjectiveId, how = "notice") {
   mistakes[objective] = (mistakes[objective] ?? 0) + 1;
+  betaSignals.mistake(objective, how);
 }
 
 export function reportSolved(objective: ObjectiveId) {
@@ -83,7 +85,10 @@ export function reportSolved(objective: ObjectiveId) {
 /** 새 알림이 떴다 — 틀림 · 풀림 · 되돌려짐 신호면 적어 둔다 */
 export function noteNotice(text: string) {
   noticeCount += 1;
-  if (text.startsWith(SENT_BACK_NOTICE)) sentBackCount += 1;
+  if (text.startsWith(SENT_BACK_NOTICE)) {
+    sentBackCount += 1;
+    betaSignals.sentBack();
+  }
   const found = NOTICE_SIGNS.find((entry) => text.startsWith(entry.starts));
   if (!found) return;
   if (found.sign === "mistake") reportMistake(found.objective);
@@ -97,7 +102,7 @@ export function notePanel(panel: PanelSight | null) {
   if (!restarted) return;
   // 알림 문장으로 이미 세는 퍼즐은 두 번 세지 않는다
   const isCountedByNotice = NOTICE_SIGNS.some((entry) => entry.objective === restarted && entry.sign === "mistake");
-  if (!isCountedByNotice) reportMistake(restarted);
+  if (!isCountedByNotice) reportMistake(restarted, "panel");
 }
 
 /** 물고기 굴의 판 수 — 안내판 규칙의 「세 판」. 퍼즐(FishBurrows)이 내보내지 않는 값이라 여기 적는다 */
@@ -174,7 +179,7 @@ function objectiveFromState(x: number, z: number): ObjectiveId | null {
   }
 }
 
-function completedObjectives(): Set<ObjectiveId> {
+export function completedObjectives(): Set<ObjectiveId> {
   const done = new Set<ObjectiveId>([...solvedBySign, ...caveCompleted(readCave())]);
   const add = (id: ObjectiveId, isDone: boolean) => {
     if (isDone) done.add(id);

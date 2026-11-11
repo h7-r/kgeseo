@@ -4,6 +4,7 @@
  * flushGameSave 는 성공 여부를 주지 않는다(Codex). 못 했으면 붙잡지 않고 부른 쪽이 「저장하지 않고 종료」를 내민다.
  * 로그인하지 않았으면 저장할 것이 없어 바로 간다(메뉴가 미리 알린다).
  */
+import { betaLog } from "@/beta/betaLog";
 import { SITE_URL } from "@/lib/siteUrl";
 import { isGameSaveEnabled, saveBeforeLeaving } from "@/save/gameSave";
 
@@ -21,6 +22,8 @@ export async function exitGame(force = false): Promise<ExitResult> {
   if (isExiting) return "left";
   if (!force && isGameSaveEnabled() && !(await saveBeforeLeaving())) return "saveFailed";
   isExiting = true;
+  // 베타 기록 — 「게임 종료」로 떠났다(나주면 그 회차에 붙는다). 남은 기록은 페이지를 떠날 때 keepalive 로 보낸다
+  betaLog.track("run_state", "quit", { data: { forced: force } });
   window.location.assign(SITE_URL);
   return "left";
 }

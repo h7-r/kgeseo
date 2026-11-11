@@ -62,6 +62,7 @@ import { writeAbisaPose, writeSerpentPose, type AbisaPose, type SerpentPose } fr
 import { claimTalk, isTalkTaken, registerTalkInterrupter, releaseTalk, setNpcSpeech } from "./npcSpeech";
 import { isTalkPaused } from "./storyTalk";
 import { SerpentEcho } from "./serpentEcho";
+import { betaSignals } from "../../beta/betaSignals";
 
 /** 저장 키 — 앞서 시험한 인사 저장(abisaGreeted · abisaGuided)은 새 의뢰를 들은 것으로 치지 않는다(Codex 04) */
 const SERPENT_DRIVEN_KEY = "firstScene.serpentDriven";
@@ -265,6 +266,9 @@ function startRequest(brain: Brain) {
 
 /** 의뢰의 일 지시(화톳불 · 조개)는 이미 지난 일 — 들은 것으로 친다 */
 function skipRequestTasks(brain: Brain) {
+  // 베타 기록 — 일 지시 줄은 건너뛰었다(정상 경로). 설화 근거 줄은 이 앞에서 따로 남는다
+  if (brain.state.requestNext < REQUEST_LINES.length)
+    betaSignals.story("abisa_request", "skipped", { from: brain.state.requestNext, total: REQUEST_LINES.length });
   brain.state.requestNext = REQUEST_LINES.length;
   remember(REQUEST_LINE_KEY, REQUEST_LINES.length);
 }
@@ -310,6 +314,14 @@ function talkToAbisa(brain: Brain) {
   else startTalk(brain, "stage", [stageLine(clamDig.stage(), fishTrapPuzzle.stage())], false);
 }
 
+/** 설화 확인 문제의 정답 근거 줄인가 — C3(사람을 찾아 · 그날) · C2(앙암바위) */
+function evidenceOf(text: string): string | null {
+  if (text.includes("앙암바위")) return "c2_rock";
+  if (text.includes("그날")) return "c3_that_day";
+  if (text.includes("사람을 찾아")) return "c3_ask";
+  return null;
+}
+
 /** 대화창에 지금 줄을 띄운다 — [F] · 💬 로 다음 줄(어디서든) */
 const showLine = (brain: Brain, line: AbisaLine) =>
   setNpcSpeech({ speaker: ABISA_NAME, text: line.text, onNext: () => nextLine(brain) }, TALK_ID);
@@ -319,12 +331,17 @@ function nextLine(brain: Brain) {
   if (!talk) return;
   // 의뢰는 줄을 다 들을 때마다 남긴다 — 끊기면 다음에 그 줄부터
   if (talk.kind === "request" && talk.index >= 0) {
+    const heard = brain.state.requestNext;
     brain.state.requestNext = Math.min(REQUEST_LINES.length, brain.state.requestNext + 1);
     remember(REQUEST_LINE_KEY, brain.state.requestNext);
+    // 베타 기록 — 의뢰 줄을 끝까지 띄우고 넘겼다. 설화 확인 문제의 근거 줄(사람 찾기 · 앙암바위 · 그날)을 표시한다(L10a)
+    if (heard < REQUEST_LINES.length) betaSignals.story("abisa_request", "heard", { line: heard, total: REQUEST_LINES.length, evidence: evidenceOf(REQUEST_LINES[heard].text) });
   }
   if (talk.kind === "backstory" && talk.index >= 0) {
+    const heard = brain.state.backstoryNext;
     brain.state.backstoryNext = Math.min(BACKSTORY_LINES.length, brain.state.backstoryNext + 1);
     remember(BACKSTORY_LINE_KEY, brain.state.backstoryNext);
+    if (heard < BACKSTORY_LINES.length) betaSignals.story("abisa_backstory", "heard", { line: heard, total: BACKSTORY_LINES.length });
   }
   talk.index += 1;
   talk.lineTime = 0;
