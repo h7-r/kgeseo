@@ -701,6 +701,21 @@ test("보낸 뒤 연출이 시작돼 그 사이 도착한 폴링 넛지는 버�
   assert.deepEqual(late.said, []);
 });
 
+test("연출 중 기다리던 폴링 넛지는 연출이 끝났을 때 목표가 바뀌었으면(그 퍼즐을 풀었다) 버린다 — 푼 퍼즐에 푸는 법을 말하지 않게(01회차 Codex)", async () => {
+  let isQuiet = false;
+  const reply: Handler = (call) => {
+    isQuiet = true; // 응답 사이에 문이 열리는 연출이 시작됐다
+    return nudgeReply(call);
+  };
+  const { said, relayAt, turns } = await pollBridge(reply, false, true, () => false, () => isQuiet);
+  await relayAt(0, "P09");
+  await relayAt(60_000, "P09");
+  assert.equal(turns().length, 1);
+  isQuiet = false;
+  await relayAt(65_000, "P10"); // 연출이 끝나니 다음 목표
+  assert.deepEqual(said, [], "지난 퍼즐의 넛지는 버린다");
+});
+
 test("구역 진입 auto 턴의 말은 그대로 — 보낸 뒤 플레이어가 바빠졌으면(물건을 만짐) 띄우지 않고 버린다", async () => {
   let isBusy = false;
   const reply: Handler = (call) => {

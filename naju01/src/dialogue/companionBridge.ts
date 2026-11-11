@@ -307,11 +307,16 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
   let isScheduled = false;
   /** 다리가 보낸 auto 턴(구역 진입 · 상황 · 퍼즐 폴링)의 응답을 기다리는 중 — 그 응답 대사는 플레이어가 청하지 않은 말이다 */
   let isAutoPending = false;
-  /** 연출 중에 도착해 기다리는 폴링 넛지 — 풀리면 띄운다(relay 가 0.5초마다 본다). 기다리는 동안은 폴링을 보내지 않는다(unshown) */
-  let deferredNudge: { speech: Speech; until: number; token: object } | null = null;
-  const showDeferredNudge = (time: number) => {
+  /**
+   * 연출 중에 도착해 기다리는 폴링 넛지 — 풀리면 띄운다(relay 가 0.5초마다 본다). 기다리는 동안은 폴링을 보내지 않는다(unshown).
+   * 그 넛지가 가리킨 목표(objective)를 같이 둔다 — 연출이 그 퍼즐을 푼 장면이었으면 끝났을 때 목표가 바뀌어 있다(01회차 Codex)
+   */
+  let deferredNudge: { speech: Speech; until: number; token: object; objective: ObjectiveId | null } | null = null;
+  const showDeferredNudge = (time: number, objective: ObjectiveId | null) => {
     if (!deferredNudge) return;
-    if (time > deferredNudge.until) {
+    // 늦었거나 · 그 퍼즐이 이제 지금 목표가 아니면(풀었다 · 자리를 떴다) 버린다 — 푼 퍼즐에 푸는 법을 말하지 않게
+    if (time > deferredNudge.until || objective !== deferredNudge.objective) {
+      unshown.delete(deferredNudge.token);
       deferredNudge = null;
       return;
     }
@@ -350,8 +355,9 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
     // 창 · 컷신 때문에 줄에서 기다리다 버려져도 이미 센 것이다(BE 가 돌려준 것을 센다, 세진 11/10).
     // reply: null(후보를 다 씀)이면 line 이 새로 안 생기므로 개입이 아니다 — 띄우지도 쉬지도 세지도 않는다
     const isIntervention = freshOffer !== null || freshLine?.kind === "npc";
-    /** 이 응답이 퍼즐 폴링의 응답인가 — 아래에서 pollingFor 를 지우기 전에 본다 */
+    /** 이 응답이 퍼즐 폴링의 응답인가 · 그 목표 — 아래에서 pollingFor 를 지우기 전에 본다 */
     const isPollReply = pollingFor !== null;
+    const pollObjective = pollingFor;
     if (isIntervention) charge(pollingFor);
     if (isIntervention || dialog.getState().waiting === null) pollingFor = null;
     const isUnasked = isAutoPending;
@@ -364,7 +370,7 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
         const token = {};
         const until = now() + POLL_DEFER_MS;
         unshown.set(token, until);
-        deferredNudge = { speech: toSpeech(freshLine), until, token };
+        deferredNudge = { speech: toSpeech(freshLine), until, token, objective: pollObjective };
         return;
       }
       // 구역 진입 · 상황의 청하지 않은 말이 바쁠 때 왔으면 띄우지 않는다 — 쌓아 두면 바쁨이 끝난 뒤 몰려 나온다(받은 것으로는 위에서 셌다)
@@ -430,7 +436,7 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
       objective: ObjectiveId | null = null,
     ) {
       const time = now();
-      showDeferredNudge(time);
+      showDeferredNudge(time, objective);
       const state = dialog.getState();
       const isPaused = time < pollPausedUntil;
       // 정말 바쁠 때(멈춤 · 집중 연출)는 폴링을 보내지 않는다 — 받아 놓고 버리지 않게. 물건을 만지는 중은 보낸다
