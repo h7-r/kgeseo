@@ -20,10 +20,10 @@ export type TermsTabId = (typeof TERMS_TABS)[number]["id"];
  */
 export const TERMS_HEIGHTS: Record<TermsTabId, number> = {
   terms: 3700,
-  privacy: 4016,
+  privacy: 4047,
   disclaimer: 2955,
   copyright: 3161,
-  legal: 3228,
+  legal: 3107,
 };
 
 /** title 문서 이름 · article 조문 제목 · body 본문 줄 묶음. 본문 줄에는 강조 표기(**…** · !!…!!, lib/emphasis)를 쓴다. */
@@ -34,7 +34,7 @@ type TermsSection =
 const EFFECTIVE_DATE = "2026년 11월 12일";
 
 /**
- * 시험운영 값. 【 】 는 아직 정해지지 않아 실제 값을 넣어야 하는 칸이고, 보유기간은 임시로 정한 값이다.
+ * 시험운영 값(운영 주체 · 책임자 · 날짜 · 위탁 · 국외 이전 · 쿠키는 미르 11/11 확정). 보유기간은 임시로 정한 값이다.
  * 바꿀 일이 있으면 여기만 고치면 네 탭에 함께 반영된다.
  */
 const DEMO = {
@@ -42,10 +42,13 @@ const DEMO = {
   contactEmail: SUPPORT_EMAIL,
   privacyOfficer: "황미르",
   publishDate: EFFECTIVE_DATE,
-  creditsUrl: "【외부 에셋 및 오픈소스 크레딧 URL】",
-  processors: "【개인정보 수탁업체 및 위탁업무】",
-  overseasTransfer: "【국외 이전 현황】",
-  cookieTools: "【쿠키·제3자 분석도구 현황】",
+  creditsUrl: "www.k-escape.com/credits",
+  processors:
+    "Amazon Web Services(서버 · 데이터베이스 운영, 서울 리전) · Vercel(웹사이트 · 게임 호스팅) · Cloudflare(도메인 관리 · 문의 메일 전달)",
+  overseasTransfer:
+    "회원 정보와 플레이 기록은 Amazon Web Services 서울 리전에 보관합니다. 다만 웹사이트 · 게임을 전달하는 Vercel(미국)과 도메인 · 메일 전달을 맡는 Cloudflare(미국)를 거치면서 접속 기록(IP 주소 · 접속 시각 등)이 해외 서버를 지날 수 있습니다",
+  cookieTools:
+    "로그인 유지와 게스트 진행 저장에 필요한 필수 쿠키만 씁니다. 제3자 분석 · 광고 도구는 쓰지 않습니다. 글꼴은 Google Fonts에서 불러오며, 이때 접속 IP 주소가 Google에 전달됩니다",
   version: "2026-11-demo-v1",
   endDate: "2026년 12월 31일",
   retention: {
@@ -350,7 +353,7 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
         "⑥ 운영자는 개인정보를 광고·판매 목적으로 제3자에게 제공하지 않습니다. 법령상 허용되거나 정보주체의 동의를 받아 다른 제3자에게 제공하는 경우 제공받는 자·목적·항목·보유기간 및 법적 근거를 별도로 안내합니다.",
         `⑦ 개인정보 처리 위탁 현황 : ${DEMO.processors}`,
         `⑧ 개인정보 국외 이전 현황 : ${DEMO.overseasTransfer}. 국외 이전이 이루어지는 경우 이전 대상·국가·받는 자·목적·방법·보유기간·법적 근거 등 법령에 따른 사항을 안내합니다.`,
-        `⑨ 쿠키 또는 제3자 분석·광고 서비스가 사용되는 경우 그 명칭, 목적, 처리 항목 및 거부 방법을 안내합니다. 현황 : ${DEMO.cookieTools}`,
+        `⑨ 쿠키 또는 제3자 분석·광고 서비스가 사용되는 경우 그 명칭, 목적, 처리 항목 및 거부 방법을 안내합니다. 현황 : ${DEMO.cookieTools}.`,
         "⑩ 이용자는 브라우저 설정 또는 데이터 삭제 기능으로 브라우저 저장정보를 관리할 수 있으며, 삭제 시 로그인 상태나 화면 설정이 초기화될 수 있습니다. 브라우저 저장정보 삭제와 서버에 보관된 개인정보의 삭제는 별도 절차일 수 있습니다.",
         `⑪ 개인정보 보호책임자 또는 담당부서 : ${DEMO.privacyOfficer} / 연락처 : ${DEMO.contactEmail}. 권리행사 요청은 위 연락처로 접수하며, 필요한 본인 확인 후 관계 법령에 따라 처리합니다. 법률상 제한 사유가 있는 경우 그 이유를 안내합니다.`,
         "⑫ 이전 방침의 사본은 위 연락처를 통해 요청할 수 있습니다.",
@@ -643,11 +646,8 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
       lines: [
         "   · 상호 : LATENT SPACE",
         "   · 서비스명 : ESCAPE THE LEGEND",
-        "   · 대표자 : Team · Legend",
+        "   · 대표자 : 황미르",
         "   · 주소 : 광주광역시 남구 송암로 60 광주광역시 인공지능 사관학교",
-        "   · 사업자등록번호 : 000-00-00000",
-        "   · 통신판매업신고 : 2026-광주남구-00000",
-        "   · 대표전화 : 000-0000-0000 / FAX : 000-0000-0000",
         `   · 전자우편 : ${SUPPORT_EMAIL}`,
       ],
     },
@@ -666,7 +666,7 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
       lines: [
         "① 회사는 「청소년 보호법」에 따라 **청소년유해매체물을 제공하지 않습니다**.",
         "② 회사는 청소년의 건전한 게임 이용을 위하여 이용시간 안내 및 과몰입 예방 정보를 제공합니다.",
-        `③ 청소년보호책임자 : Team · Legend (**${SUPPORT_EMAIL}**)`,
+        `③ 청소년보호책임자 : 황미르 (**${SUPPORT_EMAIL}**)`,
       ],
     },
     { kind: "article", text: "제4조 (결제 및 환불)" },
@@ -758,7 +758,7 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
       ],
     },
     { kind: "article", text: "제14조 (고지의 개정 이력)" },
-    { kind: "body", lines: ["   · 2026-01-01 : 최초 제정"] },
+    { kind: "body", lines: ["   · 2026-11-12 : 최초 제정"] },
     { kind: "article", text: "제15조 (시험운영 고지)" },
     {
       kind: "body",

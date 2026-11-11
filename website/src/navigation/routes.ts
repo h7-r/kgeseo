@@ -18,6 +18,8 @@ export const ROUTES = {
   resetPassword: "/reset-password/done",
   about: "/about",
   terms: "/terms",
+  // 약관 「저작권 및 라이선스」가 www.k-escape.com/credits 로 적는다 — 바꾸면 약관 글도 같이
+  credits: "/credits",
   support: "/support",
   pricing: "/pricing",
   myPage: "/mypage",
@@ -50,6 +52,7 @@ const PAGE_TITLES: Readonly<Partial<Record<string, string>>> = {
   [ROUTES.resetPassword]: "비밀번호 재설정",
   [ROUTES.about]: "게임 소개",
   [ROUTES.terms]: "약관 및 정책",
+  [ROUTES.credits]: "크레딧",
   [ROUTES.support]: "고객센터",
   [ROUTES.pricing]: "구독",
   [ROUTES.myPage]: "마이페이지",
@@ -179,4 +182,5 @@ export const FOOTER_LINKS: readonly { label: string; target: NavTarget }[] = [
   { label: "컬렉션", target: ROUTES.media },
   { label: "구독 혜택", target: ROUTES.pricing },
   { label: "고객센터", target: ROUTES.support },
+  { label: "크레딧", target: ROUTES.credits },
 ];
