@@ -147,11 +147,23 @@ function EndingFilm() {
       hold.cancel();
       if (heldFor < TAP_MS) next();
     };
+    // 키를 쥔 채 창을 벗어나면 그 놓음이 안 온다 — 돌아왔을 때 다 찬 것으로 건너뛰지 않게 거둔다(Codex 리뷰)
+    const onLeave = () => {
+      keyDownAt.current = 0;
+      hold.cancel();
+    };
+    const onVisibility = () => {
+      if (document.hidden) onLeave();
+    };
     window.addEventListener("keydown", onKeyDown, { capture: true });
     window.addEventListener("keyup", onKeyUp, { capture: true });
+    window.addEventListener("blur", onLeave);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("keydown", onKeyDown, { capture: true });
       window.removeEventListener("keyup", onKeyUp, { capture: true });
+      window.removeEventListener("blur", onLeave);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [next, hold]);
 
@@ -288,9 +300,14 @@ function useEndingMusic() {
     };
     const syncTimer = window.setInterval(sync, 250);
     document.addEventListener("visibilitychange", sync);
+    // 소리 자동 재생을 막는 브라우저(사파리) — 필름은 연출 예약으로 열려 몸짓이 없다. 다음 클릭 · 키에서 다시 튼다(Codex 리뷰)
+    window.addEventListener("pointerdown", sync, { capture: true });
+    window.addEventListener("keydown", sync, { capture: true });
     return () => {
       window.clearInterval(syncTimer);
       document.removeEventListener("visibilitychange", sync);
+      window.removeEventListener("pointerdown", sync, { capture: true });
+      window.removeEventListener("keydown", sync, { capture: true });
       cancelAnimationFrame(raf);
       const from = audio.volume;
       const outAt = performance.now();
