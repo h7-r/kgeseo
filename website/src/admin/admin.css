@@ -1113,3 +1113,267 @@ td.adm-cell.is-mono {
   gap: 8px;
   margin-bottom: 12px;
 }
+
+/* ── 2단계(11/12): 가운데 창 · 달력 기간 · 돋보기 검색칸 ─────────────── */
+.adm-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(21, 23, 28, 0.45);
+}
+.adm-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 100%);
+  max-height: min(80vh, 760px);
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius);
+  background: var(--admin-surface);
+  box-shadow: 0 24px 64px rgba(21, 23, 28, 0.24);
+}
+.adm-modal--wide {
+  width: min(960px, 100%);
+}
+.adm-modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px 12px;
+  border-bottom: 1px solid var(--admin-line);
+}
+.adm-modal__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.adm-modal__meta {
+  margin: 4px 0 0;
+  color: var(--admin-text-label);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.adm-modal__body {
+  overflow: auto;
+  padding: 16px 24px 24px;
+}
+.adm-modal__body .adm-table-wrap {
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius-small);
+}
+/* 창 안 숫자 줄 — 이름 · 값 */
+.adm-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+.adm-facts__item {
+  padding: 12px 14px;
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius-small);
+  background: var(--admin-surface-sunken);
+}
+.adm-facts__label {
+  display: block;
+  color: var(--admin-text-label);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.adm-facts__value {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+/* 눌러서 펼치는 숫자 카드 — 겉모양은 그대로, 눌리는 것만 표시 */
+.adm-stat--button {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.12s ease;
+}
+.adm-stat--button:hover,
+.adm-stat--button:focus-visible {
+  border-color: var(--admin-blue);
+}
+.adm-stat__more {
+  color: var(--admin-blue-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.adm-daterange {
+  position: relative;
+}
+.adm-daterange__button {
+  gap: 8px;
+}
+.adm-daterange__pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  width: 320px;
+  padding: 14px;
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius);
+  background: var(--admin-surface);
+  box-shadow: 0 12px 32px rgba(21, 23, 28, 0.16);
+}
+.adm-daterange__inputs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.adm-daterange__field {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  color: var(--admin-text-label);
+  font-size: 12px;
+}
+.adm-daterange__field .adm-input {
+  height: 34px;
+  padding: 0 8px;
+  font-size: 13px;
+}
+.adm-daterange__hint {
+  margin: 10px 0 0;
+  color: var(--admin-text-label);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.adm-daterange__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+.adm-calendar__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+.adm-calendar__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.adm-calendar__weekday {
+  padding: 4px 0;
+  color: var(--admin-text-label);
+  font-size: 11px;
+  text-align: center;
+}
+.adm-calendar__day {
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--admin-text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.adm-calendar__day:hover:not(:disabled) {
+  background: var(--admin-hover);
+}
+.adm-calendar__day.is-outside {
+  color: var(--admin-text-label);
+  opacity: 0.6;
+}
+.adm-calendar__day.is-today {
+  border-color: var(--admin-line-strong);
+}
+.adm-calendar__day.is-in-range {
+  background: var(--admin-blue-soft);
+  color: var(--admin-blue-ink);
+}
+.adm-calendar__day.is-edge {
+  background: var(--admin-blue);
+  color: #ffffff;
+}
+.adm-calendar__day:disabled {
+  color: var(--admin-line-strong);
+  cursor: not-allowed;
+}
+
+.adm-searchfield {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.adm-search--icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.adm-search__icon {
+  position: absolute;
+  left: 12px;
+  color: var(--admin-text-label);
+  pointer-events: none;
+}
+.adm-input--search {
+  padding-left: 36px;
+  border-bottom: 2px solid var(--admin-line-strong);
+}
+.adm-input--search:focus {
+  border-bottom-color: var(--admin-blue);
+}
+.adm-icon {
+  flex: none;
+}
+.adm-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 가독성(11/12 해랑): 본문 · 표 · 안내 글 행간을 조금 띄운다 ─────── */
+html[data-admin] body,
+.adm-panel,
+.adm-stat,
+.adm-status {
+  line-height: 1.65;
+}
+.adm-summary__note,
+.adm-dashboard-note,
+.adm-audit-note,
+.adm-search-help,
+.adm-stat__caption,
+.adm-panel__meta {
+  line-height: 1.7;
+}
+.adm-table td,
+.adm-table th {
+  line-height: 1.55;
+}
+/* 그래프 색 — 중요도: 주된 선 · 막대는 파랑, 경고 막대는 빨강, 보조는 회색 */
+.adm-chart__bar.is-alert {
+  fill: var(--admin-red);
+}
+.adm-chart__bar.is-muted {
+  fill: var(--admin-line-strong);
+}
+.adm-chart__bar.is-active.is-alert {
+  fill: var(--admin-red-ink);
+}

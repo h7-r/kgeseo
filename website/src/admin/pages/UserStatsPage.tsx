@@ -1,89 +1,165 @@
-import { formatDelta, formatNumber, maskEmail } from "../lib/format";
+import { Link } from "react-router-dom";
+
+import { fetchStatsMembers, type StatsMembers } from "../api/stats";
+import { useAdminResource } from "../api/useAdminResource";
+import ResourceView from "../auth/ResourceView";
+import { changePercentOf } from "../lib/dateRange";
+import { formatDateTime, formatDelta, formatNumber, maskEmail } from "../lib/format";
+import { unavailableReason } from "../lib/gameObjectives";
 import { stageLabel } from "../lib/gameStage";
-import { usePreviewData } from "../preview/usePreview";
+import { providerLabel } from "../lib/memberSearch";
+import { useQueryChoice } from "../lib/useQueryChoice";
+import { ADMIN_PATHS } from "../paths";
 import BarChart from "../ui/BarChart";
 import DataTable from "../ui/DataTable";
 import LineChart from "../ui/LineChart";
 import Panel from "../ui/Panel";
+import PillTabs from "../ui/PillTabs";
 import StatCard from "../ui/StatCard";
 
-/** 연령은 받지 않아 지역만 나눈다. 구독 플랜 분포는 결제 연결 뒤에 넣는다. */
+const MONTHS = [
+  { id: "6", label: "6개월" },
+  { id: "12", label: "12개월" },
+] as const;
+
+/** 제목 오른쪽 기간 탭. */
+export function MemberStatsRangeTabs() {
+  const [months, setMonths] = useQueryChoice("months", MONTHS, "6");
+  return <PillTabs label="기간" items={MONTHS} activeId={months} onSelect={setMonths} />;
+}
+
+const delta = (current: number, previous: number, higherIsBetter: boolean) => {
+  const percent = changePercentOf(current, previous);
+  return percent === null ? undefined : formatDelta(percent, higherIsBetter);
+};
+
+/** 회원 통계(stats/members). 이 화면을 열 때마다 「회원 통계 조회」 한 줄이 남는다(최근 가입자 목록 때문). 탈퇴 · 정지는 기능 전이라 준비 중. */
 export default function UserStatsPage() {
-  const data = usePreviewData()?.memberStats;
+  const [months] = useQueryChoice("months", MONTHS, "6");
+  const span = Number(months);
+  const [resource, retry] = useAdminResource(`members:${span}`, (signal) => fetchStatsMembers(span, false, signal));
+  return (
+    <ResourceView resource={resource} retry={retry} loadingText="회원 통계를 불러오고 있습니다">
+      {(stats) => <MemberStatsView stats={stats} />}
+    </ResourceView>
+  );
+}
 
-  if (!data) return null;
-
+function MemberStatsView({ stats }: { stats: StatsMembers }) {
+  const { totals } = stats;
   return (
     <>
       <div className="adm-grid adm-grid--four">
         <StatCard
           label="총 회원"
-          value={formatNumber(data.total)}
+          value={formatNumber(totals.total)}
           unit="명"
-          caption="누적 · 지난달 대비"
-          delta={formatDelta(data.totalDelta, true)}
+          caption={`지난달 말 ${formatNumber(totals.total_at_prev_month_end)}명 대비`}
+          delta={delta(totals.total, totals.total_at_prev_month_end, true)}
         />
         <StatCard
           label="이번 달 신규 가입"
-          value={formatNumber(data.monthlySignups)}
+          value={formatNumber(totals.signups_this_month)}
           unit="명"
-          caption="지난달 대비"
-          delta={formatDelta(data.signupDelta, true)}
+          caption={`지난달 ${formatNumber(totals.signups_prev_month)}명 대비`}
+          delta={delta(totals.signups_this_month, totals.signups_prev_month, true)}
         />
         <StatCard
           label="활성 회원(MAU)"
-          value={formatNumber(data.mau)}
+          value={formatNumber(totals.mau)}
           unit="명"
-          caption="최근 30일 · 지난달 대비"
-          delta={formatDelta(data.mauDelta, true)}
+          caption={`최근 30일 · 그 전 30일 ${formatNumber(totals.mau_prev_30_days)}명 대비`}
+          delta={delta(totals.mau, totals.mau_prev_30_days, true)}
         />
         <StatCard
           label="월 이탈률"
-          value={data.churnRate.toFixed(1)}
-          unit="%"
-          caption="탈퇴 ÷ 월초 회원 · 지난달 대비"
-          delta={formatDelta(data.churnDelta, false)}
+          value={null}
+          pendingText={`준비 중 — ${unavailableReason(stats.unavailable.churn_rate)}`}
+          caption="탈퇴 ÷ 월초 회원"
         />
       </div>
+      <p className="adm-summary__note">
+        {stats.date} 한국 날짜 기준 · {formatDateTime(stats.generated_at)} 집계 · 관리자 제외 · 테스트 계정은 아직
+        가려내지 못해 들어 있습니다.
+      </p>
       <div className="adm-grid adm-grid--two">
-        <Panel title="가입 · 탈퇴 추이" meta="최근 6개월 · 월 단위">
+        <Panel title="월별 가입" meta={`최근 ${stats.months}개월 · 탈퇴는 기능 전이라 없음`}>
           <LineChart
-            label="최근 6개월 월별 가입과 탈퇴"
-            series={{ name: "가입", points: data.signups6m }}
-            compare={{ name: "탈퇴", points: data.withdrawals6m }}
+            label={`최근 ${stats.months}개월 월별 가입`}
+            series={{
+              name: "가입",
+              points: stats.monthly_signups.map((m) => ({ label: m.month.slice(2), value: m.signups })),
+            }}
             unit="명"
-            xAxisLabel="월"
+            xAxisLabel="월(연-월)"
           />
         </Panel>
         <Panel title="지역별 분포" meta="가입 때 고른 지역 · 명">
-          <BarChart label="지역별 회원 수" bars={data.regions} unit="명" xAxisLabel="지역" />
+          <BarChart
+            label="지역별 회원 수"
+            bars={stats.by_region.map((bucket) => ({ label: bucket.label, value: bucket.count }))}
+            unit="명"
+            xAxisLabel="지역"
+          />
         </Panel>
       </div>
-      <Panel title="최근 가입자" meta="이메일 가림">
-        <DataTable
-          caption="최근 가입자"
-          rows={data.recent}
-          rowKey={(row) => row.email}
-          emptyText="최근 가입자가 없습니다."
-          columns={[
-            {
-              key: "nickname",
-              header: "닉네임",
-              truncate: (row) => row.nickname,
-              render: (row) => <b>{row.nickname}</b>,
-            },
-            {
-              key: "email",
-              header: "이메일",
-              mono: true,
-              truncate: (row) => maskEmail(row.email),
-              render: (row) => maskEmail(row.email),
-            },
-            { key: "joined", header: "가입 시각", mono: true, width: "180px", render: (row) => row.joinedAt },
-            { key: "stage", header: "진행 단계", width: "160px", render: (row) => stageLabel(row.stage) },
-          ]}
-        />
+      <div className="adm-grid adm-grid--two">
+        <Panel title="로그인 수단" meta="한 회원이 둘이면 둘 다 셈 · 명">
+          <BarChart
+            label="로그인 수단별 회원 수"
+            bars={stats.by_provider.map((bucket) => ({ label: providerLabel(bucket.label), value: bucket.count }))}
+            unit="명"
+            xAxisLabel="수단"
+          />
+        </Panel>
+        <Panel title="오늘 가입" meta={`${stats.date} · ${formatNumber(stats.signups_on_date.length)}명`}>
+          <SignupTable rows={stats.signups_on_date} emptyText="오늘 가입한 회원이 없습니다." />
+        </Panel>
+      </div>
+      <Panel title="최근 가입자" meta="최신 20명 · 이메일 가림">
+        <SignupTable rows={stats.recent_signups} emptyText="가입한 회원이 없습니다." />
       </Panel>
     </>
+  );
+}
+
+export function SignupTable({ rows, emptyText }: { rows: StatsMembers["recent_signups"]; emptyText: string }) {
+  return (
+    <DataTable
+      caption="가입자"
+      rows={rows}
+      rowKey={(row) => row.user_id}
+      emptyText={emptyText}
+      minWidth={0}
+      columns={[
+        {
+          key: "nickname",
+          header: "닉네임",
+          truncate: (row) => row.nickname,
+          render: (row) => <Link to={ADMIN_PATHS.userDetail(row.user_id)}>{row.nickname}</Link>,
+        },
+        {
+          key: "email",
+          header: "이메일",
+          mono: true,
+          truncate: (row) => maskEmail(row.email),
+          render: (row) => maskEmail(row.email),
+        },
+        {
+          key: "region",
+          header: "지역",
+          width: "96px",
+          render: (row) => row.region ?? <span className="adm-muted">—</span>,
+        },
+        {
+          key: "joined",
+          header: "가입 시각",
+          mono: true,
+          width: "168px",
+          render: (row) => formatDateTime(row.created_at),
+        },
+        { key: "stage", header: "진행 단계", width: "120px", render: (row) => stageLabel(row.stage) },
+      ]}
+    />
   );
 }

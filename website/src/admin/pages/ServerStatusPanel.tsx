@@ -9,14 +9,16 @@ interface Tile {
   check: ServiceCheck | null;
   /** 아직 잴 수단이 없는 칸의 설명 */
   pendingNote?: string;
+  /** 다른 출처라 닿았는지만 안다(응답 내용은 못 읽는다) */
+  reachOnly?: boolean;
 }
 
-function StatusTile({ name, check, pendingNote }: Tile) {
+function StatusTile({ name, check, pendingNote, reachOnly }: Tile) {
   const badge =
     check === null ? (
       <Badge tone="gray">준비 중</Badge>
     ) : check.status === "up" ? (
-      <Badge tone="blue">정상</Badge>
+      <Badge tone="blue">{reachOnly ? "닿음" : "정상"}</Badge>
     ) : check.status === "down" ? (
       <Badge tone="red">응답 없음</Badge>
     ) : (
@@ -39,7 +41,7 @@ function StatusTile({ name, check, pendingNote }: Tile) {
   );
 }
 
-/** 서버 상태. API · DB 는 실제로 묻고, 로비 · 에셋은 잴 수단이 생길 때까지 준비 중으로 둔다. */
+/** 서버 상태. API · DB 는 실제로 묻고, 로비는 브라우저에서 닿는지만 본다. CDN 은 쓰지 않는다. */
 export default function ServerStatusPanel() {
   const [resource, retry] = useAdminResource("health", checkPlatformHealth);
   const health = resource.status === "ready" ? resource.data : null;
@@ -57,8 +59,13 @@ export default function ServerStatusPanel() {
       <div className="adm-grid adm-grid--four">
         <StatusTile name="API" check={health?.api ?? null} pendingNote="확인하는 중…" />
         <StatusTile name="DB" check={health?.database ?? null} pendingNote="확인하는 중…" />
-        <StatusTile name="로비(실시간)" check={null} pendingNote="로비 상태 확인 수단 연결 전" />
-        <StatusTile name="에셋(CDN)" check={null} pendingNote="CDN 상태 확인 수단 연결 전" />
+        <StatusTile
+          name="로비(실시간)"
+          check={health ? health.lobby : null}
+          pendingNote={health && !health.lobby ? "로비 주소(VITE_LOBBY_URL)가 없어 확인하지 않습니다" : "확인하는 중…"}
+          reachOnly
+        />
+        <StatusTile name="에셋(CDN)" check={null} pendingNote="CDN 을 쓰지 않습니다 — 게임 서버가 직접 제공" />
       </div>
     </Panel>
   );

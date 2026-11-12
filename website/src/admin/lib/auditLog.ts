@@ -10,6 +10,9 @@ export const AUDIT_ACTION_FILTERS = [
   { id: "list_users", label: "회원 목록 조회" },
   { id: "list_audit_logs", label: "활동 로그 조회" },
   { id: "export_beta_events", label: "베타 기록 받기" },
+  { id: "view_member_stats", label: "회원 통계 조회" },
+  { id: "view_active_sessions", label: "활성 세션 조회" },
+  { id: "view_security_summary", label: "보안 집계 조회" },
 ] as const;
 
 export type AuditActionFilter = (typeof AUDIT_ACTION_FILTERS)[number]["id"];
@@ -21,6 +24,9 @@ const ACTION_LABELS: Record<string, string> = {
 
 /** 모르는 값(나중 버전에 생긴 종류)은 원문 그대로 보인다. */
 export const auditActionLabel = (action: string): string => ACTION_LABELS[action] ?? action;
+
+/** 서버가 받는 최대 기간(양 끝 포함) */
+export const AUDIT_MAX_DAYS = 92;
 
 /** 서버 기본은 최근 30일, 최대 92일(양 끝 포함). */
 export const AUDIT_PERIODS = [

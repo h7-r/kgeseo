@@ -6,54 +6,6 @@ export interface Point {
 }
 
 export interface PreviewData {
-  /** 숫자 카드는 통계 API 의 실제 값이라, 원천이 없는 두 칸과 그래프만 둔다 */
-  dashboard: {
-    concurrent: number;
-    openInquiries: number;
-    visitors7d: Point[];
-    stageCompletion: Point[];
-  };
-  traffic: {
-    concurrent: number;
-    peakToday: number;
-    dau: number;
-    mau: number;
-    perMinute: Point[];
-    sessions: { startedAt: string; nickname: string; stage: string; ip: string }[];
-  };
-  memberStats: {
-    total: number;
-    totalDelta: number;
-    monthlySignups: number;
-    signupDelta: number;
-    mau: number;
-    mauDelta: number;
-    churnRate: number;
-    churnDelta: number;
-    signups6m: Point[];
-    withdrawals6m: Point[];
-    regions: Point[];
-    recent: { nickname: string; email: string; joinedAt: string; stage: string }[];
-  };
-  gameData: {
-    contentVersion: string;
-    avgCompletionMinutes: number;
-    stages: { label: string; entered: number; completed: number }[];
-    puzzles: { id: string; name: string; judge: "서버" | "화면"; attempts: number; wrong: number; hints: number }[];
-  };
-  security: {
-    /** 24시간 합계와 지난 7일 하루 평균(기준선) */
-    totals: { label: string; value: number; baseline: number; unit: string }[];
-    loginFailures24h: Point[];
-    loginFailuresBaseline: Point[];
-    rateLimited: Point[];
-    hotIps: { ip: string; failures: number; locked: boolean; lastAt: string }[];
-    adminLogins: { at: string; admin: string; ip: string; isNewIp: boolean }[];
-    adminActions: { action: string; count: number }[];
-    chatRejections: Point[];
-    requestErrors: { kind: string; value: number; baseline: number }[];
-    dependencyAudit: { tool: string; checkedAt: string; high: number; moderate: number; low: number }[];
-  };
   notices: {
     id: string;
     title: string;

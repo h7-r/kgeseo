@@ -95,3 +95,158 @@ class AuditLogEntry(BaseModel):
 class AuditLogList(BaseModel):
     logs: list[AuditLogEntry]
     next_offset: int | None
+
+
+# --- 관리자 API v0.2 2단계(11/12 해랑): 접속 통계 · 회원 통계 · 게임 데이터 · 보안 집계 — 전부 기존 테이블 읽기만 ---
+
+
+class TrafficDay(BaseModel):
+    """KST 하루의 집계. `date` 는 그날, 값은 §3.3 과 같은 정의(DAU = 로그인 세션 또는 플레이 세션을 만든 고유 회원)."""
+
+    date: date
+    members_dau: int
+    guests_dau: int
+    signups: int
+    play_sessions_created: int
+
+
+class TrafficLive(BaseModel):
+    # 최근 5분 안에 갱신된 플레이 세션 수 — 「지금 플레이 중」의 근사값(play_sessions.updated_at)
+    active_play_sessions_5m: int
+    basis: str = "play_sessions.updated_at"
+
+
+class AdminStatsTraffic(BaseModel):
+    generated_at: datetime
+    timezone: str
+    date: date
+    days: int
+    include_internal: bool
+    daily: list[TrafficDay]
+    live: TrafficLive
+    unavailable: dict[str, str]
+
+
+class ActiveSession(BaseModel):
+    """지금 플레이 중인 세션 한 줄. 세션 id · 토큰 · IP 는 싣지 않는다(§5)."""
+
+    # 회원이면 닉네임, 게스트면 null
+    nickname: str | None
+    user_id: str | None
+    case_id: str
+    started_at: datetime
+    last_seen_at: datetime
+
+
+class ActiveSessionList(BaseModel):
+    generated_at: datetime
+    window_minutes: int
+    sessions: list[ActiveSession]
+
+
+class CountBucket(BaseModel):
+    label: str
+    count: int
+
+
+class MonthSignups(BaseModel):
+    # "2026-11"
+    month: str
+    signups: int
+
+
+class RecentSignup(BaseModel):
+    """최근 가입자 한 줄. 이메일은 목록 규칙대로 전체(화면이 가린다, §2.5) — 상세는 회원 상세로."""
+
+    user_id: str
+    nickname: str
+    email: str
+    region: str | None
+    created_at: datetime
+    stage: str | None
+
+
+class MembersTotals(BaseModel):
+    total: int
+    # 지난달 말(이번 달 1일 00:00 KST 전) 기준 누적
+    total_at_prev_month_end: int
+    signups_this_month: int
+    signups_prev_month: int
+    mau: int
+    mau_prev_30_days: int
+
+
+class AdminStatsMembers(BaseModel):
+    generated_at: datetime
+    timezone: str
+    date: date
+    include_internal: bool
+    months: int
+    totals: MembersTotals
+    monthly_signups: list[MonthSignups]
+    # region 이 null 인 회원은 label "(미입력)"
+    by_region: list[CountBucket]
+    by_provider: list[CountBucket]
+    signups_on_date: list[RecentSignup]
+    recent_signups: list[RecentSignup]
+    unavailable: dict[str, str]
+
+
+class FunnelStep(BaseModel):
+    # stage_reached 의 phase 값 그대로
+    phase: str
+    people: int
+
+
+class StageStats(BaseModel):
+    # 1 = 나루터 · 2 = 바위 아래 · 물굴 · 3 = 증언 능선
+    stage: int
+    entered: int
+    completed: int
+
+
+class PuzzleStats(BaseModel):
+    objective_id: str
+    judge: str
+    attempts: int
+    wrong: int
+    hint_requests: int
+    completed_people: int
+
+
+class AdminStatsGame(BaseModel):
+    generated_at: datetime
+    timezone: str
+    date: date
+    days: int
+    # 집계에 든 사람(회원 · 게스트 · 탭) 수
+    people: int
+    funnel: list[FunnelStep]
+    stages: list[StageStats]
+    puzzles: list[PuzzleStats]
+    # 새벽(dawn)까지 간 회차의 평균 분 — 한 회차도 없으면 null
+    avg_completion_minutes: float | None
+    completed_runs: int
+    unavailable: dict[str, str]
+
+
+class LoginThrottleSummary(BaseModel):
+    # 지금 잠긴 키 수 · 현재 창에 실패가 쌓인 키 수 · 그 실패 합. 키 자체(해시)는 싣지 않는다
+    locked_now: int
+    keys_with_failures: int
+    failures_in_window: int
+
+
+class AdminLoginEntry(BaseModel):
+    user_id: str
+    nickname: str | None
+    at: datetime
+
+
+class AdminSecuritySummary(BaseModel):
+    generated_at: datetime
+    timezone: str
+    login_throttle: LoginThrottleSummary
+    admin_logins_7d: list[AdminLoginEntry]
+    audit_actions_24h: list[CountBucket]
+    unavailable: dict[str, str]
