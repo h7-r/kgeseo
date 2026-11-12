@@ -141,6 +141,20 @@ export function removeSavedSections(match: (name: string) => boolean): Record<st
   return removed;
 }
 
+/**
+ * 이 페이지가 쓰고 있지 않은 칸의 저장값을 바꾸고, 바꾸기 전 값을 돌려준다(되돌릴 때 그대로 넣는다).
+ * 등록된 칸(이 페이지가 읽고 쓰는 중)은 건드리지 않는다 — 그 칸은 등록한 쪽이 바꾼다.
+ */
+export function writeSavedSection(name: string, value: unknown): unknown {
+  const previous = storedSections[name];
+  if (sections.has(name)) return previous;
+  const next = { ...storedSections };
+  if (value === undefined) delete next[name];
+  else next[name] = value;
+  storedSections = next;
+  return previous;
+}
+
 /** removeSavedSections 로 지운 칸을 되돌린다(그사이 다시 생긴 칸은 그대로 둔다) */
 export function restoreSavedSections(removed: Record<string, unknown>): void {
   storedSections = { ...removed, ...storedSections };

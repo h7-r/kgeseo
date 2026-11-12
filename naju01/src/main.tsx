@@ -3,8 +3,16 @@
 import { apiOrigin } from "../../shared/deploymentUrls";
 import { isPlayDeviceBlocked, renderPcOnlyNotice } from "../../shared/playDevicePolicy";
 import { isLoginGateEnabled, passLoginGate } from "../../shared/playLoginGate";
+import { canCreateWebGl, showGraphicsFailure, watchGraphicsFailure } from "../../shared/graphicsFailure";
+import { startMeasureProbe } from "../../shared/measureProbe";
+import { LOW_QUALITY_TEXTURE_MAX, capDecodedImages } from "../../shared/lowQualityDecode";
+import { resolveQuality } from "../../shared/qualityChoice";
+import { askQualityOnce } from "../../shared/qualityChooser";
 import { bootBeta } from "@/beta/betaBoot";
 import { SITE_URL } from "@/lib/siteUrl";
+
+// 실기기 측정기(?measure) — 게임 모듈이 WebGL 을 열기 전에 건다. 표시가 없으면 아무것도 하지 않는다
+startMeasureProbe("naju");
 
 const container = document.getElementById("root");
 if (!container) throw new Error("#root 가 없다");
@@ -14,10 +22,21 @@ const isBlocked = isPlayDeviceBlocked({ allowOverride: import.meta.env.DEV || im
 bootBeta("naju", { blocked: isBlocked });
 if (isBlocked) {
   renderPcOnlyNotice(container, SITE_URL);
+} else if (!canCreateWebGl()) {
+  // 그래픽 연결을 아예 못 만든다(브라우저가 그래픽 가속을 꺼 둔 상태 등) — 로딩 막대만 차고 멈추는 대신 바로 안내한다
+  showGraphicsFailure("unavailable");
 } else {
+  // 플레이 도중의 끊김 · 연결 생성 실패 — 검은 화면 대신 안내
+  watchGraphicsFailure();
   // 로그인하지 않았으면 로그인 안내(미르 11/11) — /naju01/ 을 직접 열어도 같다
   void passLoginGate(container, loginGateOptions()).then((isPassed) => {
-    if (isPassed) void import("./boot");
+    // 처음이면 그래픽 품질을 먼저 묻는다 — 3D 를 받기 전에(고른 값이 바로 적용된다)
+    if (isPassed)
+      void askQualityOnce({ dev: import.meta.env.DEV }).then(() => {
+        // 저사양 모드 — 모형 속 큰 그림을 풀 때 줄인다. 게임 모듈이 그림을 읽기 전에 건다
+        if (resolveQuality().mode === "low") capDecodedImages(LOW_QUALITY_TEXTURE_MAX);
+        return import("./boot");
+      });
   });
 }
 

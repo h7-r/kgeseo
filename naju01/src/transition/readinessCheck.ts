@@ -91,7 +91,15 @@ function startWatching() {
       // 머리만 오고 몸통은 아직일 수 있다 — 몸통을 다 읽을 때까지 걸린 요청으로 둔다
       return originalFetch(input, init).then(
         (response) => {
-          response.clone().arrayBuffer().then(done, done);
+          // 몸통이 다 왔는지만 본다 — 통째로 배열에 담으면 받는 동안 파일만큼 메모리가 한 벌 더 든다(11/12 저사양 보고).
+          // 조각을 읽는 대로 버린다
+          const body = response.clone().body;
+          if (!body) done();
+          else {
+            const reader = body.getReader();
+            const drain = (): Promise<void> => reader.read().then((chunk) => (chunk.done ? done() : drain()), done);
+            void drain();
+          }
           return response;
         },
         (error: unknown) => {

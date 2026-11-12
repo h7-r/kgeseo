@@ -17,7 +17,7 @@ import {
 } from "react";
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
-import { PerformanceMonitor, Preload } from "@react-three/drei";
+import { PerformanceMonitor } from "@react-three/drei";
 import { Bloom, EffectComposer, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
 import { Leva } from "leva";
@@ -36,7 +36,7 @@ import {
   useGameFrozen,
   useTouchMode,
 } from "@/engine/input";
-import { IS_LOW_QUALITY, IS_MOBILE_QUALITY } from "@/engine/quality";
+import { IS_LOW_QUALITY } from "@/engine/quality";
 import { useHintBox } from "@/game/hintBox";
 import { DEFAULT_SETTINGS, RESOLUTION_DPR, useSettings } from "@/settings/settings";
 import LeaveToLobby from "@/game/LeaveToLobby";
@@ -89,6 +89,7 @@ import { canLeaveToLobby, leaveToLobbyAction } from "./leaveToLobby";
 import { PuzzleHud, PuzzleWorld } from "./PuzzleLayer";
 import { prefetchNajuAssets } from "./prefetch";
 import { waitForSessionBeforeAssets } from "./sessionGate";
+import { ShaderPreload } from "./ShaderPreload";
 import {
   ALLOW_VIEW_TOGGLE,
   IS_ARRIVING_FROM_HUB,
@@ -107,6 +108,8 @@ import {
   MESH_APPEARANCE_KEY,
   MIN_DPR,
   MSAA_SAMPLES,
+  SHADOW_QUALITY,
+  START_DPR,
   SHOW_CUSTOMIZE_PANEL,
   SHOW_DEV_TOOLS,
   SHOW_SETTINGS_BUTTON,
@@ -134,7 +137,7 @@ const COVER_REMOVE_MS = 450;
 export default function App() {
   // 동적 해상도 — dpr 을 못 박으면 가장 나쁜 자리(Z1 마을)에 맞춰야 해서 한가한 곳의 성능을 버린다.
   // 배율이 바뀌면 프레임버퍼를 다시 잡으므로 0.25 눈금으로만 움직인다.
-  const [dpr, setDpr] = useState(IS_DPR_AUTO ? 1.25 : MAX_DPR);
+  const [dpr, setDpr] = useState(IS_DPR_AUTO ? START_DPR : MAX_DPR);
 
   // 본편과 같은 설정(같은 저장 열쇠) — 본편에서 줄인 소리가 여기서도 그대로다
   const settings = useSettings();
@@ -146,7 +149,10 @@ export default function App() {
   const [leaveAction] = useState(() => (!IS_REVIEW_REQUESTED && canLeaveToLobby() ? leaveToLobbyAction() : undefined));
   // 「자동」이 아니면 고른 배율로 못 박고 동적 해상도를 끈다
   const fixedDpr =
-    settings.resolution === "auto" ? null : Math.min(RESOLUTION_DPR[settings.resolution], window.devicePixelRatio || 1);
+    settings.resolution === "auto"
+      ? null
+      : // 저사양 모드는 해상도 설정이 「높음 · 최고」여도 상한(1)을 넘기지 않는다(Codex 리뷰 10)
+        Math.min(RESOLUTION_DPR[settings.resolution], window.devicePixelRatio || 1, IS_LOW_QUALITY ? MAX_DPR : Infinity);
 
   const controlsRef = useRef<PointerLockControlsImpl>(null);
   const reportRef = useRef<NajuSceneReport | null>(null); // 씬 → 검수 도구(리렌더 없이)
@@ -386,9 +392,10 @@ export default function App() {
       <Leva hidden theme={{ sizes: { numberInputMinWidth: "68px" } }} />
       <Canvas
         frameloop={isFrozen ? "never" : "always"}
-        shadows={IS_LOW_QUALITY || IS_MOBILE_QUALITY ? false : "percentage"}
+        // 끌 때도 방식(type)은 켤 때와 같게 둔다 — false 만 주면 방식 값이 바뀌어 같은 재질이 한 벌 더 구워진다(11/12 실측)
+        shadows={SHADOW_QUALITY === "off" ? { enabled: false, type: THREE.PCFShadowMap } : "percentage"}
         // [1, 상한] 배열을 주면 three 가 기기 픽셀비로 골라 PerformanceMonitor 가 정한 값이 묻힌다
-        dpr={IS_LOW_QUALITY ? 1 : (fixedDpr ?? dpr)}
+        dpr={fixedDpr ?? dpr}
         // 밝기 100% 면 필터를 아예 안 건다(합성 비용 0)
         style={settings.brightness !== 1 ? { filter: `brightness(${settings.brightness})` } : undefined}
         gl={{
@@ -414,9 +421,12 @@ export default function App() {
             {IS_DPR_AUTO && fixedDpr === null && (
               <PerformanceMonitor
                 bounds={() => [50, 58]}
-                flipflops={3}
+                // 저사양은 멈추지 않고 계속 맞춘다 — 세 번 뒤 그 자리에 굳으면 무거운 구역에서 못 내려간다(Codex 리뷰 10)
+                flipflops={IS_LOW_QUALITY ? Infinity : 3}
                 onChange={({ factor }) => {
-                  const next = Math.round((MIN_DPR + (MAX_DPR - MIN_DPR) * factor) * 4) / 4;
+                  // 기본은 0.25 단위, 저사양은 0.05 단위(0.65 ~ 1 사이를 0.25 로 자르면 0.75 · 1 둘뿐이다)
+                  const steps = IS_LOW_QUALITY ? 20 : 4;
+                  const next = Math.round((MIN_DPR + (MAX_DPR - MIN_DPR) * factor) * steps) / steps;
                   setDpr((previous) => (previous === next ? previous : next));
                 }}
               />
@@ -434,7 +444,7 @@ export default function App() {
             />
             <PuzzleWorld />
             {/* 씬 뒤에 둔다 — 붙는 순서대로 효과가 돌아 씬의 재질이 다 선 다음에 데운다 */}
-            <Preload all />
+            <ShaderPreload linear={!IS_POSTFX_DISABLED} withUpload={!IS_LOW_QUALITY} />
             <PauseClockGuard />
             {/* 멈춘 동안 캔버스 크기 · 픽셀비가 바뀌면 한 장면 다시 — 안 그리면 메뉴 뒤가 까맣다(미르 11/11 물굴 ESC 암전) */}
             <FrozenRedraw />
@@ -445,7 +455,8 @@ export default function App() {
           </>
         )}
         {/* frameBufferType 을 꼭 준다 — 기본 HalfFloat 이면 ANGLE Metal 에서 이 씬의 3D 가 통째로 까맣다(?fb=half 로 재현). */}
-        {!IS_LOW_QUALITY && !IS_POSTFX_DISABLED && (
+        {/* 저사양 모드도 후처리는 둔다(먹선 · 색 보정이 그림의 느낌이다) — 계단 제거 · 블룸만 끈다(runtimeFlags) */}
+        {!IS_POSTFX_DISABLED && (
           <EffectComposer
             multisampling={MSAA_SAMPLES}
             enableNormalPass={false}
