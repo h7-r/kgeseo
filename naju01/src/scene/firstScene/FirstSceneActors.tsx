@@ -63,6 +63,7 @@ import { claimTalk, isTalkTaken, registerTalkInterrupter, releaseTalk, setNpcSpe
 import { isTalkPaused } from "./storyTalk";
 import { SerpentEcho } from "./serpentEcho";
 import { betaSignals } from "../../beta/betaSignals";
+import { stripEmphasis } from "../../dialogue/emphasis";
 
 /** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
 const showNotice = noticeFor("abisa");
@@ -145,7 +146,8 @@ const ease = (t: number) => THREE.MathUtils.smootherstep(clamp(t, 0, 1), 0, 1);
 /** 0 → 1(올림) → 머묾 → 0(내림) */
 const envelope = (t: number, rise: number, hold: number, fall: number) =>
   t < 0 ? 0 : t < rise ? ease(t / rise) : t < rise + hold ? 1 : 1 - ease((t - rise - hold) / fall);
-const lineSeconds = (text: string) => clamp(1.6 + text.length * 0.075, 2.8, 5.5);
+/** 한 줄을 띄워 두는 시간(초) — 굵게 표시(**)는 세지 않는다 */
+const lineSeconds = (text: string) => clamp(1.6 + stripEmphasis(text).length * 0.075, 2.8, 5.5);
 
 type TalkKind = "request" | "backstory" | "echo" | "stage";
 
@@ -351,13 +353,19 @@ function nextLine(brain: Brain) {
     brain.state.requestNext = Math.min(REQUEST_LINES.length, brain.state.requestNext + 1);
     remember(REQUEST_LINE_KEY, brain.state.requestNext);
     // 베타 기록 — 의뢰 줄을 끝까지 띄우고 넘겼다. 설화 확인 문제의 근거 줄(사람 찾기 · 앙암바위 · 그날)을 표시한다(L10a)
-    if (heard < REQUEST_LINES.length) betaSignals.story("abisa_request", "heard", { line: heard, total: REQUEST_LINES.length, evidence: evidenceOf(REQUEST_LINES[heard].text) });
+    if (heard < REQUEST_LINES.length)
+      betaSignals.story("abisa_request", "heard", {
+        line: heard,
+        total: REQUEST_LINES.length,
+        evidence: evidenceOf(REQUEST_LINES[heard].text),
+      });
   }
   if (talk.kind === "backstory" && talk.index >= 0) {
     const heard = brain.state.backstoryNext;
     brain.state.backstoryNext = Math.min(BACKSTORY_LINES.length, brain.state.backstoryNext + 1);
     remember(BACKSTORY_LINE_KEY, brain.state.backstoryNext);
-    if (heard < BACKSTORY_LINES.length) betaSignals.story("abisa_backstory", "heard", { line: heard, total: BACKSTORY_LINES.length });
+    if (heard < BACKSTORY_LINES.length)
+      betaSignals.story("abisa_backstory", "heard", { line: heard, total: BACKSTORY_LINES.length });
   }
   talk.index += 1;
   talk.lineTime = 0;

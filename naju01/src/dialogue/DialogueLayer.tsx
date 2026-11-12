@@ -59,6 +59,8 @@ import {
 } from "./dialogueRuntime";
 import { noteNotice, notePanel } from "./gameObserver";
 
+import { emphasisRuns, sliceRuns, stripEmphasis } from "./emphasis";
+import { renderEmphasis, renderRuns } from "./richText";
 import { useLineBreaks } from "./useLineBreaks";
 import "./dialogue.css";
 
@@ -287,7 +289,8 @@ function SceneSpeech({
   isTouch: boolean;
   toScreen: (text: string) => string;
 }) {
-  // 문장마다 줄을 바꾼다 — 창 줄 수 안일 때만(미르 11/12). 쪽을 나누지 않는 말이라 넘치면 예전처럼 흘려 그린다
+  // 한 줄에 들어가는 문장끼리 묶고, 안 들어가는 문장은 새 줄에 — 창 줄 수 안일 때만(미르 11/12). 쪽을 나누지 않는 말이라
+  // 넘치면 예전처럼 흘려 그린다
   const [textRef, lined] = useLineBreaks<HTMLParagraphElement>(toScreen(speech.text), {
     sentenceLines: PAGE_LINES[isTouch ? "touch" : "desktop"],
   });
@@ -304,7 +307,7 @@ function SceneSpeech({
         )}
       </div>
       <p ref={textRef} className="npc-talk__text" data-testid="npc-talk-text">
-        {withKeys(lined)}
+        {renderEmphasis(lined, withKeys)}
       </p>
       {speech.onNext && isTouch && (
         // 터치 — 창이 조작층 위에 떠 있어 「다음」을 바로 누른다(위 줄 💬 도 같은 일 — 동행 말과 같은 모양)
@@ -357,20 +360,22 @@ function SpeechPage({ shown, typingRef, onAnswer, isTouch, toScreen }: Companion
   // 두 줄 넘게 넘어가면 문장 · 쉼표 자리에서 끊는다 — 글 길이는 그대로라 찍는 자리는 text 로 세도 된다
   const [textRef, lined] = useLineBreaks<HTMLParagraphElement>(text);
   const [typed, setTyped] = useState(0);
+  // 글자는 보이는 글자로 센다 — 굵게 표시(**)는 찍지 않는다(emphasis.ts)
+  const visibleLength = stripEmphasis(text).length;
 
   useEffect(() => {
     // 지난 시간으로 센다 — 프레임이 밀려 타이머가 늦게 돌아도 글이 느려지지 않는다
     const startedAt = performance.now();
     let count = 0;
     const timer = window.setInterval(() => {
-      count = Math.min(text.length, Math.floor((performance.now() - startedAt) / DIALOGUE_TIMING.typeMs));
+      count = Math.min(visibleLength, Math.floor((performance.now() - startedAt) / DIALOGUE_TIMING.typeMs));
       setTyped(count);
-      if (count >= text.length) window.clearInterval(timer);
+      if (count >= visibleLength) window.clearInterval(timer);
     }, DIALOGUE_TIMING.typeMs);
     const finish: FinishTyping = () => {
-      if (count >= text.length) return false;
+      if (count >= visibleLength) return false;
       window.clearInterval(timer);
-      count = text.length;
+      count = visibleLength;
       setTyped(count);
       return true;
     };
@@ -379,9 +384,10 @@ function SpeechPage({ shown, typingRef, onAnswer, isTouch, toScreen }: Companion
       window.clearInterval(timer);
       if (typingRef.current === finish) typingRef.current = null;
     };
-  }, [text, typingRef]);
+  }, [text, visibleLength, typingRef]);
 
-  const cut = snapToKey(text, typed);
+  const runs = emphasisRuns(lined);
+  const cut = snapToKey(stripEmphasis(lined), typed);
   const isLast = pageIndex >= pages.length - 1;
   const choices = speech.kind === "ask" && isLast ? (speech.choices ?? []) : [];
   const keys = choiceKeys(choices.length, speech.numbered);
@@ -393,8 +399,8 @@ function SpeechPage({ shown, typingRef, onAnswer, isTouch, toScreen }: Companion
   return (
     <>
       <p ref={textRef} className="npc-talk__text" data-testid="npc-talk-text">
-        {withKeys(lined.slice(0, cut))}
-        <span className="npc-talk__pending">{withKeys(lined.slice(cut))}</span>
+        {renderRuns(sliceRuns(runs, 0, cut), withKeys)}
+        <span className="npc-talk__pending">{renderRuns(sliceRuns(runs, cut), withKeys)}</span>
       </p>
       {choices.length > 0 ? (
         <div className="npc-talk__choices">

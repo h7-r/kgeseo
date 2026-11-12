@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { inCompanionVoice } from "../dialogue/gameVoice";
+import { renderEmphasis } from "../dialogue/richText";
 
 import { addPointerActiveListener, isPointerActive, useKeyLabels, useTouchMode } from "@/engine/input";
 
@@ -64,7 +65,7 @@ export default function PuzzlePanelHud() {
       data-yield={isYielding ? "1" : undefined}
     >
       <div style={titleStyle}>{panel.title}</div>
-      <div style={ruleStyle}>{inCompanionVoice(panel.rule)}</div>
+      <div style={ruleStyle}>{renderEmphasis(inCompanionVoice(panel.rule))}</div>
       {panel.diagram && <div style={diagramStyle}>{panel.diagram}</div>}
       {panel.rows && panel.rows.length > 0 && (
         <div style={rowsStyle}>
@@ -127,12 +128,12 @@ function TouchPuzzlePanel({ title, rule: rawRule, rows, diagram }: TouchPuzzlePa
       )}
       {isOpen ? (
         <div style={touchBodyStyle}>
-          <div style={{ ...ruleStyle, marginBottom: diagram ? 8 : 0 }}>{rule}</div>
+          <div style={{ ...ruleStyle, marginBottom: diagram ? 8 : 0 }}>{renderEmphasis(rule)}</div>
           {diagram && <div style={diagramStyle}>{diagram}</div>}
         </div>
       ) : (
         // 접혀 있어도 규칙 앞 두 줄은 보인다 — 개수 줄이 없는 퍼즐도 무엇을 하는 곳인지 알 수 있게
-        <div style={clampedRuleStyle}>{rule}</div>
+        <div style={clampedRuleStyle}>{renderEmphasis(rule)}</div>
       )}
     </div>
   );

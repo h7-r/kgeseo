@@ -17,6 +17,7 @@ import { isPaperOpenNow } from "../../puzzles/ridge/oldPaper";
 import { cameraFocusId } from "../cameraFocus";
 import { stage } from "../immersion/state";
 import { claimTalk, releaseTalk, setNpcSpeech } from "./npcSpeech";
+import { stripEmphasis } from "../../dialogue/emphasis";
 
 export interface StoryLine {
   text: string;
@@ -26,8 +27,8 @@ export interface StoryLine {
   isDown?: boolean;
 }
 
-/** 한 줄을 띄워 두는 시간(초) — 글이 길수록 길게 */
-export const lineSeconds = (text: string) => THREE.MathUtils.clamp(1.6 + text.length * 0.075, 2.8, 5.5);
+/** 한 줄을 띄워 두는 시간(초) — 글이 길수록 길게. 굵게 표시(**)는 세지 않는다 */
+export const lineSeconds = (text: string) => THREE.MathUtils.clamp(1.6 + stripEmphasis(text).length * 0.075, 2.8, 5.5);
 
 /**
  * 말을 멈출 때 — 다른 일(창 · 종이 · 편지 · 게이지 · 연출)에 묶여 있거나 조작이 풀려 있다.
