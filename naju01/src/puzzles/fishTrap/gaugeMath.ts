@@ -49,7 +49,7 @@ export interface ZoneChoice {
 
 /**
  * 후보 중 막대가 칸에 닿기까지 minReach 초 이상 남는 것을 무작위로. 하나도 없으면 가장 오래 걸리는 것
- * (셋째는 둘째의 반대편으로 묶여 있고 둘째도 칸 가장자리에서 맞히면 0.2 초 남짓인 때가 있다 — 그 정도는 받는다, 02회차 Codex)
+ * (셋째는 둘째의 반대편으로 묶여 있어 셋째 쪽으로 가며 맞히면 0.15 초 남짓, 둘째도 칸 가장자리에서 맞히면 0.2 초 남짓 — 그 정도는 받는다, 02 · 05회차 Codex)
  */
 export function pickZone(
   candidates: readonly ZoneChoice[],
