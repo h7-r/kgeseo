@@ -379,7 +379,8 @@ def _transferred_after_creation():
 
 
 def _guest_at_play_time():
-    """플레이 당시 게스트였던 세션(미르 11/12 — DAU 는 「그날 누구였나」로 센다, 승계로 소유자가 바뀌어도 과거 날짜는 안 움직인다):
+    """만든 순간 소유자가 게스트였던 세션(미르 11/12 — DAU 는 「세션을 만든 날 누구였나」로 센다, 승계로 소유자가 바뀌어도 과거 날짜는 안 움직인다.
+    플레이 중 모든 활동 시점이 아니라 생성 당시 소유자를 복원하는 것 — 세진 11/12):
     지금도 게스트 소유이거나, 게스트 때 만들고 뒤에 승계된 것. 소유자가 아예 없는 옛 세션(11/6 전)은 전처럼 어디에도 안 든다."""
 
     return or_(
@@ -392,7 +393,7 @@ def _guest_at_play_time():
 
 
 def _member_at_play_time():
-    """플레이 당시 회원이었던 세션 — 회원 소유이고, 게스트 때 만들어 승계된 것이 아니다."""
+    """만든 순간 소유자가 회원이었던 세션 — 회원 소유이고, 게스트 때 만들어 승계된 것이 아니다."""
 
     return and_(PlaySession.owner_user_id.is_not(None), ~_transferred_after_creation())
 
@@ -401,7 +402,7 @@ async def _active_members(
     db: AsyncSession, include_internal: bool, start: datetime, end: datetime
 ) -> int:
     """기간 안에 로그인 세션을 만들었거나 「회원으로서」 플레이 세션을 만든 고유 회원 수(D8). 둘 다 있는 회원은 한 번.
-    게스트 때 만들고 뒤에 승계된 세션은 그날의 회원 활동이 아니다(플레이 당시 기준, 미르 11/12)."""
+    게스트 때 만들고 뒤에 승계된 세션은 그날의 회원 활동이 아니다(생성 당시 소유자 기준, 미르 11/12)."""
 
     logins = select(UserSession.app_user_id.label("user_id")).where(
         UserSession.created_at >= start, UserSession.created_at < end
@@ -423,7 +424,7 @@ async def _active_members(
 
 async def _active_guests(db: AsyncSession, start: datetime, end: datetime) -> int:
     """기간 안에 「게스트로서」 플레이 세션을 만든 고유 익명 세션 수(브라우저 쿠키 단위, D8-a).
-    뒤에 로그인해 승계됐어도 그날은 게스트로 센다(플레이 당시 기준, 미르 11/12)."""
+    뒤에 로그인해 승계됐어도 그날은 게스트로 센다(생성 당시 소유자 기준, 미르 11/12)."""
 
     return await _count(
         db,
