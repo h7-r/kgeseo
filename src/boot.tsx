@@ -10,6 +10,7 @@ import { LoadingVideoOverlay } from "@/naju";
 import { initGameSave } from "@/save/gameSave";
 import { registerMainGameSave } from "@/save/mainGameSave";
 import { decideResume, finishResume } from "@/save/resumeStart";
+import SaveLoadFailedNotice from "@/save/SaveLoadFailedNotice";
 
 // 효과음은 앱 시작에 미리 받아 두고 첫 입력에 오디오를 깨운다.
 import "@/audio/sound";
@@ -40,6 +41,8 @@ void initGameSave().finally(() => {
         <LoadingVideoOverlay />
         {/* 베타 — 참여 코드가 있으면 시작 전 설문을 한 번 묻는다(폼 주소가 없으면 그리지 않는다) */}
         <BetaPreSurvey />
+        {/* 저장 불러오기가 실패했을 때만 — 「저장을 불러오지 못했어요. 지금 새로고침해 주세요」(저장은 멈춘 그대로) */}
+        <SaveLoadFailedNotice />
         {/* 휴대폰 세로면 무엇보다 위에서 「가로로 돌려 주세요」 — 첫 로딩 · 오프닝 · 캐릭터 생성 · 게임 씬 모두 */}
         <LandscapeGuard />
       </BrowserRouter>

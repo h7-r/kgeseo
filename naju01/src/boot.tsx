@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 
 import { LandscapeGuard } from "@/engine/input";
 import { initGameSave } from "@/save/gameSave";
+import SaveLoadFailedNotice from "@/save/SaveLoadFailedNotice";
 
 import { registerNajuSave } from "./save/najuSaveData";
 import { initNajuBeta } from "./beta/najuBeta";
@@ -33,6 +34,8 @@ void (IS_REVIEW_REQUESTED ? Promise.resolve() : initGameSave()).finally(() => {
       <>
         <App />
         <LoadingVideoOverlay />
+        {/* 저장 불러오기가 실패했을 때만 — 본편과 같은 안내(저장은 멈춘 그대로) */}
+        <SaveLoadFailedNotice />
         {/* 휴대폰 세로면 무엇보다 위에서 「가로로 돌려 주세요」(본편 main 과 같다) */}
         <LandscapeGuard />
       </>
