@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 
-import { emphasisRuns } from "./emphasis";
+import { emphasisPerWord, emphasisRuns } from "./emphasis";
 import { breakLines } from "./lineBreak";
 import { breakSentences } from "./sentences";
 
@@ -66,9 +66,11 @@ export function useLineBreaks<T extends HTMLElement>(
       return;
     }
     const measure = measurer(element);
+    // 낱말 · 문장 조각을 하나씩 재도 굵기를 알게 굵게 표시를 낱말마다 닫고 연다(보이는 글은 같다)
+    const source = emphasisPerWord(text);
     if (sentenceLines) {
-      const sentenced = breakSentences(text, measure, width * SAFETY, sentenceLines);
-      if (sentenced !== null && sentenced !== text) {
+      const sentenced = breakSentences(source, measure, width * SAFETY, sentenceLines);
+      if (sentenced !== null && sentenced !== source) {
         // 문장 줄은 정한 줄 수 안이다 — 문장 하나가 두 줄로 넘어가면 그 안에서만 읽기 좋은 자리로 다시 끊는다
         setBroken({ source: text, value: breakLines(sentenced, width * SAFETY, measure, sentenceLines) });
         return;
@@ -76,7 +78,7 @@ export function useLineBreaks<T extends HTMLElement>(
     }
     // 여유(SAFETY)만큼 좁게 재면 줄이 하나 더 필요하다고 나올 수 있다 — 화면에 놓인 줄 수를 넘기면 그대로 둔다
     const shownLines = Math.max(1, Math.round(element.clientHeight / lineHeight));
-    setBroken({ source: text, value: breakLines(text, width * SAFETY, measure, shownLines) });
+    setBroken({ source: text, value: breakLines(source, width * SAFETY, measure, shownLines) });
   }, [text, epoch, sentenceLines]);
 
   useEffect(() => {

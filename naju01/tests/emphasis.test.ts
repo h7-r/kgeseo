@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { balanceEmphasis, emphasisRuns, sliceRuns, stripEmphasis } from "../src/dialogue/emphasis.ts";
+import { balanceEmphasis, emphasisPerWord, emphasisRuns, sliceRuns, stripEmphasis } from "../src/dialogue/emphasis.ts";
 import { GAME_VOICE } from "../src/dialogue/gameVoiceLines.ts";
 import { pageDurationMs } from "../src/dialogue/dialogueStore.ts";
 import { textWidth } from "../src/dialogue/paginate.ts";
@@ -43,6 +43,19 @@ test("쪽마다 짝을 맞춘다 — 경계가 굵은 글 가운데면 앞 쪽 �
   assert.deepEqual(balanceEmphasis(["앞 **빛", "물고기** 뒤"]), ["앞 **빛**", "**물고기** 뒤"]);
   assert.deepEqual(balanceEmphasis(["**가**", "나"]), ["**가**", "나"]);
   assert.deepEqual(balanceEmphasis(["앞 **가", "나", "다** 뒤"]), ["앞 **가**", "**나**", "**다** 뒤"]);
+});
+
+test("낱말마다 닫고 연다 — 낱말 하나만 재도 굵은 줄 안다(줄 나누기는 낱말 · 문장 조각을 하나씩 잰다)", () => {
+  const text = "먼저 **조개의 입이 빛을\n향하면** 돼요. **톱니돌**";
+  const perWord = emphasisPerWord(text);
+  assert.equal(perWord, "먼저 **조개의** **입이** **빛을**\n**향하면** 돼요. **톱니돌**");
+  assert.equal(stripEmphasis(perWord), stripEmphasis(text), "보이는 글은 같다");
+  // 띄어쓰기로 쪼갠 낱말마다 굵기가 그대로 읽힌다
+  const strongWords = perWord
+    .split(/\s+/)
+    .filter((word) => emphasisRuns(word).some((run) => run.strong))
+    .map(stripEmphasis);
+  assert.deepEqual(strongWords, ["조개의", "입이", "빛을", "향하면", "톱니돌"]);
 });
 
 test("폭 · 읽는 시간은 표시를 빼고 센다", () => {

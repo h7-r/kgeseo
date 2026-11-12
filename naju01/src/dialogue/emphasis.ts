@@ -33,6 +33,16 @@ export function emphasisRuns(text: string): TextRun[] {
   return runs;
 }
 
+/**
+ * 굵게 표시를 낱말마다 닫고 다시 연다 — 「**빛 물고기**」 → 「**빛** **물고기**」. 줄 나누기(lineBreak · sentences)는 낱말 · 문장
+ * 조각을 하나씩 재므로, 여러 낱말에 걸친 표시는 조각만 봐서는 굵은 줄 몰라 보통 굵기로 좁게 쟀다(Codex 리뷰). 보이는 글은 같다.
+ */
+export function emphasisPerWord(text: string): string {
+  return emphasisRuns(text)
+    .map((run) => (run.strong ? run.text.replace(/\S+/g, (word) => `${MARK}${word}${MARK}`) : run.text))
+    .join("");
+}
+
 /** 보이는 글자 start ~ end(표시를 뺀 자리) 만 남긴 조각 — 글자 찍기가 별표를 한 자씩 드러내지 않게 */
 export function sliceRuns(runs: readonly TextRun[], start: number, end = Infinity): TextRun[] {
   const out: TextRun[] = [];
