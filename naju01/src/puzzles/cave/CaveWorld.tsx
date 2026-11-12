@@ -23,6 +23,7 @@ import { mangaInk } from "../../world/mangaStyle";
 import { makeGlowPoints, pointScaleFor } from "../glowPoints";
 import { noticeFor } from "../interaction";
 import { makeToonMaterial } from "../materials";
+import { IS_CAVE_JUMP } from "../cliff/stageJump";
 import { ritual, useRitualStage } from "../ritual/ritualState";
 import { M } from "../units";
 import { DEEP_DROP, buildDoorWall, planDecor, seabedY } from "./caveDecor";
@@ -43,6 +44,7 @@ import {
   isCaveShown,
   resetCaveState,
   setBreath,
+  guardBreathFor,
   setCavePlayerFoot,
   setPartOpenness,
   setUnderwater,
@@ -291,6 +293,8 @@ export default function CaveWorld() {
   const underwaterMix = useRef(0);
   const murk = useRef(0);
   const wasUnderwater = useRef(false);
+  /** ?stage=cave 로 들어왔으면 시작 자리 옮기기가 끝난 뒤 강 밑 길 끝으로 데려간다(초) */
+  const jumpAt = useRef(IS_CAVE_JUMP ? 1.5 : -1);
   const clipPlanes = useRef<THREE.Plane[] | null>(null);
   const curtains = useRef<THREE.Mesh[]>([]);
   const horizonWall = useRef<THREE.Mesh>(null);
@@ -380,6 +384,17 @@ export default function CaveWorld() {
 
   useFrame((_, dt) => {
     const time = performance.now() / 1000;
+    if (jumpAt.current >= 0) {
+      jumpAt.current -= dt;
+      if (jumpAt.current < 0) {
+        // 물에 처음 들어올 때 숨을 채우는 길을 건너뛰었으니 여기서 가득 채우고, 물굴을 처음 그리느라 길게 멈춘 프레임이
+        // 숨을 다 깎지 않게 잠깐 지킨다(정식으로는 걸어 들어오며 미리 그려 둔다)
+        setBreath(BREATH_SECONDS);
+        guardBreathFor("cave-jump", 6);
+        teleportPlayer(CORRIDOR.x, MERGE_Z + 1.5, "+Z");
+        showNotice(`물굴 — 갈라진 강 밑. 숨은 ${BREATH_SECONDS}초, 거품이 솟는 곳에 서면 다시 찬다.`, 5);
+      }
+    }
     // 물속에서는 만화 선을 먹빛으로 — 둘레 등빛을 타 갈색으로 물들지 않게
     mangaInk.black = isShown && getUnderwater() ? 1 : 0;
     hideSurfaceProps(isShown && getUnderwater());
