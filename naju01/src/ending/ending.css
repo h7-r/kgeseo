@@ -325,6 +325,76 @@
   color: var(--naju-ending-ink);
   font-variant-numeric: tabular-nums;
 }
+/* 베타 — 「나중에」로 미룬 설문(미르 11/12). 결과 바로 아래 호박빛 테두리가 천천히 숨 쉬듯 빛난다 */
+.naju-ending-survey {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 14px 14px 18px;
+  border: 1.5px solid var(--naju-ending-amber);
+  border-radius: 12px;
+  background: #e0b56a1f;
+  animation: naju-ending-survey-glow 2.4s ease-in-out infinite;
+}
+.naju-ending-survey__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  word-break: keep-all;
+}
+.naju-ending-survey__text b {
+  font-size: 16px;
+  color: var(--naju-ending-ink);
+}
+.naju-ending-survey__text span {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--naju-ending-dim);
+}
+.naju-ending-survey__open {
+  flex: none;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 10px;
+  background: #f7f0e1;
+  color: #241a0e;
+  font: 700 15px/1 var(--naju-ending-font);
+  cursor: pointer;
+}
+.naju-ending-survey__open:hover:not(:disabled),
+.naju-ending-survey__open:focus-visible {
+  background: #fff;
+  outline: 2px solid var(--naju-ending-amber);
+  outline-offset: 2px;
+}
+.naju-ending-survey__open:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+@keyframes naju-ending-survey-glow {
+  0%,
+  100% {
+    border-color: #e0b56aaa;
+    box-shadow:
+      0 0 0 0 #e0b56a00,
+      0 0 12px #e0b56a33;
+  }
+  50% {
+    border-color: #f3cf8a;
+    box-shadow:
+      0 0 0 5px #e0b56a3d,
+      0 0 34px #e0b56a8c;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .naju-ending-survey {
+    animation: none;
+    box-shadow: 0 0 20px #e0b56a4d;
+  }
+}
 .naju-ending-clear__actions {
   display: flex;
   flex-direction: column;
