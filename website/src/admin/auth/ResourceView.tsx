@@ -48,6 +48,19 @@ export default function ResourceView<T>({
       );
     case "notFound":
       return <StatusScreen kind="notFound" title={notFoundText ?? "찾는 항목이 없습니다"} />;
+    case "invalidQuery":
+      return (
+        <StatusScreen
+          kind="error"
+          title="조회 조건을 서버가 받지 않았습니다"
+          description="검색어 · 기간 같은 조건을 바꾸거나 다시 시도해 주세요."
+          action={
+            <button type="button" className="adm-button adm-button--primary" onClick={retry}>
+              다시 시도
+            </button>
+          }
+        />
+      );
     default:
       return (
         <StatusScreen

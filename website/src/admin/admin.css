@@ -403,6 +403,53 @@ html[data-admin] :focus-visible {
   color: var(--admin-text-label);
 }
 
+/* 숫자 카드 아래 기준 · 한계 안내 */
+.adm-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.adm-summary__note,
+.adm-dashboard-note {
+  margin: 0;
+  color: var(--admin-text-label);
+  font-size: 13px;
+}
+.adm-dashboard-note {
+  margin-bottom: 12px;
+}
+
+/* 검색 · 조회 조건 줄 */
+.adm-search-form {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
+}
+.adm-search-help {
+  margin: 0;
+  color: var(--admin-text-label);
+  font-size: 13px;
+}
+.adm-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.adm-filters__label {
+  color: var(--admin-text-sub);
+  font-size: 13px;
+}
+.adm-filters__group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.adm-stamp {
+  margin-left: 6px;
+}
+
 .adm-delta {
   font-family: var(--font-mono);
   font-size: 12px;

@@ -1,8 +1,8 @@
 import { apiUrl } from "@/config/env";
 import { errorCode, toSessionUserFromBackend } from "@/services/account/authApi";
+import { parseRetryAfter } from "@/lib/retryAfter";
 import { signIn, signOut } from "@/services/session";
 
-import { parseRetryAfter } from "../lib/loginLock";
 import { adminGet } from "./client";
 
 /** GET /api/v1/me. 관리자인지는 이 응답의 role 로만 정한다. */

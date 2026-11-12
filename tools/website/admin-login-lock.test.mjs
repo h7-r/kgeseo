@@ -6,8 +6,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const { parseRetryAfter, lockedLoginMessage, LOCKED_FALLBACK } =
-  await import("../../website/src/admin/lib/loginLock.ts");
+// 남은 초는 웹과 같은 함수로 읽는다(lib/retryAfter.ts). 관리자 문구만 loginLock.ts 에 있다.
+const { parseRetryAfter } = await import("../../website/src/lib/retryAfter.ts");
+const { lockedLoginMessage, LOCKED_FALLBACK } = await import("../../website/src/admin/lib/loginLock.ts");
 
 test("Retry-After — 양의 정수 초만 받는다", () => {
   assert.equal(parseRetryAfter("900"), 900);

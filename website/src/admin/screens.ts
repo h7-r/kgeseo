@@ -50,7 +50,7 @@ const SCREEN_LIST = [
     id: "users",
     path: "users",
     label: "회원 관리",
-    description: "가입한 플레이어를 가입 최신순으로 봅니다.",
+    description: "가입한 플레이어를 찾고, 가입 최신순으로 봅니다.",
     status: "live",
   },
   {
@@ -82,10 +82,8 @@ const SCREEN_LIST = [
     id: "activity",
     path: "activity",
     label: "활동 로그",
-    description: "관리자가 무엇을 열람하고 바꿨는지, 서버 경고를 봅니다.",
-    status: "pending",
-    pendingNote:
-      "관리자 기록(admin_audit_logs) 조회 API 가 생기면 열립니다. 기록 자체는 지금도 서버에 쌓이고 있습니다.",
+    description: "관리자가 언제 누구의 기록을 열람했는지 봅니다.",
+    status: "live",
   },
   {
     id: "security",

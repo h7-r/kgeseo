@@ -6,15 +6,12 @@ export interface Point {
 }
 
 export interface PreviewData {
+  /** 숫자 카드는 통계 API 의 실제 값이라, 원천이 없는 두 칸과 그래프만 둔다 */
   dashboard: {
     concurrent: number;
-    dau: number;
-    totalMembers: number;
-    signupsToday: number;
     openInquiries: number;
     visitors7d: Point[];
     stageCompletion: Point[];
-    adminActions: { at: string; admin: string; action: string; target: string }[];
   };
   traffic: {
     concurrent: number;
@@ -43,10 +40,6 @@ export interface PreviewData {
     avgCompletionMinutes: number;
     stages: { label: string; entered: number; completed: number }[];
     puzzles: { id: string; name: string; judge: "서버" | "화면"; attempts: number; wrong: number; hints: number }[];
-  };
-  activity: {
-    totals: { all: number; warn: number; error: number; critical: number };
-    logs: { id: string; at: string; admin: string; action: string; target: string; level: "INFO" | "WARN" | "ERROR" }[];
   };
   security: {
     /** 24시간 합계와 지난 7일 하루 평균(기준선) */
