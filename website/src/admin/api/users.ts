@@ -1,4 +1,4 @@
-import { appendUnique } from "../lib/memberSearch";
+import { appendUnique } from "../lib/paging";
 import { adminGet } from "./client";
 
 /** 서버 schemas/account_data.py 의 AdminUserSummary. */
@@ -79,7 +79,7 @@ export interface LoadedUsers {
 export const userIdOf = (user: AdminUserSummary) => user.user_id;
 
 /** 첫 쪽부터 count 명을 채울 때까지 이어 받는다. 새로고침 · 뒤로 가기에서 보던 만큼 되살릴 때 쓴다. */
-export async function fetchUsersUpTo(count: number, signal?: AbortSignal, q?: string): Promise<LoadedUsers> {
+export async function fetchUsersUpTo(count: number, q: string | undefined, signal?: AbortSignal): Promise<LoadedUsers> {
   let users: AdminUserListItem[] = [];
   let nextOffset: number | null = 0;
   while (nextOffset !== null && users.length < count) {

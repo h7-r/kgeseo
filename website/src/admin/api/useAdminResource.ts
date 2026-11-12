@@ -30,7 +30,10 @@ export function useAdminResource<T>(
     // 관리자 기록(열람 · 조회)이 두 줄 남는다. 미루면 첫 요청은 나가기 전에 지워진다.
     const timer = setTimeout(() => {
       loadRef.current(controller.signal).then(
-        (data) => setSettled({ token, resource: { status: "ready", data } }),
+        (data) => {
+          // 취소를 모르는 로더(캐시 · 시험용)가 늦게 답해도 떠난 화면을 덮지 않는다
+          if (!controller.signal.aborted) setSettled({ token, resource: { status: "ready", data } });
+        },
         (error: unknown) => {
           if (!controller.signal.aborted)
             setSettled({ token, resource: { status: "error", error: toAdminError(error) } });

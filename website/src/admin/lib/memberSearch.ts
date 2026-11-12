@@ -3,7 +3,7 @@
  * "@/" 별칭 없이 써서 node 테스트가 바로 읽는다.
  */
 
-/** 서버가 받는 검색어 길이(앞뒤 공백을 뺀 뒤). */
+/** 서버가 받는 검색어 길이(앞뒤 공백을 뺀 뒤). 서버(Python len)처럼 코드 포인트로 센다 — 이모지 하나가 1 이다. */
 export const SEARCH_MAX_LENGTH = 64;
 
 export type MemberSearch =
@@ -15,24 +15,8 @@ export type MemberSearch =
 export function readMemberSearch(raw: string | null | undefined): MemberSearch {
   const q = raw?.trim() ?? "";
   if (!q) return { kind: "none" };
-  if (q.length > SEARCH_MAX_LENGTH) return { kind: "tooLong" };
+  if ([...q].length > SEARCH_MAX_LENGTH) return { kind: "tooLong" };
   return { kind: q.includes("@") ? "email" : "nickname", q };
-}
-
-/**
- * 이어 받은 쪽을 붙인다. offset 방식이라 넘기는 사이 새 가입이 생기면 한 명이 두 쪽에 나올 수 있어
- * 이미 받은 id 는 뺀다(§2.3).
- */
-export function appendUnique<T>(list: readonly T[], more: readonly T[], idOf: (item: T) => string): T[] {
-  const seen = new Set(list.map(idOf));
-  const merged = [...list];
-  for (const item of more) {
-    const id = idOf(item);
-    if (seen.has(id)) continue;
-    seen.add(id);
-    merged.push(item);
-  }
-  return merged;
 }
 
 export interface RecentLogin {

@@ -19,7 +19,7 @@ import {
   type AuditActionFilter,
 } from "../lib/auditLog";
 import { formatDateTime, formatNumber } from "../lib/format";
-import { appendUnique } from "../lib/memberSearch";
+import { appendUnique } from "../lib/paging";
 import { useQueryChoice } from "../lib/useQueryChoice";
 import { ADMIN_PATHS, adminLoginPath } from "../paths";
 import Badge from "../ui/Badge";

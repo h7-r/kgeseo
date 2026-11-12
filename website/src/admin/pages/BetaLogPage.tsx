@@ -78,7 +78,7 @@ export default function BetaLogPage() {
   const [resource, retry] = useAdminResource<Loaded>(`beta-log:${attempt}`, async (signal) => {
     const [rows, users] = await Promise.all([
       fetchAllBetaEvents(signal),
-      fetchUsersUpTo(Number.MAX_SAFE_INTEGER, signal).then((loaded) => loaded.users),
+      fetchUsersUpTo(Number.MAX_SAFE_INTEGER, undefined, signal).then((loaded) => loaded.users),
     ]);
     return { rows, users, loadedAt: Date.now() };
   });

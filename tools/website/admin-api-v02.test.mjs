@@ -10,8 +10,9 @@ import assert from "node:assert/strict";
 // 한국 날짜 계산이 보는 사람의 시간대와 상관없는지 보려고 일부러 다른 시간대에서 돈다.
 process.env.TZ = "America/Los_Angeles";
 
-const { readMemberSearch, appendUnique, recentLogin, providerLabel, SEARCH_MAX_LENGTH } =
+const { readMemberSearch, recentLogin, providerLabel, SEARCH_MAX_LENGTH } =
   await import("../../website/src/admin/lib/memberSearch.ts");
+const { appendUnique } = await import("../../website/src/admin/lib/paging.ts");
 const { kstDate, kstPeriod, auditActionLabel, AUDIT_ACTION_FILTERS, AUDIT_PERIODS } =
   await import("../../website/src/admin/lib/auditLog.ts");
 
@@ -28,6 +29,9 @@ test("검색어 — 64자까지(공백을 뺀 길이로 센다)", () => {
   assert.equal(readMemberSearch("가".repeat(64)).kind, "nickname");
   assert.equal(readMemberSearch(` ${"가".repeat(64)} `).kind, "nickname");
   assert.deepEqual(readMemberSearch("가".repeat(65)), { kind: "tooLong" });
+  // 서버(Python len)처럼 코드 포인트로 — 이모지 64개는 UTF-16 길이 128 이어도 통과
+  assert.equal(readMemberSearch("😀".repeat(64)).kind, "nickname");
+  assert.deepEqual(readMemberSearch("😀".repeat(65)), { kind: "tooLong" });
 });
 
 test("이어 받기 — 이미 받은 id 는 빼고 순서는 그대로", () => {

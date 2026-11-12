@@ -15,7 +15,8 @@ import {
 import ResourceView from "../auth/ResourceView";
 import { formatDate, formatDateTime, formatNumber, maskEmail } from "../lib/format";
 import { stageLabel } from "../lib/gameStage";
-import { SEARCH_MAX_LENGTH, appendUnique, providerLabel, readMemberSearch, recentLogin } from "../lib/memberSearch";
+import { SEARCH_MAX_LENGTH, providerLabel, readMemberSearch, recentLogin } from "../lib/memberSearch";
+import { appendUnique } from "../lib/paging";
 import { useQueryChoice } from "../lib/useQueryChoice";
 import { ADMIN_PATHS, adminLoginPath } from "../paths";
 import Badge from "../ui/Badge";
@@ -70,7 +71,8 @@ export default function UsersPage() {
       <PillTabs label="회원 구분" items={TABS} activeId={tab} onSelect={setTab} />
       <SearchBar key={`search:${raw}`} initial={raw} hasSearch={q !== undefined} onSearch={applySearch} />
       <MemberStatCards />
-      {tab === "all" && <UserList key={`list:${q ?? ""}`} q={q} />}
+      {/* 주소의 ?q= 가 너무 길면 검색이 안 된 것이다 — 그 자리에 전체 목록을 그려 열람 기록을 남기지 않는다 */}
+      {tab === "all" && search.kind !== "tooLong" && <UserList key={`list:${q ?? ""}`} q={q} />}
     </>
   );
 }
@@ -165,7 +167,7 @@ function UserList({ q }: { q: string | undefined }) {
   const [params, setParams] = useSearchParams();
   const [initialCount] = useState(() => readShown(params));
   const [resource, retry] = useAdminResource(`users:${q ?? ""}:${initialCount}`, (signal) =>
-    fetchUsersUpTo(initialCount, signal, q),
+    fetchUsersUpTo(initialCount, q, signal),
   );
   const [extra, setExtra] = useState<LoadedUsers | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -189,10 +191,12 @@ function UserList({ q }: { q: string | undefined }) {
             const page = await fetchUserPage(nextOffset, q);
             const appended = appendUnique(extra?.users ?? [], page.users, userIdOf);
             setExtra({ users: appended, nextOffset: page.next_offset });
+            // 화면에 보이는 인원을 적는다 — 중복을 뺀 수라야 되살릴 때 쪽을 더 받지 않는다
+            const shown = appendUnique(loaded.users, appended, userIdOf).length;
             setParams(
               (previous) => {
                 const updated = new URLSearchParams(previous);
-                updated.set(SHOWN_PARAM, String(nextOffset + page.users.length));
+                updated.set(SHOWN_PARAM, String(shown));
                 return updated;
               },
               { replace: true },
