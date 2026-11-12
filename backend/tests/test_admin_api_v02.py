@@ -157,6 +157,11 @@ def future_kst() -> str:
         "/api/v1/admin/audit-logs?from=2026-11-10&to=2026-11-01",
         "/api/v1/admin/audit-logs?from=2026-01-01&to=2026-11-01",
         "/api/v1/admin/audit-logs?limit=51",
+        "/api/v1/admin/audit-logs?from=9999-12-31",
+        "/api/v1/admin/audit-logs?to=0001-01-01",
+        "/api/v1/admin/audit-logs?from=0001-01-01&to=0001-01-31",
+        "/api/v1/admin/stats/summary?date=9999-12-31",
+        "/api/v1/admin/stats/summary?date=0001-01-01",
         "/api/v1/admin/audit-logs?offset=-1",
     ],
 )

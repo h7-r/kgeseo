@@ -27,6 +27,9 @@ _UUID_PATTERN = re.compile(
 _INT_PATTERN = re.compile(r"^\d{1,9}$")
 
 SEARCH_MAX_LENGTH = 64
+# 받는 날짜의 범위 — 이 밖이면 기간 계산(±30일 · UTC 변환)이 date 범위를 넘어 500 이 났다(Codex 리뷰)
+DATE_MIN = date(2000, 1, 1)
+DATE_MAX = date(2100, 12, 31)
 
 
 def invalid_query(message: str) -> HTTPException:
@@ -61,9 +64,12 @@ def parse_kst_date(value: str | None, name: str) -> date | None:
     if not _DATE_PATTERN.match(value):
         raise invalid_query(f"{name} must be a KST date (YYYY-MM-DD).")
     try:
-        return date.fromisoformat(value)
+        parsed = date.fromisoformat(value)
     except ValueError as error:
         raise invalid_query(f"{name} must be a KST date (YYYY-MM-DD).") from error
+    if parsed < DATE_MIN or parsed > DATE_MAX:
+        raise invalid_query(f"{name} must be between {DATE_MIN} and {DATE_MAX}.")
+    return parsed
 
 
 def parse_int(
