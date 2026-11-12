@@ -57,12 +57,12 @@ export function paginate(text: string, capacity: number): string[] {
       continue;
     }
     let piece = word;
-    // 한 쪽보다 긴 낱말(띄어쓰기 없는 긴 글)은 글자 단위로 자른다
+    // 한 쪽보다 긴 낱말(띄어쓰기 없는 긴 글)은 글자 단위로 자른다 — 굵게 표시(**)는 폭 없는 한 덩어리라 반으로 가르지 않는다
     while (textWidth(piece) > limit) {
       if (page.length) flush(page.length);
       let cut = 0;
       let used = 0;
-      for (const char of piece) {
+      for (const char of piece.match(/\*\*|[\s\S]/gu) ?? []) {
         const next = used + textWidth(char);
         if (next > limit) break;
         used = next;

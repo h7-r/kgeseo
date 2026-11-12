@@ -5,7 +5,7 @@ import { test } from "node:test";
 
 import { balanceEmphasis, emphasisPerWord, emphasisRuns, sliceRuns, stripEmphasis } from "../src/dialogue/emphasis.ts";
 import { GAME_VOICE } from "../src/dialogue/gameVoiceLines.ts";
-import { pageDurationMs } from "../src/dialogue/dialogueStore.ts";
+import { createDialogueStore, pageDurationMs } from "../src/dialogue/dialogueStore.ts";
 import { textWidth } from "../src/dialogue/paginate.ts";
 
 const marks = (text: string) => text.split("**").length - 1;
@@ -56,6 +56,18 @@ test("낱말마다 닫고 연다 — 낱말 하나만 재도 굵은 줄 안다(�
     .filter((word) => emphasisRuns(word).some((run) => run.strong))
     .map(stripEmphasis);
   assert.deepEqual(strongWords, ["조개의", "입이", "빛을", "향하면", "톱니돌"]);
+});
+
+test("한 쪽보다 긴 낱말을 글자로 잘라도 표시(**)를 반으로 가르지 않는다(Codex 리뷰)", () => {
+  const store = createDialogueStore({ capacity: 8, setTimer: () => 0, clearTimer: () => {} });
+  store.say({ kind: "line", text: "**가나다라마바**사아자" });
+  const pages = store.getState()?.pages ?? [];
+  assert.ok(pages.length >= 2);
+  for (const page of pages) {
+    assert.equal(marks(page) % 2, 0, page);
+    assert.ok(!/(^|[^*])\*([^*]|$)/.test(page), `별표 하나가 남았다: ${page}`);
+  }
+  assert.equal(pages.map(stripEmphasis).join(""), "가나다라마바사아자");
 });
 
 test("폭 · 읽는 시간은 표시를 빼고 센다", () => {
