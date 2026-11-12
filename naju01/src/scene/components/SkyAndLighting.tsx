@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { ShaderWarmup, ShadowMapUpdater } from "@/engine/rendering";
 
 import type { PresentedControls } from "../../app/presentation";
+import { SHADOW_MAP_SIZE, SHADOW_QUALITY } from "../../app/runtimeFlags";
 import { MESH_NAMES } from "../../plan/meshNames";
 import { UNITS_PER_METER } from "../../plan/sitePlan";
 import { planPoint } from "../../plan/sitePlan";
@@ -79,12 +80,14 @@ export default function SkyAndLighting({
       {/* 그림자 카메라는 사람을 따라다닌다. ±70 을 2048² 로 덮으면 텍셀 6.8 cm. */}
       <directionalLight
         ref={sunRef}
-        castShadow={controls.shadows}
+        // 그림자를 끈 품질에서는 해도 그림자를 드리우지 않는 빛으로 둔다 — 렌더러만 끄면 같은 재질이
+        // 「그림자 빛 있음」과 「없음」 두 벌로 구워져 셰이더가 60개쯤 는다(11/12 실측 181 → 244)
+        castShadow={controls.shadows && SHADOW_QUALITY !== "off"}
         target={sunTarget}
         position={sunPosition}
         intensity={controls.sunIntensity * controls.brightness}
         color={controls.sunColor}
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={[SHADOW_MAP_SIZE, SHADOW_MAP_SIZE]}
         shadow-camera-left={-controls.shadowRange}
         shadow-camera-right={controls.shadowRange}
         shadow-camera-top={controls.shadowRange}

@@ -14,6 +14,7 @@ import { completedObjectives, currentObjective } from "../dialogue/gameObserver"
 import { betaSignals } from "./betaSignals";
 import { cliff } from "../puzzles/cliff/cliffState";
 import { gut } from "../puzzles/gut/gutState";
+import { attemptCount } from "../progress/attemptCount";
 import { helpLog } from "../progress/helpLog";
 import { playClock } from "../progress/playClock";
 
@@ -140,7 +141,18 @@ export function initNajuBeta() {
         // 페이지를 열 때 저장에서 되살아난 단계(restore)는 엔딩으로 세지 않는다 — 첫 조작 뒤에 바뀐 것만
         if (!hasStarted) return;
         if (stage === "released" || stage === "dawn")
-          betaLog.track("run_state", stage, { urgent: true, data: { active_ms: activeMs(), from: before, origin: "live" } });
+          // 추첨 집계용(미르 11/12) — 계정 기준 다시 시작 횟수 · 직접 청한 도움 · 정답 열람을 같이 싣는다
+          betaLog.track("run_state", stage, {
+            urgent: true,
+            data: {
+              active_ms: activeMs(),
+              from: before,
+              origin: "live",
+              restarts: attemptCount.restarts(),
+              help_received: helpLog.asked(),
+              answer_seen: helpLog.isAnswerSeen(),
+            },
+          });
         else if (stage === "rite") betaLog.track("objective_state", "rite", { objective_id: "GUT", data: { active_ms: activeMs() } });
       }),
     );
@@ -181,6 +193,7 @@ export function noteNajuStart(mode: "full" | "resume", isCleared: boolean) {
         cleared_save: isCleared,
         completed_at_start: [...lastCompleted].slice(0, 40),
         help_received: helpLog.asked(),
+        restarts: attemptCount.restarts(),
       },
     });
     tickTimer = window.setInterval(tick, TICK_MS);

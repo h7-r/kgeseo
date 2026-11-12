@@ -255,7 +255,15 @@ export default function App() {
   useEffect(() => {
     const handleEnter = () => setIsEnteringNaju(true);
     window.addEventListener(NAJU_ENTER_EVENT, handleEnter);
-    return () => window.removeEventListener(NAJU_ENTER_EVENT, handleEnter);
+    // 나주에서 「뒤로」 로 돌아오면(bfcache) 멈춰 둔 렌더를 다시 돌린다 — 안 풀면 화면이 굳은 채 남는다(Codex 11/12)
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) setIsEnteringNaju(false);
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => {
+      window.removeEventListener(NAJU_ENTER_EVENT, handleEnter);
+      window.removeEventListener("pageshow", handlePageShow);
+    };
   }, []);
 
   const [isThirdPerson, setIsThirdPerson] = useState(true);

@@ -13,9 +13,13 @@ import {
   isGameSaveEnabled,
   reattachSaveSections,
   removeSavedSections,
+  readSavedSection,
   restoreSavedSections,
   saveBeforeLeaving,
+  writeSavedSection,
 } from "@/save/gameSave";
+
+import { ATTEMPT_SECTION, attemptCount, readRestarts } from "./attemptCount";
 
 import { SESSION_STORAGE_KEY } from "../companion/companionSession";
 import { betaLog } from "@/beta/betaLog";
@@ -45,9 +49,14 @@ export const pendingNajuReset = () => pending;
 
 async function reset(): Promise<boolean> {
   const removed = removeSavedSections((name) => name.startsWith(NAJU_SECTION_PREFIX));
+  // 처음부터 다시 한 횟수를 계정 저장에 올린다(첫 플레이 판정 — attemptCount). naju.* 가 아니라 위에서 지워지지 않는다
+  const attemptBefore = writeSavedSection(ATTEMPT_SECTION, {
+    restarts: readRestarts(readSavedSection(ATTEMPT_SECTION)) + 1,
+  });
   // 결과가 올 때까지 기다린다 — 시간 넘김을 실패로 보면 늦게 도착한 저장이 서버 진행을 지운 뒤 화면만 되돌린 꼴이 된다(Codex 리뷰)
   if (!(await saveBeforeLeaving(null))) {
     restoreSavedSections(removed);
+    writeSavedSection(ATTEMPT_SECTION, attemptBefore);
     return false;
   }
   forgetPlaySession();
@@ -78,7 +87,10 @@ export function restartNajuHere(): Promise<boolean> {
       return true;
     }
     const detached = detachSaveSections((name) => name.startsWith(NAJU_SECTION_PREFIX));
+    // 이 페이지는 횟수 칸을 쓰고 있다(najuSaveData) — 올린 채로 저장한다
+    attemptCount.bump();
     if (!(await saveBeforeLeaving(null))) {
+      attemptCount.undo();
       reattachSaveSections(detached);
       return false;
     }

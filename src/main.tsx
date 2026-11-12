@@ -4,8 +4,16 @@
 import { apiOrigin } from "../shared/deploymentUrls";
 import { isPlayDeviceBlocked, renderPcOnlyNotice } from "../shared/playDevicePolicy";
 import { isLoginGateEnabled, passLoginGate } from "../shared/playLoginGate";
+import { canCreateWebGl, showGraphicsFailure, watchGraphicsFailure } from "../shared/graphicsFailure";
+import { startMeasureProbe } from "../shared/measureProbe";
+import { LOW_QUALITY_TEXTURE_MAX, capDecodedImages } from "../shared/lowQualityDecode";
+import { resolveQuality } from "../shared/qualityChoice";
+import { askQualityOnce } from "../shared/qualityChooser";
 import { bootBeta } from "./beta/betaBoot";
 import { SITE_URL } from "./lib/siteUrl";
+
+// 실기기 측정기(?measure) — 게임 모듈이 WebGL 을 열기 전에 건다. 표시가 없으면 아무것도 하지 않는다
+startMeasureProbe("main");
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root 가 없습니다");
@@ -16,9 +24,20 @@ const isBlocked = isPlayDeviceBlocked({ allowOverride: import.meta.env.DEV || im
 bootBeta("main", { blocked: isBlocked });
 if (isBlocked) {
   renderPcOnlyNotice(root, SITE_URL);
+} else if (!canCreateWebGl()) {
+  // 그래픽 연결을 아예 못 만든다(브라우저가 그래픽 가속을 꺼 둔 상태 등) — 게임을 받기 전에 안내한다
+  showGraphicsFailure("unavailable");
 } else {
+  // 끊김 안내는 본편 화면(CrashOverlays)이 맡는다 — 여기서는 연결 생성 실패만 지켜본다
+  watchGraphicsFailure({ lost: false });
   void passLoginGate(root, loginGateOptions()).then((isPassed) => {
-    if (isPassed) void import("./boot");
+    // 처음이면 그래픽 품질을 먼저 묻는다 — 3D 를 받기 전에(고른 값이 바로 적용된다)
+    if (isPassed)
+      void askQualityOnce({ dev: import.meta.env.DEV }).then(() => {
+        // 저사양 모드 — 모형 속 큰 그림을 풀 때 줄인다. 게임 모듈이 그림을 읽기 전에 건다
+        if (resolveQuality().mode === "low") capDecodedImages(LOW_QUALITY_TEXTURE_MAX);
+        return import("./boot");
+      });
   });
 }
 
