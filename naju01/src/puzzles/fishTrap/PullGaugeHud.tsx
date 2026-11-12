@@ -104,13 +104,20 @@ export default function PullGaugeHud() {
     return () => cancelAnimationFrame(frame);
   }, [gauge.active]);
 
+  // 놓치면 게이지가 흔들린다 — 그림을 다시 만들지 않고 흔들림만 새로 튼다. 예전엔 누를 때마다 SVG 를 새로 만들어(key)
+  // 막대가 다음 프레임까지 왼쪽 끝(markerTransform(0))으로 튀었다(나주통발 02회차 Codex). Web Animations 라 게임 밖 쉼(CSS 멈춤)과도 무관
+  const svgRef = useRef<SVGSVGElement>(null);
+  useEffect(() => {
+    if (gauge.flash !== "miss") return;
+    svgRef.current?.animate(SHAKE_FRAMES, { duration: 200 });
+  }, [gauge.flash, gauge.flashKey]);
+
   if (!gauge.active) return null;
   const zonePath = arcPath(gauge.center - gauge.zone / 2, gauge.center + gauge.zone / 2);
   return (
     <div ref={wrapRef} style={isTouch ? { ...wrapStyle, ...touchWrapStyle } : wrapStyle} data-hud="게이지">
       <svg
-        key={gauge.flashKey}
-        className={gauge.flash === "miss" ? "naju-gauge-miss" : undefined}
+        ref={svgRef}
         width={WIDTH}
         height={HEIGHT}
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
@@ -164,10 +171,17 @@ export default function PullGaugeHud() {
           <span key={i} style={i < gauge.hits ? dotOnStyle : dotOffStyle} />
         ))}
       </div>
-      <style>{`@keyframes najuGaugeShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}.naju-gauge-miss{animation:najuGaugeShake .2s}`}</style>
     </div>
   );
 }
+
+/** 놓쳤을 때 흔들림 — 좌우 6px, 0.2 초 */
+const SHAKE_FRAMES: Keyframe[] = [
+  { transform: "translateX(0)" },
+  { transform: "translateX(-6px)", offset: 0.25 },
+  { transform: "translateX(6px)", offset: 0.75 },
+  { transform: "translateX(0)" },
+];
 
 const FONT = '"Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif';
 /** 알림이 읽는 값 — 무대 아래끝에서 게이지 윗변까지(px, PC 만) */
