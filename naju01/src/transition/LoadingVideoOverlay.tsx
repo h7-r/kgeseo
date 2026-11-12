@@ -63,6 +63,19 @@ function LoadingCurtain({
   const [isOpeningDone, setIsOpeningDone] = useState(!sequence.isOpening);
   const [isSoundBlocked, setIsSoundBlocked] = useState(false);
   const isReadyRef = useRef(false);
+  // 베타 기록 — 오프닝을 끝까지 봤나 · 몇 초에 SKIP 했나(미르 11/12). 이 막에서 한 번만
+  const isOpeningNotedRef = useRef(false);
+  const noteOpening = (phase: "skipped" | "completed", video: HTMLVideoElement | null) => {
+    if (!sequence.isOpening || isOpeningNotedRef.current) return;
+    isOpeningNotedRef.current = true;
+    const seconds = (value: number | undefined) => (Number.isFinite(value) ? Math.round((value ?? 0) * 10) / 10 : null);
+    betaLog.track("story_exposure", phase, {
+      objective_id: "opening",
+      withRun: false,
+      // at_sec = 영상 안의 초(웹사이트에서 이어받았으면 그 초부터 흐른 것), from_sec = 이 페이지가 틀기 시작한 초
+      data: { at_sec: seconds(video?.currentTime), duration_sec: seconds(video?.duration), from_sec: seconds(initialVideoTime) },
+    });
+  };
   // 휴대폰: 세로이거나 첫 탭 전이면 잡아 둔다. 잡혀 있는 동안은 걷지 않는다(돌아오면 그때 걷는다)
   const { isTouch, hasFirstTap, wasInterrupted, isMediaHeld: isHeld } = useLandscapeState();
   const needsFirstTap = isTouch && !hasFirstTap;
@@ -296,14 +309,16 @@ function LoadingCurtain({
               if (!video.duration || video.duration - video.currentTime >= 0.4) return;
               // 오프닝이 끝나 간다 — 준비됐으면 그대로 걷고, 아직이면 다음 영상으로 넘어가 기다린다
               if (clipId === "opening") {
+                noteOpening("completed", video);
                 setIsOpeningDone(true);
                 if (isReadyRef.current) return;
               }
               advanceToNextClip();
             }}
-            onEnded={() => {
+            onEnded={(event) => {
               if (!isFront) return;
               if (clipId === "opening") {
+                noteOpening("completed", event.currentTarget);
                 setIsOpeningDone(true);
                 if (isReadyRef.current) return;
               }
@@ -326,7 +341,10 @@ function LoadingCurtain({
           type="button"
           className="loading-video-overlay__skip-button"
           style={skipStyle}
-          onClick={() => setIsOpeningDone(true)}
+          onClick={() => {
+            noteOpening("skipped", videoRefs[deckRef.current.front].current);
+            setIsOpeningDone(true);
+          }}
           aria-label="Skip opening"
         >
           SKIP <span aria-hidden="true">▸▸</span>

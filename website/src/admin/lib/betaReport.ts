@@ -67,6 +67,21 @@ export interface PersonRow {
   lastObjective: string;
 }
 
+/** 영상 한 편 — 사람마다 첫 기록 하나(오프닝은 처음 한 번만 튼다, 엔딩 필름은 다시 보기 제외) */
+export interface VideoStat {
+  /** 끝까지 봤거나 건너뛴 기록이 남은 사람 */
+  people: number;
+  skipped: number;
+  completed: number;
+  /** 건너뛴 사람이 본 시간(ms) — 오프닝은 영상 안의 초, 엔딩 필름은 열린 뒤 흐른 시간 */
+  skipAtMs: number[];
+  /** 건너뛴 장(1부터) — 엔딩 필름만 */
+  skipShot: number[];
+  /** 영상 길이(ms) · 장 수 — 있으면 */
+  lengthMs: number[];
+  shots: number[];
+}
+
 export interface BetaReport {
   now: number;
   events: BetaEvent[];
@@ -96,6 +111,7 @@ export interface BetaReport {
   najuLoad: { readyMs: number[]; timeouts: number };
   environments: { name: string; people: number }[];
   surveys: { kind: string; shown: number; opened: number; dismissedDone: number }[];
+  videos: { opening: VideoStat; endingFilm: VideoStat };
   issuedCodes: number | null;
 }
 
@@ -395,6 +411,34 @@ export function buildBetaReport(rows: readonly BetaEventRow[], options: BuildOpt
     envCount.set(name, (envCount.get(name) ?? 0) + 1);
   }
 
+  // 영상(미르 11/12) — 오프닝 SKIP · 엔딩 필름 건너뛰기
+  const msOf = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value * 1000 : null);
+  const countOf = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);
+  const videoStat = (objective: string, at: string): VideoStat => {
+    const firsts = people
+      .map((p) =>
+        p.list.find(
+          (e) =>
+            e.event_type === "story_exposure" &&
+            e.objective_id === objective &&
+            (e.phase === "skipped" || e.phase === "completed") &&
+            !e.data.rewatch,
+        ),
+      )
+      .filter((e): e is BetaEvent => e !== undefined);
+    const skipped = firsts.filter((e) => e.phase === "skipped");
+    const only = <T,>(values: (T | null)[]) => values.filter((v): v is T => v !== null);
+    return {
+      people: firsts.length,
+      skipped: skipped.length,
+      completed: firsts.length - skipped.length,
+      skipAtMs: only(skipped.map((e) => msOf(e.data[at]))),
+      skipShot: only(skipped.map((e) => countOf(e.data.shot))),
+      lengthMs: only(firsts.map((e) => msOf(e.data.duration_sec))),
+      shots: only(firsts.map((e) => countOf(e.data.shots))),
+    };
+  };
+
   // L19 설문
   const survey = (kind: string, phase: string) =>
     new Set(
@@ -440,6 +484,7 @@ export function buildBetaReport(rows: readonly BetaEventRow[], options: BuildOpt
       opened: survey(kind, "opened"),
       dismissedDone: survey(kind, "dismissed_done"),
     })),
+    videos: { opening: videoStat("opening", "at_sec"), endingFilm: videoStat("ending_film", "watched_sec") },
     issuedCodes: options.issuedCodes ?? null,
   };
 }
@@ -568,6 +613,16 @@ export function summaryMarkdown(report: BetaReport): string {
   w();
   w(
     `- 가운데 ${sec(quantile(report.najuLoad.readyMs, 0.5))} · 75% ${sec(quantile(report.najuLoad.readyMs, 0.75))} (${report.najuLoad.readyMs.length}건) · 시간 초과 ${report.najuLoad.timeouts}건`,
+  );
+  w();
+  w("## 영상(처음 볼 때)");
+  w();
+  const { opening, endingFilm } = report.videos;
+  w(
+    `- 오프닝: ${frac(opening.skipped, opening.people)}이 SKIP · 누른 때 가운데 ${sec(quantile(opening.skipAtMs, 0.5))} (영상 길이 ${sec(quantile(opening.lengthMs, 0.5))})`,
+  );
+  w(
+    `- 엔딩 필름: ${frac(endingFilm.skipped, endingFilm.people)}이 건너뜀 · 가운데 ${quantile(endingFilm.skipShot, 0.5) ?? "—"}번째 장 / ${quantile(endingFilm.shots, 0.5) ?? "—"}장 · 연 뒤 ${sec(quantile(endingFilm.skipAtMs, 0.5))}`,
   );
   w();
   w("## L16 환경");

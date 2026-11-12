@@ -73,6 +73,7 @@ data(JSON 2048바이트 이하).
 | help_event | request(보기 고름) · received(helpLog) · answer_seen | director · helpLog | L08 · L09 |
 | npc_turn | request · response(has_reply · reply_source · fallback_reason · rtt_ms) · error | companionApi.postNpcTurn | L11a · L11b |
 | story_exposure | heard(의뢰 · 인연 이야기 줄, 근거 줄 evidence) · skipped | FirstSceneActors | L10a |
+| story_exposure | objective_id `opening`: skipped(SKIP · at_sec) · completed — 회차 없음 / `ending_film`: skipped(길게 눌러) · completed — shot · shots · taps(직접 넘김) · watched_sec · rewatch | LoadingVideoOverlay · EndingLayer | 영상(11/12) |
 | activity_snapshot | interval(15초) · hidden · restart · quit · lobby | najuBeta | L04 · L06 · L17 |
 | client_error | uncaught · unhandled_rejection · webgl_lost · save_failed · submit_failed | betaBoot · gameSave · progressRuntime | L13 |
 | survey_link | shown · opened · dismissed_done · dismissed_later | 설문 카드 · 멈춤 메뉴 | L19 |
