@@ -17,6 +17,7 @@ from app.services.admin_stats import (
     STAGE_OBJECTIVES,
     GameEvent,
     aggregate_game,
+    guest_links,
     judge_of,
     kst_days,
     month_firsts,
@@ -72,6 +73,19 @@ def test_person_key_prefers_member_then_guest_then_tab():
     assert person_key(None, "g1", "t1") == "g:g1"
     assert person_key(None, None, "t1") == "t:t1"
     assert person_key(None, None, None) == "t:?"
+
+
+def test_guest_who_later_logged_in_counts_as_that_member():
+    # 로그인 전(게스트만) → 로그인 뒤(회원 + 쿠키의 게스트) : 한 사람
+    rows = [(None, "g1"), ("u1", "g1"), ("u2", None), (None, "g9")]
+    links = guest_links(rows)
+    assert links == {"g1": "u1"}
+    assert person_key(None, "g1", None, links) == "u:u1"
+    assert (
+        person_key(None, "g9", None, links) == "g:g9"
+    )  # 회원이 된 적 없는 게스트는 그대로
+    assert person_key("u3", "g1", None, links) == "u:u3"  # 회원 id 가 있으면 그게 우선
+    assert person_key(None, "g1", None, None) == "g:g1"  # 표가 없으면 옛 셈법
 
 
 # --- 게임 집계: 사람 단위 완료 · 건수 단위 시도 ---

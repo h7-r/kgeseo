@@ -74,15 +74,31 @@ class GameEvent:
     data: dict[str, Any] = field(default_factory=dict)
 
 
+def guest_links(pairs: Iterable[tuple[str | None, str | None]]) -> dict[str, str]:
+    """게스트 세션 → 회원 id 표. 서버는 로그인 뒤에도 쿠키의 guest_session_id 를 같이 적으므로,
+    한 줄에 둘이 함께 있으면 그 게스트는 그 회원이다(로그인 전 기록을 같은 사람으로 묶는 근거)."""
+
+    links: dict[str, str] = {}
+    for app_user_id, guest_session_id in pairs:
+        if app_user_id and guest_session_id:
+            links.setdefault(guest_session_id, app_user_id)
+    return links
+
+
 def person_key(
-    app_user_id: str | None, guest_session_id: str | None, tab_id: str | None
+    app_user_id: str | None,
+    guest_session_id: str | None,
+    tab_id: str | None,
+    links: dict[str, str] | None = None,
 ) -> str:
-    """사람 하나를 가리키는 키 — 회원 > 게스트 세션 > 탭. 셋 다 없으면 「모름」 하나로 묶는다."""
+    """사람 하나를 가리키는 키 — 회원 > 게스트 세션 > 탭. 셋 다 없으면 「모름」 하나로 묶는다.
+    `links`(guest_links) 가 있으면 뒤에 회원이 된 게스트는 그 회원 키로 센다(세진 11/12 — 전환 중복 방지)."""
 
     if app_user_id:
         return f"u:{app_user_id}"
     if guest_session_id:
-        return f"g:{guest_session_id}"
+        linked = links.get(guest_session_id) if links else None
+        return f"u:{linked}" if linked else f"g:{guest_session_id}"
     return f"t:{tab_id}" if tab_id else "t:?"
 
 

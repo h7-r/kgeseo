@@ -32,8 +32,9 @@ Query: `date`(끝 날짜, 기본 오늘) · `days`(1~92, 기본 7) · `include_i
 }
 ```
 
-- `members_dau` · `guests_dau` · `signups` · `play_sessions_created` 는 §3.3 정의 그대로(날짜마다 같은 쿼리). `days` 만큼 하루씩 센다(최대 92회 × 4쿼리 — 베타 규모에선 충분, 커지면 날짜 GROUP BY 로 바꾼다).
-- `live.active_play_sessions_5m` = `play_sessions.updated_at >= now − 5분` 인 세션 수. 「지금 플레이 중」의 근사값이다(로비 동시접속이 아니다).
+- `members_dau` · `guests_dau` · `signups` · `play_sessions_created` 는 §3.3 정의 그대로(날짜마다 같은 쿼리). `days` 만큼 하루씩 센다 — **최대 92일 × 4쿼리 = 368회**, 모두 인덱스 있는 `created_at` 범위 COUNT 라 베타 규모(회원 수백 명)에선 한 요청 수백 ms 안.
+  - **GROUP BY 전환 기준(세진 11/12 요청):** 회원 1만 명을 넘거나, 92일 요청이 1초를 넘으면 날짜별 `GROUP BY DATE(CONVERT_TZ(created_at, …))` 4쿼리로 바꾼다(응답 모양은 그대로). 그 전엔 바꾸지 않는다.
+- `live.active_play_sessions_5m` = `play_sessions.updated_at >= now − 5분` 인 세션 수. **근사 지표**다 — `updated_at` 은 실제 접속이 아니라 세션 줄이 마지막으로 갱신된 시각(저장 · 진행 기록)이라, 조용히 보고만 있는 플레이어는 빠지고 갱신 직후 나간 플레이어는 든다. 화면도 「저장 갱신 기준 근사치」라고 적는다(세진 11/12). 로비 동시접속이 아니다.
 - 분 단위 · 최대 동시접속은 원천이 없다 → `unavailable`.
 
 ## P2-1b `GET /admin/stats/active-sessions` — 지금 플레이 중
@@ -64,13 +65,14 @@ Query: `date`(기준, 기본 오늘) · `months`(1~24, 기본 6) · `include_int
 ```
 - `total_at_prev_month_end` = 이번 달 1일 00:00 KST 전에 가입한 수(「지난달 대비」 증감의 분모). `mau_prev_30_days` = 기준일 −59 ~ −30일.
 - `by_provider` 는 회원 수(한 회원이 두 수단이면 둘 다 센다). `by_region` 의 null 은 `(미입력)`.
-- 가입자 목록 이메일은 1단계 목록처럼 **전체** — 화면이 maskEmail 로 가린다(§2.5 서버 가림 전환 때 함께 바꾼다). `stage` 는 저장 slot 0 의 단계.
+- 가입자 목록 이메일은 1단계 목록처럼 **전체** — 화면이 maskEmail 로 가린다. **적용 시점(세진 11/12):** 1단계 `users` 목록을 §2.5 서버 가림(`mask_email`) + 정확 검색(`q=이메일`)으로 바꾸는 그 PR 에서 `signups_on_date` · `recent_signups` 도 같이 가린다 — 베타 뒤, 이 2단계 머지 다음. 그 전까지는 두 API 가 같은 규칙(전체 반환 · 화면 가림). `stage` 는 저장 slot 0 의 단계.
 - **기록: `view_member_stats`**.
 
 ## P2-3 `GET /admin/stats/game` — 게임 진행 집계(beta_events)
 
 Query: `date`(끝, 기본 오늘) · `days`(1~92, 기본 30). `received_at` 이 범위 안인 `beta_events` 중 `stage_reached` · `objective_state` · `puzzle_attempt` · `help_event` · `run_state` 만 읽어(최대 200,000행) 사람 단위로 센다.
 사람 = `app_user_id` > `guest_session_id` > `tab_id`.
+**게스트 → 회원 전환 중복 방지(세진 11/12):** 서버는 로그인 뒤에도 쿠키의 `guest_session_id` 를 같은 줄에 적으므로(`beta_events.py`), 한 줄에 두 id 가 함께 있으면 그 게스트 = 그 회원으로 묶어 로그인 전 기록도 같은 사람으로 센다(`guest_links`). 두 id 가 함께 적힌 줄이 읽은 범위 안에 없으면(전환이 범위 밖) 둘로 센다 — 그 한계는 받아들인다.
 
 ```json
 {
@@ -85,7 +87,8 @@ Query: `date`(끝, 기본 오늘) · `days`(1~92, 기본 30). `received_at` 이 
 - 스테이지 묶음 · 서버 판정 목록은 `naju01/src/dialogue/objectives.ts`(STAGE_OF · SERVER_JUDGED)를 서버에 옮긴 표(`services/admin_stats.py`). 1 = 나루터, 2 = 바위 아래 + 물굴, 3 = 증언 능선. 스테이지 「완료」 = 끝 걸음(S1_SMOKE · C_SOCKET · S3_RIFT) 완료.
 - `entered` = 그 스테이지 목표를 하나라도 본(available · focus · complete) 사람 수. `completed_people` = `objective_state complete` 이고 `data.origin` 이 `live`(복원 제외)인 사람 수.
 - `attempts` = `puzzle_attempt` 건수(sent_back 포함), `wrong` = phase `fail` · `incorrect`. `hint_requests` = `help_event request` 건수. `judge` = server · screen · step.
-- `avg_completion_minutes` = `run_state start/resume → dawn` 까지 분의 평균(같은 `run_id`). 없으면 null + `unavailable.avg_completion_minutes`. 200,000행에 걸리면 `unavailable.truncated`.
+- `avg_completion_minutes` = `run_state start/resume → dawn` 까지 분의 평균(같은 `run_id`). 없으면 null + `unavailable.avg_completion_minutes`.
+- **200,000행 상한(`unavailable.truncated = first_200000_events_only`):** `id` 오름차순으로 앞 20만 건만 읽으므로 걸리면 **기간 뒤쪽(최근) 기록이 빠진다.** 그러면 `people` · `funnel` · `stages` · `puzzles` · `avg_completion_minutes` **전부** 불완전하다(최근 사람 · 최근 완료가 빠져 작게 나온다). 화면은 그 사실을 한 줄로 적고 기간을 줄이라고 안내한다. 상한을 넘기는 날이 오면 날짜별 사전 집계 표(DB 변경 → 세진 몫)로 바꾼다.
 - 기록 안 남김. 정답 값은 어디에도 없다.
 
 ## P2-4 `GET /admin/security/summary` — 보안 집계
@@ -108,8 +111,14 @@ Query 없음.
 ## 감사 기록 action 추가(§3.4 필터 값)
 `view_member_stats` · `view_active_sessions` · `view_security_summary`. 화면 이름표: 회원 통계 조회 · 활성 세션 조회 · 보안 집계 조회.
 
-## 세진이 확인해 줄 것
-1. 감사 기록 범위(위 표) — 특히 `stats/traffic` · `stats/game` 을 안 남기는 것.
-2. `active_play_sessions_5m` 과 활성 세션 목록을 `play_sessions.updated_at` 으로 보는 것(인덱스 없음 — 베타 규모면 됨, 커지면 인덱스).
-3. `stats/game` 이 `beta_events` 를 그대로 읽는 것(최대 200,000행, 범위 조건은 `received_at` 인덱스 없음 → 필요하면 인덱스).
-4. 날짜별 접속(`days` × 4쿼리) 비용.
+## 세진 1차 확인(11/12) 반영
+- 감사 기록 범위(위 표) — **동의.** 사람이 보이는 조회만 남기고 순수 집계는 안 남긴다.
+- `updated_at` 근사 지표 명시 → P2-1 에 적고 화면 설명도 바꿈.
+- 20만 행 상한 때 불완전해지는 범위 → P2-3 에 적음. 게스트 → 회원 중복 → `guest_links` 로 묶음(위).
+- 368회 조회 비용 · GROUP BY 전환 기준 → P2-1 에 숫자로 적음.
+- 이메일 전체 반환의 가림 전환 시점 → P2-2 에 적음.
+
+## 세진이 남은 확인
+1. `guest_links` 묶는 방식(한 줄에 두 id 가 함께 있으면 같은 사람) — 서버가 로그인 뒤에도 `guest_session_id` 를 계속 적는 게 맞는지.
+2. GROUP BY 전환 기준 숫자(회원 1만 명 · 92일 요청 1초) — 다른 기준이 좋으면 바꿔 적을 것.
+3. `play_sessions.updated_at` · `beta_events.received_at` 인덱스 없음 — 베타 규모면 되고, 커지면 세진이 인덱스(DB 변경).

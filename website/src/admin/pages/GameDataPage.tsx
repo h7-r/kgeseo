@@ -76,7 +76,8 @@ function GameDataView({ game }: { game: StatsGame }) {
       <p className="adm-summary__note">
         최근 {game.days}일({game.date} 까지, 한국 날짜) · {formatDateTime(game.generated_at)} 집계 · 베타
         기록(beta_events)을 사람 단위로 센 값입니다. 복원된 완료는 빼고, 같은 사람이 여러 번 완료해도 한 번으로 셉니다.
-        {game.unavailable.truncated && " · 기록이 많아 앞 20만 건만 셌습니다."}
+        {game.unavailable.truncated &&
+          " · 기록이 20만 건을 넘어 앞(오래된) 20만 건만 셌습니다. 기간 뒤쪽이 빠져 모든 숫자가 실제보다 작으니 기간을 줄여 다시 보세요."}
       </p>
       <div className="adm-grid adm-grid--two">
         <Panel title="게임 진입 깔때기" meta="단계별 도달 인원 · 명">

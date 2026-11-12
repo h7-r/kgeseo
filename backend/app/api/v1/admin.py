@@ -81,6 +81,7 @@ from app.services.admin_query import (
 from app.services.admin_stats import (
     GameEvent,
     aggregate_game,
+    guest_links,
     kst_days,
     month_firsts,
     next_month_first,
@@ -940,12 +941,13 @@ async def stats_game(
         .scalars()
         .all()
     )
+    links = guest_links((row.app_user_id, row.guest_session_id) for row in rows)
     aggregate = aggregate_game(
         GameEvent(
             event_type=row.event_type,
             phase=row.phase,
             objective_id=row.objective_id,
-            person=person_key(row.app_user_id, row.guest_session_id, row.tab_id),
+            person=person_key(row.app_user_id, row.guest_session_id, row.tab_id, links),
             run_id=row.run_id,
             at=row.client_ts or row.received_at,
             data=row.data if isinstance(row.data, dict) else {},
@@ -958,6 +960,7 @@ async def stats_game(
         else {}
     )
     if len(rows) >= GAME_EVENT_CAP:
+        # id 오름차순으로 앞 20만 건만 읽었으니 기간 뒤쪽(최근)이 빠진다 — 깔때기 · 스테이지 · 퍼즐 · 평균 시간 전부
         unavailable["truncated"] = f"first_{GAME_EVENT_CAP}_events_only"
     return AdminStatsGame(
         generated_at=utc_now(),

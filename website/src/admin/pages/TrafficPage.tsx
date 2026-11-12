@@ -51,7 +51,7 @@ function TrafficView({ traffic }: { traffic: StatsTraffic }) {
           label="지금 플레이 중"
           value={formatNumber(traffic.live.active_play_sessions_5m)}
           unit="세션"
-          caption="최근 5분 안에 움직인 플레이 세션"
+          caption="최근 5분 안에 저장이 갱신된 플레이 세션 · 접속 여부의 근사치"
         />
         <StatCard
           label="동시접속(로비)"
@@ -123,13 +123,13 @@ function TrafficView({ traffic }: { traffic: StatsTraffic }) {
   );
 }
 
-/** 지금 플레이 중인 세션 — 이 표를 열 때마다 「활성 세션 조회」 한 줄이 남는다. IP 는 서버가 기록하지 않는다. */
+/** 지금 플레이 중인 세션 — play_sessions.updated_at 기준이라 실제 접속의 근사치다(세진 11/12). 열 때마다 「활성 세션 조회」 한 줄이 남는다. IP 는 서버가 기록하지 않는다. */
 function ActiveSessionsPanel({ windowMinutes }: { windowMinutes: number }) {
   const [resource, retry] = useAdminResource("active-sessions", fetchActiveSessions);
   return (
     <Panel
       title="지금 플레이 중"
-      meta={`최근 ${windowMinutes}분 · 최신순 · 조회할 때마다 관리자 기록에 남음`}
+      meta={`최근 ${windowMinutes}분 안에 저장이 갱신된 세션 · 근사치 · 최신순 · 조회할 때마다 관리자 기록에 남음`}
       actions={
         <button type="button" className="adm-button adm-button--ghost adm-button--small" onClick={retry}>
           다시 조회
@@ -142,7 +142,7 @@ function ActiveSessionsPanel({ windowMinutes }: { windowMinutes: number }) {
             caption="지금 플레이 중인 세션"
             rows={list.sessions}
             rowKey={(row) => `${row.user_id ?? "guest"}-${row.started_at}`}
-            emptyText="최근 5분 안에 움직인 세션이 없습니다."
+            emptyText="최근 5분 안에 저장이 갱신된 세션이 없습니다."
             minWidth={0}
             columns={[
               {
@@ -160,7 +160,7 @@ function ActiveSessionsPanel({ windowMinutes }: { windowMinutes: number }) {
               },
               {
                 key: "seen",
-                header: "마지막 움직임",
+                header: "마지막 저장 갱신",
                 mono: true,
                 width: "168px",
                 render: (row) => formatDateTime(row.last_seen_at),
