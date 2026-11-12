@@ -8,7 +8,7 @@
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import Select, and_, func, select, union
+from sqlalchemy import Select, and_, exists, func, or_, select, union
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -367,16 +367,47 @@ async def _count_members(
     return await _count(db, query)
 
 
+def _transferred_after_creation():
+    """이 플레이 세션이 게스트 때 만들어졌다가 뒤에 로그인으로 계정에 승계된 것 — `guest_session_transfers` 에
+    같은 익명 세션의 승계 기록이 있고, 세션 생성이 승계보다 앞선다. 게스트 세션은 본문 익명 id = 쿠키 익명 id 를 강제하므로
+    (`owner_for_new_play_session`) `play_sessions.anonymous_session_id` 로 이어도 된다. 회원이 만든 세션은 승계 뒤에 생기니 안 걸린다."""
+
+    return exists().where(
+        GuestSessionTransfer.anonymous_session_id == PlaySession.anonymous_session_id,
+        PlaySession.created_at < GuestSessionTransfer.transferred_at,
+    )
+
+
+def _guest_at_play_time():
+    """플레이 당시 게스트였던 세션(미르 11/12 — DAU 는 「그날 누구였나」로 센다, 승계로 소유자가 바뀌어도 과거 날짜는 안 움직인다):
+    지금도 게스트 소유이거나, 게스트 때 만들고 뒤에 승계된 것. 소유자가 아예 없는 옛 세션(11/6 전)은 전처럼 어디에도 안 든다."""
+
+    return or_(
+        and_(
+            PlaySession.owner_user_id.is_(None),
+            PlaySession.owner_anonymous_session_id.is_not(None),
+        ),
+        _transferred_after_creation(),
+    )
+
+
+def _member_at_play_time():
+    """플레이 당시 회원이었던 세션 — 회원 소유이고, 게스트 때 만들어 승계된 것이 아니다."""
+
+    return and_(PlaySession.owner_user_id.is_not(None), ~_transferred_after_creation())
+
+
 async def _active_members(
     db: AsyncSession, include_internal: bool, start: datetime, end: datetime
 ) -> int:
-    """기간 안에 로그인 세션 또는 플레이 세션을 만든 고유 회원 수(D8). 둘 다 있는 회원은 한 번."""
+    """기간 안에 로그인 세션을 만들었거나 「회원으로서」 플레이 세션을 만든 고유 회원 수(D8). 둘 다 있는 회원은 한 번.
+    게스트 때 만들고 뒤에 승계된 세션은 그날의 회원 활동이 아니다(플레이 당시 기준, 미르 11/12)."""
 
     logins = select(UserSession.app_user_id.label("user_id")).where(
         UserSession.created_at >= start, UserSession.created_at < end
     )
     plays = select(PlaySession.owner_user_id.label("user_id")).where(
-        PlaySession.owner_user_id.is_not(None),
+        _member_at_play_time(),
         PlaySession.created_at >= start,
         PlaySession.created_at < end,
     )
@@ -391,13 +422,13 @@ async def _active_members(
 
 
 async def _active_guests(db: AsyncSession, start: datetime, end: datetime) -> int:
-    """기간 안에 플레이 세션을 만든 게스트 — 회원 소유가 아닌 세션의 고유 익명 세션 수(브라우저 쿠키 단위, D8-a 제안)."""
+    """기간 안에 「게스트로서」 플레이 세션을 만든 고유 익명 세션 수(브라우저 쿠키 단위, D8-a).
+    뒤에 로그인해 승계됐어도 그날은 게스트로 센다(플레이 당시 기준, 미르 11/12)."""
 
     return await _count(
         db,
-        select(func.count(func.distinct(PlaySession.owner_anonymous_session_id))).where(
-            PlaySession.owner_user_id.is_(None),
-            PlaySession.owner_anonymous_session_id.is_not(None),
+        select(func.count(func.distinct(PlaySession.anonymous_session_id))).where(
+            _guest_at_play_time(),
             PlaySession.created_at >= start,
             PlaySession.created_at < end,
         ),
@@ -407,11 +438,17 @@ async def _active_guests(db: AsyncSession, start: datetime, end: datetime) -> in
 async def _play_sessions_by_member(
     db: AsyncSession, include_internal: bool, start: datetime, end: datetime
 ) -> int:
+    """회원으로서 만든 플레이 세션 수(승계된 게스트 세션은 게스트 쪽)."""
+
     query = (
         select(func.count())
         .select_from(PlaySession)
         .join(AppUser, AppUser.id == PlaySession.owner_user_id)
-        .where(PlaySession.created_at >= start, PlaySession.created_at < end)
+        .where(
+            _member_at_play_time(),
+            PlaySession.created_at >= start,
+            PlaySession.created_at < end,
+        )
     )
     condition = _internal_excluded(include_internal)
     if condition is not None:
@@ -422,14 +459,14 @@ async def _play_sessions_by_member(
 async def _play_sessions_by_guest(
     db: AsyncSession, start: datetime, end: datetime
 ) -> int:
-    """회원 소유가 아닌 세션(게스트 · 소유자 없는 옛 세션)."""
+    """회원으로서 만든 것이 아닌 세션 — 게스트 · 승계된 게스트 세션 · 소유자 없는 옛 세션."""
 
     return await _count(
         db,
         select(func.count())
         .select_from(PlaySession)
         .where(
-            PlaySession.owner_user_id.is_(None),
+            or_(PlaySession.owner_user_id.is_(None), _transferred_after_creation()),
             PlaySession.created_at >= start,
             PlaySession.created_at < end,
         ),

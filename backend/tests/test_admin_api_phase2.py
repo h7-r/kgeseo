@@ -6,7 +6,10 @@
 from datetime import date, datetime, timedelta
 
 import pytest
+from sqlalchemy import select
+from sqlalchemy.dialects import mysql
 
+from app.api.v1 import admin as admin_api
 from app.main import app
 from app.models.app_user import AppUser
 from app.services.admin_query import kst_today
@@ -91,6 +94,35 @@ def test_guest_who_later_logged_in_counts_as_that_member():
     assert person_key("u5", "g1", None, links) == "u:u5"  # 회원 id 가 있으면 그게 우선
     assert person_key(None, "g1", None, None) == "g:g1"  # 표가 없으면 옛 셈법
     assert guest_links([("", "u1"), ("g1", "")]) == {}
+
+
+# --- DAU 는 플레이 당시 기준(미르 11/12) ---
+
+
+def _sql(clause) -> str:
+    from app.models.play_session import PlaySession
+
+    return str(
+        select(PlaySession.id)
+        .where(clause)
+        .compile(dialect=mysql.dialect(), compile_kwargs={"literal_binds": True})
+    )
+
+
+def test_play_time_basis_joins_transfers_by_anonymous_session_and_time():
+    guest = _sql(admin_api._guest_at_play_time())
+    member = _sql(admin_api._member_at_play_time())
+    # 승계 기록: 같은 익명 세션 · 세션 생성이 승계보다 앞
+    link = "guest_session_transfers.anonymous_session_id = play_sessions.anonymous_session_id"
+    before = "play_sessions.created_at < guest_session_transfers.transferred_at"
+    assert link in guest and before in guest and "EXISTS" in guest
+    assert link in member and before in member and "NOT (EXISTS" in member
+    # 지금 게스트 소유(소유자 없는 옛 세션은 제외) 도 게스트
+    assert (
+        "owner_user_id IS NULL" in guest
+        and "owner_anonymous_session_id IS NOT NULL" in guest
+    )
+    assert "owner_user_id IS NOT NULL" in member
 
 
 # --- 게임 집계: 사람 단위 완료 · 건수 단위 시도 ---

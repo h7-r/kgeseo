@@ -32,7 +32,8 @@ Query: `date`(끝 날짜, 기본 오늘) · `days`(1~92, 기본 7) · `include_i
 }
 ```
 
-- `members_dau` · `guests_dau` · `signups` · `play_sessions_created` 는 §3.3 정의 그대로(날짜마다 같은 쿼리). `days` 만큼 하루씩 센다 — **최대 92일 × 4쿼리 = 368회**, 모두 인덱스 있는 `created_at` 범위 COUNT 라 베타 규모(회원 수백 명)에선 한 요청 수백 ms 안.
+- `members_dau` · `guests_dau` · `signups` · `play_sessions_created` 는 §3.3 정의 그대로(날짜마다 같은 쿼리) — 단 **게스트 · 회원 구분은 「플레이 당시」 기준**으로 바뀐다(아래, 1단계 `stats/summary` 도 같은 함수라 함께 바뀜).
+- **플레이 당시 기준(미르 11/12 결정):** 게스트로 플레이한 세션이 뒤에 로그인으로 계정에 승계되어도 그날 숫자는 게스트에 남는다(과거 날짜가 안 움직인다). 판정: `guest_session_transfers` 에 같은 익명 세션(`play_sessions.anonymous_session_id`)의 승계 기록이 있고 세션 `created_at < transferred_at` 이면 「게스트 때 만든 세션」. 게스트는 본문 익명 id = 쿠키 익명 id 가 강제되므로(`owner_for_new_play_session`) 이 연결은 정확하고, 회원이 만든 세션은 승계 뒤에 생기니 걸리지 않는다. 적용 칸: `members_dau` · `guests_dau`(+ summary 의 MAU) · `created_on_date_by_member/by_guest`. 소유자 없는 옛 세션(11/6 전)은 전처럼 DAU 어디에도 안 든다. 마이그레이션 없음. 게임 집계의 「같은 사람 합치기」(P2-3)와는 기준이 다르다 — 그쪽은 사람을 합치고, 여기는 그날 누구였나를 본다. `days` 만큼 하루씩 센다 — **최대 92일 × 4쿼리 = 368회**, 모두 인덱스 있는 `created_at` 범위 COUNT 라 베타 규모(회원 수백 명)에선 한 요청 수백 ms 안.
   - **GROUP BY 전환 기준(세진 11/12, 잠정 — 아직 측정값 없음):** 회원 수가 아니라 **응답 시간**으로 본다. 이 API 의 p95 응답이 **1초**를 넘으면 최적화를 검토하고, **2초**를 넘으면 우선 개선한다. 92일 조회는 베타 뒤 따로 재고, 필요하면 날짜별 반복 쿼리를 `GROUP BY DATE(CONVERT_TZ(created_at, …))` 집계로 바꾼다(응답 모양은 그대로).
 - `live.active_play_sessions_5m` = `play_sessions.updated_at >= now − 5분` 인 세션 수. **근사 지표**다 — `updated_at` 은 실제 접속이 아니라 세션 줄이 마지막으로 갱신된 시각(저장 · 진행 기록)이라, 조용히 보고만 있는 플레이어는 빠지고 갱신 직후 나간 플레이어는 든다. 화면도 「저장 갱신 기준 근사치」라고 적는다(세진 11/12). 로비 동시접속이 아니다.
 - 분 단위 · 최대 동시접속은 원천이 없다 → `unavailable`.
@@ -126,4 +127,5 @@ Query 없음.
 1. `guest_session_transfers` 로 묶는 구현(P2-3) — 코드 리뷰 때 함께.
 2. `play_sessions.updated_at` · `beta_events.received_at` 인덱스 없음 — 베타 규모면 되고, 커지면 세진이 인덱스(DB 변경).
 3. 응답 시간 p95 는 아직 안 재고 있다 — 측정 환경은 세진이 베타 뒤 검토(베타 전엔 추가 않음). 그 뒤 테스트 환경에서 7일 · 92일 조회를 비교해 GROUP BY 전환 여부를 정한다.
-4. **날짜별 DAU 의 게스트 · 회원 구분 기준(세진 3차, 11/12):** 지금 `members_dau` · `guests_dau` 는 `play_sessions` 의 **현재 소유자**로 가른다. 로그인(승계)이 세션의 `owner_user_id` 를 채우고 `owner_anonymous_session_id` 를 비우므로, 게스트로 플레이한 날의 세션이 뒤에 로그인하면 **그 날 숫자가 게스트 → 회원으로 옮겨 간다**(과거 날짜가 바뀐다). 「플레이 당시」 기준으로 가르려면 `guest_session_transfers.transferred_at` 과 세션 `created_at` 을 비교해야 하는데, 승계 때 익명 세션 id 가 지워져 어느 게스트였는지는 transfers 의 `anonymous_session_id` 로만 되짚을 수 있다. 게임 데이터(같은 사람 합치기)와 DAU(그날 누구였나)는 기준이 다르다는 세진 지적이 맞다 — 최종 계약 리뷰 때 「현재 소유자 기준 유지 + 설명 문구」 또는 「transferred_at 로 당시 기준 복원」 중 고른다.
+4. ~~날짜별 DAU 의 게스트 · 회원 구분 기준~~ → **미르 결정(11/12): 플레이 당시 기준으로 고침(P2-1 참고, summary 포함).** 아래는 결정 전 기록.
+   **날짜별 DAU 의 게스트 · 회원 구분 기준(세진 3차, 11/12):** 지금 `members_dau` · `guests_dau` 는 `play_sessions` 의 **현재 소유자**로 가른다. 로그인(승계)이 세션의 `owner_user_id` 를 채우고 `owner_anonymous_session_id` 를 비우므로, 게스트로 플레이한 날의 세션이 뒤에 로그인하면 **그 날 숫자가 게스트 → 회원으로 옮겨 간다**(과거 날짜가 바뀐다). 「플레이 당시」 기준으로 가르려면 `guest_session_transfers.transferred_at` 과 세션 `created_at` 을 비교해야 하는데, 승계 때 익명 세션 id 가 지워져 어느 게스트였는지는 transfers 의 `anonymous_session_id` 로만 되짚을 수 있다. 게임 데이터(같은 사람 합치기)와 DAU(그날 누구였나)는 기준이 다르다는 세진 지적이 맞다 — 최종 계약 리뷰 때 「현재 소유자 기준 유지 + 설명 문구」 또는 「transferred_at 로 당시 기준 복원」 중 고른다.
