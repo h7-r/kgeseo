@@ -9,6 +9,7 @@ import { Interactable } from "@/lobby/AimTracker";
 import { AimHighlight } from "@/lobby/AimHighlight";
 import {
   isHoldingSomething,
+  isNozzleReleasable,
   hoseAnchors,
   getNozzleLocation,
   pickUpNozzle,
@@ -17,6 +18,8 @@ import {
   resetNozzle,
   useNozzle,
 } from "@/props/nozzleState";
+import GlowHalo from "@/props/shared/GlowHalo";
+import { attentionPulse } from "@/props/shared/glowPulse";
 import ToonMaterial from "@/props/shared/ToonMaterial";
 import { type AimHighlightSettings, getWorldPositionOf } from "@/props/shared/aimTarget";
 import { isWorkLampPuzzleHandFull } from "@/props/workLampPuzzle/workLampState";
@@ -39,6 +42,13 @@ const HOSE_BEND_ALLOWANCE = 1.3;
 const TOTAL_STRANDS = 13;
 
 const anchorScratch = new THREE.Vector3();
+
+/**
+ * 관창이 「꺼내라」로 빛나는 동안 — 배전반 선 셋을 잇고 차단기를 올린 뒤, 아직 함에 걸려 있을 때.
+ * 들면 꺼지고 배전반 구멍만 남아 빛난다(11/12). 빛무리는 함 속에 두어 닫힌 문이 가린다.
+ */
+const isNozzleWaiting = () => isNozzleReleasable() && getNozzleLocation() === "cabinet";
+const readNozzlePulse = attentionPulse(isNozzleWaiting);
 
 function buildCabinetShellGeometry(
   depth: number,
@@ -306,19 +316,26 @@ export default function HydrantCabinetInterior({
             color={highlight?.color}
             strength={highlight?.strength}
             grow={highlight?.grow}
+            pulse={readNozzlePulse}
           >
             <group position={nozzleSpot} ref={nozzleRef}>
               <NozzleModel metalColor={metalColor} brightness={brightness} outline={outline} />
             </group>
           </AimHighlight>
+          <GlowHalo position={[nozzleSpot[0] + d * 0.08, nozzleSpot[1], nozzleSpot[2]]} visible={isNozzleWaiting} />
           <Interactable
             id={nozzleId}
             radius={0.32}
             reach={5}
             label="[E] 관창 꺼내기"
             // 조건은 한 함수에 모은다. 따로 적은 끔을 덧붙이다 앞 조건을 덮어써 퍼즐 순서가 무너진 적이 있다.
+            // 배전반 회로가 살기 전엔 안 뜬다 — 눌러도 안 되는 [E] 는 고장으로 읽힌다
             disabled={() =>
-              !canHandle || getNozzleLocation() !== "cabinet" || isHoldingSomething() || isWorkLampPuzzleHandFull()
+              !canHandle ||
+              !isNozzleReleasable() ||
+              getNozzleLocation() !== "cabinet" ||
+              isHoldingSomething() ||
+              isWorkLampPuzzleHandFull()
             }
             position={() => getWorldPositionOf(nozzleRef)}
             run={() => pickUpNozzle()}

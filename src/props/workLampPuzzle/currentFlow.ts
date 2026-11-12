@@ -13,6 +13,9 @@ export function getPaintingStruckAt() {
   return Math.max(getBinFlowStartedAt("general"), getBinFlowStartedAt("plastic")) + FLOW_SECONDS;
 }
 
+/** 그림 창에 불이 든 뒤인가 — 시험반의 유리창 · 빛무리도 이 순간부터(쓰레기를 다 넣어도 전류가 닿기 전엔 어둡다) */
+export const isPaintingLit = (now = performance.now() / 1000) => now >= getPaintingStruckAt() + LIGHT_DELAY_SECONDS;
+
 /** 그림에 전류가 닿는 순간의 세기(0~1) — 확 올라 잠시 버티다 가라앉는다 */
 export function computeSurge(now: number) {
   const since = now - getPaintingStruckAt();
