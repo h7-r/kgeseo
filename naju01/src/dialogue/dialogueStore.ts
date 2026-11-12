@@ -7,7 +7,7 @@
  * 긴 말은 쪽으로 나뉘어 차례로 넘어간다(paginate) — 창이 커지지 않는다.
  * React · 별칭을 쓰지 않는다(node --test).
  */
-import { paginate, textWidth } from "./paginate.ts";
+import { paginate, paginateLines, textWidth } from "./paginate.ts";
 
 export type SpeechKind = "ask" | "hint" | "notice" | "line" | "guide";
 
@@ -80,10 +80,17 @@ export function pageDurationMs(text: string, timing: Timing = DIALOGUE_TIMING, h
   return Math.max(byLength, holdMs);
 }
 
+export interface PageLayout {
+  perLine: number;
+  maxLines: number;
+}
+
 interface StoreOptions {
   timing?: Partial<Timing>;
   /** 한 쪽에 들어가는 폭(한글 글자 수) — 화면이 창 너비를 재서 고친다 */
   capacity?: number;
+  /** 문장마다 줄 바꾸기 — 한 줄 폭(한글 글자 수) · 한 쪽 줄 수. 있으면 capacity 대신 이것으로 쪽을 나눈다(setLayout) */
+  layout?: PageLayout;
   setTimer?: (run: () => void, ms: number) => unknown;
   clearTimer?: (handle: unknown) => void;
 }
@@ -100,6 +107,10 @@ export function createDialogueStore(options: StoreOptions = {}) {
   const listeners = new Set<() => void>();
 
   let capacity = options.capacity ?? 96;
+  let layout: PageLayout | null = options.layout ?? null;
+  /** 쪽 나누기 — 줄 배치(layout)를 알면 문장마다 줄을 바꿔(미르 11/12), 모르면 글자 수로 흘려 나눈다 */
+  const pagesOf = (text: string) =>
+    layout ? paginateLines(text, layout.perLine, layout.maxLines) : paginate(text, capacity);
   let current: ShownSpeech | null = null;
   let queue: (Speech & { queuedAt: number })[] = [];
   let timer: unknown = null;
@@ -130,7 +141,7 @@ export function createDialogueStore(options: StoreOptions = {}) {
   }
 
   function show(speech: Speech) {
-    const pages = paginate(speech.text, capacity);
+    const pages = pagesOf(speech.text);
     if (pages.length === 0) return showNext();
     current = { speech, pages, pageIndex: 0, serial: ++serial };
     armTimer();
@@ -323,7 +334,19 @@ export function createDialogueStore(options: StoreOptions = {}) {
       capacity = rounded;
       if (!current) return;
       const rest = current.pages.slice(current.pageIndex).join(" ");
-      current = { ...current, pages: paginate(rest, capacity), pageIndex: 0, serial: ++serial };
+      current = { ...current, pages: pagesOf(rest), pageIndex: 0, serial: ++serial };
+      armTimer();
+      emit();
+    },
+
+    /** 창 너비 · 글자 크기가 바뀌었다(한 줄 폭 · 쪽 줄 수) — 떠 있는 말은 지금 쪽부터 다시 나눈다 */
+    setLayout(perLine: number, maxLines: number) {
+      const next = { perLine: Math.max(8, Math.round(perLine * 10) / 10), maxLines: Math.max(1, Math.round(maxLines)) };
+      if (layout && layout.perLine === next.perLine && layout.maxLines === next.maxLines) return;
+      layout = next;
+      if (!current) return;
+      const rest = current.pages.slice(current.pageIndex).join(" ");
+      current = { ...current, pages: pagesOf(rest), pageIndex: 0, serial: ++serial };
       armTimer();
       emit();
     },

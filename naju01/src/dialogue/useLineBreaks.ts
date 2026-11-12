@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 
 import { breakLines } from "./lineBreak";
+import { SHORT_SENTENCE, breakSentences } from "./sentences";
 
 /** [E] 같은 키 표시는 글자보다 넓은 단추로 그린다(.npc-talk__key — 최소 24px + 양옆 3px) */
 const KEY_TOKEN = /\[([A-Z0-9]{1,2}|✋|💬|💡|🎒|⚙)\]/gu;
@@ -30,8 +31,12 @@ function measurer(element: HTMLElement) {
  * 글이 두 줄 넘게 넘어가면 읽기 좋은 자리에서 끊은 글을 돌려준다(lineBreak). 글을 담는 요소에 ref 를 달고
  * `white-space: pre-line` 으로 그린다. 먼저 그냥 흘려 그려 한 줄 폭을 잰 뒤, 화면에 나오기 전에 끊은 글로 바꾼다.
  * 창 크기 · 글꼴이 바뀌면 다시 잰다.
+ * sentenceLines 를 주면 먼저 문장마다 줄을 바꾼다(미르 11/12) — 그 줄 수 안에 들어갈 때만, 넘치면 예전처럼 흘려 끊는다.
  */
-export function useLineBreaks<T extends HTMLElement>(text: string): [RefObject<T | null>, string] {
+export function useLineBreaks<T extends HTMLElement>(
+  text: string,
+  { sentenceLines }: { sentenceLines?: number } = {},
+): [RefObject<T | null>, string] {
   const ref = useRef<T | null>(null);
   const [broken, setBroken] = useState<{ source: string; value: string } | null>(null);
   const [epoch, setEpoch] = useState(0);
@@ -43,14 +48,24 @@ export function useLineBreaks<T extends HTMLElement>(text: string): [RefObject<T
     const width = element.clientWidth - parseFloat(style.paddingLeft || "0") - parseFloat(style.paddingRight || "0");
     // 한 줄에 들어간 글은 그대로 둔다 — 잰 폭이 실제와 조금 어긋나도 멀쩡한 한 줄을 끊지 않게 화면의 줄 수로 가린다
     const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.5;
+    const measure = measurer(element);
+    if (sentenceLines) {
+      const fontPx = parseFloat(style.fontSize) || 16;
+      const sentenced = breakSentences(text, measure, width * SAFETY, sentenceLines, SHORT_SENTENCE * fontPx);
+      if (sentenced !== null && sentenced !== text) {
+        // 문장 줄은 정한 줄 수 안이다 — 문장 하나가 두 줄로 넘어가면 그 안에서만 읽기 좋은 자리로 다시 끊는다
+        setBroken({ source: text, value: breakLines(sentenced, width * SAFETY, measure, sentenceLines) });
+        return;
+      }
+    }
     if (element.clientHeight < lineHeight * 1.5) {
       setBroken({ source: text, value: text });
       return;
     }
     // 여유(SAFETY)만큼 좁게 재면 줄이 하나 더 필요하다고 나올 수 있다 — 화면에 놓인 줄 수를 넘기면 그대로 둔다
     const shownLines = Math.max(1, Math.round(element.clientHeight / lineHeight));
-    setBroken({ source: text, value: breakLines(text, width * SAFETY, measurer(element), shownLines) });
-  }, [text, epoch]);
+    setBroken({ source: text, value: breakLines(text, width * SAFETY, measure, shownLines) });
+  }, [text, epoch, sentenceLines]);
 
   useEffect(() => {
     let isAlive = true;

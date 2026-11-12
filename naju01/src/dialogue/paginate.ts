@@ -3,6 +3,7 @@
  * 문장 끝 → 쉼표 · 줄표 → 띄어쓰기 순으로 끊을 자리를 찾고, [E] 같은 키 표시는 쪼개지 않는다.
  * React · 별칭을 쓰지 않는다(node --test).
  */
+import { sentenceUnits, wrappedLines } from "./sentences.ts";
 
 /** 한글은 한 칸, 영문 · 숫자 · 기호는 반 칸 남짓으로 센다 — 창 너비를 글자 수로 어림할 때 쓴다 */
 export function textWidth(text: string): number {
@@ -110,4 +111,57 @@ function balanceTail(pages: string[], limit: number): string[] {
   }
   if (best < 0) return pages;
   return [...pages.slice(0, -2), words.slice(0, best).join(" "), words.slice(best).join(" ")];
+}
+
+/** 한 줄 폭 어림에서 낱말 단위 줄바꿈으로 줄 끝이 비는 몫을 뺀다 */
+const WRAP_FILL = 0.95;
+/** 문장이 한 쪽보다 길 때 그 문장만 예전처럼 흘려 나누는 몫(DialogueLayer LINE_FILL 과 같은 값) */
+const FALLBACK_FILL = 0.85;
+
+/**
+ * 문장마다 줄을 바꿔 쪽을 나눈다(미르 11/12) — 한 쪽은 maxLines 줄까지, 쪽 경계는 늘 문장 끝이다.
+ * perLine = 한 줄에 들어가는 폭(한글 글자 수). 짧은 말(「좋아요.」)은 이웃 문장과 한 줄에 둔다(sentences.ts).
+ * 문장 하나가 한 쪽보다 길면 그 문장만 예전처럼(paginate) 흘려 나눈다. 마지막 쪽이 한 줄뿐이면 앞 쪽과 고르게 나눈다.
+ * 쪽 안의 문장 사이는 줄바꿈 한 자다 — 화면은 white-space: pre-line 으로 그린다.
+ */
+export function paginateLines(text: string, perLine: number, maxLines: number): string[] {
+  const units = sentenceUnits(text.trim(), textWidth);
+  if (units.length === 0) return [];
+  const maxWidth = Math.max(8, perLine) * WRAP_FILL;
+  const limit = Math.max(1, maxLines);
+  const pages: { units: string[]; lines: number[] }[] = [];
+  let page: { units: string[]; lines: number[] } = { units: [], lines: [] };
+  const used = () => page.lines.reduce((sum, n) => sum + n, 0);
+  const flush = () => {
+    if (page.units.length) pages.push(page);
+    page = { units: [], lines: [] };
+  };
+  const out: (string | { units: string[]; lines: number[] })[] = [];
+  for (const unit of units) {
+    const lines = wrappedLines(unit, textWidth, maxWidth);
+    if (lines > limit) {
+      flush();
+      for (const done of pages.splice(0)) out.push(done);
+      out.push(...paginate(unit, Math.max(8, perLine) * limit * FALLBACK_FILL));
+      continue;
+    }
+    if (page.units.length && used() + lines > limit) flush();
+    page.units.push(unit);
+    page.lines.push(lines);
+  }
+  flush();
+  out.push(...pages);
+  // 마지막 쪽이 한 줄짜리면 앞 쪽(문장 쪽)의 끝 문장을 넘겨 고르게 — 넘겨도 두 쪽 다 줄 수 안일 때만
+  const last = out.at(-1);
+  const prev = out.at(-2);
+  if (typeof last === "object" && typeof prev === "object") {
+    const sum = (lines: number[]) => lines.reduce((total, n) => total + n, 0);
+    while (prev.units.length > 1 && sum(last.lines) < sum(prev.lines) - 1) {
+      const moved = prev.lines[prev.lines.length - 1];
+      if (sum(last.lines) + moved > limit || sum(last.lines) + moved > sum(prev.lines) - moved) break;
+      last.units.unshift(prev.units.pop()!);
+      last.lines.unshift(prev.lines.pop()!);
+    }
+  }
+  return out.map((item) => (typeof item === "string" ? item : item.units.join("\n")));
 }
