@@ -76,16 +76,21 @@ def test_person_key_prefers_member_then_guest_then_tab():
 
 
 def test_guest_who_later_logged_in_counts_as_that_member():
-    # 로그인 전(게스트만) → 로그인 뒤(회원 + 쿠키의 게스트) : 한 사람
-    rows = [(None, "g1"), ("u1", "g1"), ("u2", None), (None, "g9")]
-    links = guest_links(rows)
-    assert links == {"g1": "u1"}
+    # guest_session_transfers: (게스트, 회원). 로그인 전 게스트 기록을 그 회원으로 센다
+    transfers = [("g1", "u1"), ("g2", "u2"), ("g2", "u2"), ("g3", "u3"), ("g3", "u4")]
+    links = guest_links(transfers)
+    assert links == {
+        "g1": "u1",
+        "g2": "u2",
+    }  # g3 는 회원 둘에 걸려 임의로 합치지 않는다
     assert person_key(None, "g1", None, links) == "u:u1"
+    assert person_key(None, "g3", None, links) == "g:g3"
     assert (
         person_key(None, "g9", None, links) == "g:g9"
     )  # 회원이 된 적 없는 게스트는 그대로
-    assert person_key("u3", "g1", None, links) == "u:u3"  # 회원 id 가 있으면 그게 우선
+    assert person_key("u5", "g1", None, links) == "u:u5"  # 회원 id 가 있으면 그게 우선
     assert person_key(None, "g1", None, None) == "g:g1"  # 표가 없으면 옛 셈법
+    assert guest_links([("", "u1"), ("g1", "")]) == {}
 
 
 # --- 게임 집계: 사람 단위 완료 · 건수 단위 시도 ---

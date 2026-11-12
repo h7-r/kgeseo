@@ -25,6 +25,7 @@ from app.models.account_data import (
 from app.models.app_user import AppUser
 from app.models.auth_identity import AuthIdentity
 from app.models.beta_event import BetaEvent
+from app.models.guest_session import GuestSessionTransfer
 from app.models.play_session import PlaySession
 from app.schemas.account_data import (
     AdminUserDetail,
@@ -632,6 +633,27 @@ def _matches_own_record(
 # 전부 기존 테이블 읽기만. 규칙은 1단계와 같다 — KST 날짜 · 관리자 제외 기본 · 422 invalid_query · 시각 UTC naive.
 
 
+async def _guest_transfers(
+    db: AsyncSession, rows: list[BetaEvent]
+) -> list[tuple[str, str]]:
+    """읽은 기록에 보이는 게스트(회원 id 없는 줄) 중 로그인으로 계정에 옮겨진 것 — `guest_session_transfers` 에서.
+    기록 20만 행 상한과 무관하게 표 전체에서 찾으므로, 전환 자체가 있었으면 연결은 빠지지 않는다."""
+
+    guests = {
+        row.guest_session_id
+        for row in rows
+        if row.app_user_id is None and row.guest_session_id
+    }
+    if not guests:
+        return []
+    result = await db.execute(
+        select(
+            GuestSessionTransfer.guest_session_id, GuestSessionTransfer.app_user_id
+        ).where(GuestSessionTransfer.guest_session_id.in_(sorted(guests)))
+    )
+    return [(guest, user) for guest, user in result.all()]
+
+
 def _stats_base(target_date: str | None) -> date:
     today = kst_today()
     day = parse_kst_date(target_date, "date") or today
@@ -941,7 +963,7 @@ async def stats_game(
         .scalars()
         .all()
     )
-    links = guest_links((row.app_user_id, row.guest_session_id) for row in rows)
+    links = guest_links(await _guest_transfers(db, rows))
     aggregate = aggregate_game(
         GameEvent(
             event_type=row.event_type,

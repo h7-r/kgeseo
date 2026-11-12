@@ -74,14 +74,22 @@ class GameEvent:
     data: dict[str, Any] = field(default_factory=dict)
 
 
-def guest_links(pairs: Iterable[tuple[str | None, str | None]]) -> dict[str, str]:
-    """게스트 세션 → 회원 id 표. 서버는 로그인 뒤에도 쿠키의 guest_session_id 를 같이 적으므로,
-    한 줄에 둘이 함께 있으면 그 게스트는 그 회원이다(로그인 전 기록을 같은 사람으로 묶는 근거)."""
+def guest_links(transfers: Iterable[tuple[str, str]]) -> dict[str, str]:
+    """게스트 세션 → 회원 id 표. 원천은 `guest_session_transfers`(로그인 순간 게스트 진행을 계정으로 옮긴 기록,
+    게스트당 한 줄). 로그인 뒤 기록엔 guest_session_id 가 안 남으므로(play_principal: user 면 None) 이 표가 유일한 연결 근거다.
+    같은 게스트가 서로 다른 회원 둘에 걸리면(구조상 없지만) 임의로 합치지 않고 뺀다(세진 11/12)."""
 
     links: dict[str, str] = {}
-    for app_user_id, guest_session_id in pairs:
-        if app_user_id and guest_session_id:
-            links.setdefault(guest_session_id, app_user_id)
+    ambiguous: set[str] = set()
+    for guest_session_id, app_user_id in transfers:
+        if not guest_session_id or not app_user_id:
+            continue
+        known = links.get(guest_session_id)
+        if known is not None and known != app_user_id:
+            ambiguous.add(guest_session_id)
+        links.setdefault(guest_session_id, app_user_id)
+    for guest_session_id in ambiguous:
+        links.pop(guest_session_id, None)
     return links
 
 
@@ -92,7 +100,7 @@ def person_key(
     links: dict[str, str] | None = None,
 ) -> str:
     """사람 하나를 가리키는 키 — 회원 > 게스트 세션 > 탭. 셋 다 없으면 「모름」 하나로 묶는다.
-    `links`(guest_links) 가 있으면 뒤에 회원이 된 게스트는 그 회원 키로 센다(세진 11/12 — 전환 중복 방지)."""
+    `links`(guest_links) 에 든 게스트는 뒤에 회원이 된 사람이라 그 회원 키로 센다(세진 11/12 — 전환 중복 방지)."""
 
     if app_user_id:
         return f"u:{app_user_id}"
