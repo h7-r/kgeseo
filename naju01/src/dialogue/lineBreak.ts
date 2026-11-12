@@ -4,6 +4,7 @@
  * 고른 자리의 띄어쓰기 한 칸을 줄바꿈 한 자로 바꿔 돌려준다 — 글 길이가 그대로라 글자 찍기 자리가 밀리지 않는다.
  * 화면에서는 `white-space: pre-line` 으로 그린다. React · 별칭을 쓰지 않는다(node --test).
  */
+import { stripEmphasis } from "./emphasis.ts";
 
 const SENTENCE_END = /[.!?…。」』)]$/;
 const SOFT_BREAK = /[,·—:;]$/;
@@ -50,7 +51,7 @@ function breakParagraph(text: string, maxWidth: number, measure: MeasureText, li
   /** 낱말 index 앞에서 끊을 수 있는가 — 바로 앞이 띄어쓰기 한 칸일 때만(그 한 칸을 줄바꿈으로 바꾼다) */
   const canBreakBefore = (index: number) => text[words[index].start - 1] === " ";
   const breakCost = (index: number) => {
-    const before = words[index - 1].word;
+    const before = stripEmphasis(words[index - 1].word);
     if (SENTENCE_END.test(before)) return BREAK_COST.sentence;
     if (SOFT_BREAK.test(before)) return BREAK_COST.soft;
     return BREAK_COST.space;

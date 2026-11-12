@@ -7,6 +7,7 @@
  * 긴 말은 쪽으로 나뉘어 차례로 넘어간다(paginate) — 창이 커지지 않는다.
  * React · 별칭을 쓰지 않는다(node --test).
  */
+import { balanceEmphasis } from "./emphasis.ts";
 import { paginate, paginateLines, textWidth } from "./paginate.ts";
 
 export type SpeechKind = "ask" | "hint" | "notice" | "line" | "guide";
@@ -108,9 +109,12 @@ export function createDialogueStore(options: StoreOptions = {}) {
 
   let capacity = options.capacity ?? 96;
   let layout: PageLayout | null = options.layout ?? null;
-  /** 쪽 나누기 — 줄 배치(layout)를 알면 문장마다 줄을 바꿔(미르 11/12), 모르면 글자 수로 흘려 나눈다 */
+  /**
+   * 쪽 나누기 — 줄 배치(layout)를 알면 한 줄에 들어가는 문장끼리 묶어(미르 11/12), 모르면 글자 수로 흘려 나눈다.
+   * 굵게 표시가 쪽 경계에 걸리면 쪽마다 닫고 다시 연다
+   */
   const pagesOf = (text: string) =>
-    layout ? paginateLines(text, layout.perLine, layout.maxLines) : paginate(text, capacity);
+    balanceEmphasis(layout ? paginateLines(text, layout.perLine, layout.maxLines) : paginate(text, capacity));
   let current: ShownSpeech | null = null;
   let queue: (Speech & { queuedAt: number })[] = [];
   let timer: unknown = null;

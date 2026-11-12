@@ -3,12 +3,13 @@
  * 문장 끝 → 쉼표 · 줄표 → 띄어쓰기 순으로 끊을 자리를 찾고, [E] 같은 키 표시는 쪼개지 않는다.
  * React · 별칭을 쓰지 않는다(node --test).
  */
+import { stripEmphasis } from "./emphasis.ts";
 import { sentenceUnits, wrappedLines } from "./sentences.ts";
 
-/** 한글은 한 칸, 영문 · 숫자 · 기호는 반 칸 남짓으로 센다 — 창 너비를 글자 수로 어림할 때 쓴다 */
+/** 한글은 한 칸, 영문 · 숫자 · 기호는 반 칸 남짓으로 센다 — 창 너비를 글자 수로 어림할 때 쓴다. 굵게 표시(**)는 세지 않는다 */
 export function textWidth(text: string): number {
   let width = 0;
-  for (const char of text) width += char.charCodeAt(0) > 0x2e7f ? 1 : 0.55;
+  for (const char of stripEmphasis(text)) width += char.charCodeAt(0) > 0x2e7f ? 1 : 0.55;
   return width;
 }
 
@@ -56,12 +57,12 @@ export function paginate(text: string, capacity: number): string[] {
       continue;
     }
     let piece = word;
-    // 한 쪽보다 긴 낱말(띄어쓰기 없는 긴 글)은 글자 단위로 자른다
+    // 한 쪽보다 긴 낱말(띄어쓰기 없는 긴 글)은 글자 단위로 자른다 — 굵게 표시(**)는 폭 없는 한 덩어리라 반으로 가르지 않는다
     while (textWidth(piece) > limit) {
       if (page.length) flush(page.length);
       let cut = 0;
       let used = 0;
-      for (const char of piece) {
+      for (const char of piece.match(/\*\*|[\s\S]/gu) ?? []) {
         const next = used + textWidth(char);
         if (next > limit) break;
         used = next;
@@ -81,8 +82,9 @@ export function paginate(text: string, capacity: number): string[] {
     }
     page.push(piece);
     width = textWidth(page.join(" "));
-    if (SENTENCE_END.test(piece)) sentenceCut = page.length;
-    else if (SOFT_BREAK.test(piece)) softCut = page.length;
+    const bare = stripEmphasis(piece);
+    if (SENTENCE_END.test(bare)) sentenceCut = page.length;
+    else if (SOFT_BREAK.test(bare)) softCut = page.length;
   }
   if (page.length) flush(page.length);
   return balanceTail(pages, limit);
@@ -100,7 +102,7 @@ function balanceTail(pages: string[], limit: number): string[] {
   for (let count = 1; count < words.length; count++) {
     const head = textWidth(words.slice(0, count).join(" "));
     if (head > limit || total - head > limit) continue;
-    const word = words[count - 1];
+    const word = stripEmphasis(words[count - 1]);
     // 문장 끝이면 가운데에서 조금 멀어도 그 자리를 고른다
     const penalty = SENTENCE_END.test(word) ? 0 : SOFT_BREAK.test(word) ? limit * 0.15 : limit * 0.3;
     const score = Math.abs(head - total / 2) + penalty;
@@ -119,15 +121,15 @@ const WRAP_FILL = 0.95;
 const FALLBACK_FILL = 0.85;
 
 /**
- * 문장마다 줄을 바꿔 쪽을 나눈다(미르 11/12) — 한 쪽은 maxLines 줄까지, 쪽 경계는 늘 문장 끝이다.
- * perLine = 한 줄에 들어가는 폭(한글 글자 수). 짧은 말(「좋아요.」)은 이웃 문장과 한 줄에 둔다(sentences.ts).
+ * 문장을 줄로 묶어 쪽을 나눈다(미르 11/12) — 한 쪽은 maxLines 줄까지, 쪽 경계는 늘 문장 끝이다.
+ * perLine = 한 줄에 들어가는 폭(한글 글자 수). 한 줄에 들어가는 문장들은 나란히 한 줄에 둔다(sentences.ts).
  * 문장 하나가 한 쪽보다 길면 그 문장만 예전처럼(paginate) 흘려 나눈다. 마지막 쪽이 한 줄뿐이면 앞 쪽과 고르게 나눈다.
- * 쪽 안의 문장 사이는 줄바꿈 한 자다 — 화면은 white-space: pre-line 으로 그린다.
+ * 쪽 안의 줄 사이는 줄바꿈 한 자다 — 화면은 white-space: pre-line 으로 그린다.
  */
 export function paginateLines(text: string, perLine: number, maxLines: number): string[] {
-  const units = sentenceUnits(text.trim(), textWidth);
-  if (units.length === 0) return [];
   const maxWidth = Math.max(8, perLine) * WRAP_FILL;
+  const units = sentenceUnits(text.trim(), textWidth, maxWidth);
+  if (units.length === 0) return [];
   const limit = Math.max(1, maxLines);
   const pages: { units: string[]; lines: number[] }[] = [];
   let page: { units: string[]; lines: number[] } = { units: [], lines: [] };
