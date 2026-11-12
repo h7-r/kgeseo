@@ -52,7 +52,7 @@ export default function CompanionHud({ controlsRef, isLocked, showStatus = false
 
   // Enter — 잠금 중 · 말을 걸 수 있을 때만 입력을 연다(창이 열려 있으면 잠금이 풀려 있어 여기 오지 않는다)
   useEffect(() => {
-    if (!IS_FREE_INPUT_ENABLED || !isLocked || !dialog.isEnabled || isTyping) return undefined;
+    if (!IS_FREE_INPUT_ENABLED || !isLocked || !dialog.isNpcEnabled || isTyping) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.code !== "Enter" || event.repeat || event.isComposing || isCompanionIntro()) return;
       event.preventDefault();
@@ -60,13 +60,13 @@ export default function CompanionHud({ controlsRef, isLocked, showStatus = false
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isLocked, dialog.isEnabled, isTyping]);
+  }, [isLocked, dialog.isNpcEnabled, isTyping]);
 
   // 자막 · 기다림 표시는 그리지 않는다 — 말은 대화창(DialogueLayer) 한 벌에 뜬다
   return (
     <>
       {/* 터치 — 💬 로 입력칸을 연다. 아이폰은 탭 안에서 바로 포커스해야 키보드가 뜨므로 그 탭에서 동기로 그린다(flushSync) */}
-      {IS_FREE_INPUT_ENABLED && isTouch && isLocked && dialog.isEnabled && !isTyping && !isIntro && (
+      {IS_FREE_INPUT_ENABLED && isTouch && isLocked && dialog.isNpcEnabled && !isTyping && !isIntro && (
         <button
           type="button"
           aria-label={`${COMPANION_NAME}에게 말하기`}

@@ -445,8 +445,9 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
       const state = dialog.getState();
       const isPaused = time < pollPausedUntil;
       // 정말 바쁠 때(멈춤 · 집중 연출)는 폴링을 보내지 않는다 — 받아 놓고 버리지 않게. 물건을 만지는 중은 보낸다
+      // 동행이 꺼졌으면(NPC 500 등 — isNpcEnabled) 폴링도 멈춘다. 공용 세션은 그대로라 isEnabled 로는 모른다
       const canPoll =
-        state.isEnabled &&
+        state.isNpcEnabled &&
         state.waiting === null &&
         !isPaused &&
         !hasUnshown(time) &&

@@ -6,6 +6,8 @@
 import { betaLog } from "@/beta/betaLog";
 import { apiUrl } from "@/config/env";
 
+import { canSaveAfter, loadGameSave, saveLoadNotice } from "./gameSaveLoad";
+
 const SAVE_URL = apiUrl("/api/v1/me/game-save");
 const CHARACTER_URL = apiUrl("/api/v1/me/character");
 const ME_URL = apiUrl("/api/v1/me");
@@ -87,7 +89,10 @@ async function requestJson(url: string, init?: RequestInit): Promise<{ status: n
   }
 }
 
-/** 게임을 그리기 전에 한 번 부른다. 서버가 안 되면 저장 없이 시작한다. */
+/**
+ * 게임을 그리기 전에 한 번 부른다. 서버가 안 되면 저장 없이 시작한다.
+ * 로그인했는데 불러오지 못했으면(401 이 아닌 오류 · 연결 실패) 저장은 멈춘 채 「저장을 불러오지 못했어요」 안내를 띄운다(gameSaveLoad)
+ */
 export async function initGameSave(): Promise<void> {
   if (IS_FRESH_RUN) {
     isLoggedIn = false;
@@ -96,17 +101,17 @@ export async function initGameSave(): Promise<void> {
     );
     return;
   }
-  try {
-    const { status, body } = await requestJson(SAVE_URL);
-    isLoggedIn = status === 200;
-    if (!isLoggedIn || !body) return;
-    const saved = body as SaveEnvelope;
-    revision = saved.revision;
-    stage = saved.stage;
-    storedSections = saved.state.sections ?? {};
-  } catch {
-    isLoggedIn = false;
+  const outcome = await loadGameSave(() => requestJson(SAVE_URL));
+  isLoggedIn = canSaveAfter(outcome);
+  if (outcome.kind === "failed") {
+    console.warn(`[저장] 저장을 불러오지 못했다(${outcome.reason}) — 저장을 멈추고 새로고침 안내를 띄운다`);
+    saveLoadNotice.report(outcome);
   }
+  if (outcome.kind !== "loaded" || !outcome.save) return;
+  const saved = outcome.save as SaveEnvelope;
+  revision = saved.revision;
+  stage = saved.stage;
+  storedSections = saved.state.sections ?? {};
 }
 
 /** 이어서 시작할 단계. 저장이 없으면 null. */
