@@ -12,11 +12,11 @@ export type SurveyKind = "pre" | "post" | "exit";
 
 /**
  * 11/12 팀 폼 하나 — 끝난 뒤 · 중단이 같은 폼이다(시작 전 설문 없음 · A/B 판 없음).
- * 6번(어디까지 하셨나요)을 미리 고른다: 끝난 뒤는 「엔딩까지」, 중단(나주 멈춤 메뉴에만 있다)은 「나주 도중」.
- * 폼에 「참가 번호」 칸이 생기면 그 칸의 `&entry.<번호>={key}` 를 두 주소 뒤에 붙인다.
+ * 「참가 번호」(응답자 정보 맨 위 단답, 11/12 팀이 더함)에 참가 번호를 채우고, 6번(어디까지 하셨나요)을 미리 고른다:
+ * 끝난 뒤는 「엔딩까지」, 중단(나주 멈춤 메뉴에만 있다)은 「나주 도중」. 참가자는 아무것도 적지 않는다.
  */
 const TEAM_FORM =
-  "https://docs.google.com/forms/d/e/1FAIpQLSd1DHDW1uBNLtLHIC4niLO9-erjkGhVQSJ8d37ssUIkknC8kw/viewform?usp=pp_url";
+  "https://docs.google.com/forms/d/e/1FAIpQLSd1DHDW1uBNLtLHIC4niLO9-erjkGhVQSJ8d37ssUIkknC8kw/viewform?usp=pp_url&entry.228975187={key}";
 const PLAYED_TO = "entry.2031914977";
 
 /** 폼 주소 — 미르 · 설문 담당이 채운다(빌드 변수가 우선) */
