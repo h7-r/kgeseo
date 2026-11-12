@@ -3,6 +3,8 @@ import * as THREE from "three";
 import { Outlines } from "@react-three/drei";
 
 import { scaleColor } from "@/engine/color";
+import { mergeAndDispose } from "@/engine/geometry";
+import { createRandom } from "@/engine/random";
 import { TOON_GRADIENT } from "@/engine/toon";
 
 import { buildCrumpledGeometry, buildLatheGeometry } from "./puzzleGeometry";
@@ -94,49 +96,130 @@ function buildTrashGeometries(id: TrashId): TrashGeometries {
     });
     o.jug.translate(0, 0, -0.08);
     o.cap = new THREE.CylinderGeometry(0.06, 0.06, 0.07, 16);
-  } else if (id === "toothbrush") {
-    const outline = new THREE.Shape();
-    outline.moveTo(-0.3, -0.018);
-    outline.quadraticCurveTo(-0.32, 0, -0.3, 0.02);
-    outline.quadraticCurveTo(-0.1, 0.032, 0.06, 0.012);
-    outline.lineTo(0.2, 0.012);
-    outline.quadraticCurveTo(0.29, 0.016, 0.29, 0);
-    outline.quadraticCurveTo(0.29, -0.016, 0.2, -0.012);
-    outline.lineTo(0.06, -0.012);
-    outline.quadraticCurveTo(-0.1, -0.03, -0.3, -0.018);
-    o.handle = new THREE.ExtrudeGeometry(outline, {
-      depth: 0.03,
-      bevelEnabled: true,
-      bevelSize: 0.008,
-      bevelThickness: 0.008,
-      bevelSegments: 2,
-    });
-    o.handle.rotateX(-Math.PI / 2);
-    o.bristle = new THREE.BoxGeometry(0.013, 0.05, 0.013);
-  } else if (id === "straw") {
-    const path = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(-0.3, 0, 0),
-      new THREE.Vector3(0.12, 0, 0),
-      new THREE.Vector3(0.2, 0.02, 0.05),
-      new THREE.Vector3(0.24, 0.03, 0.16),
-    ]);
-    o.straw = new THREE.TubeGeometry(path, 40, 0.014, 8, false);
-  } else if (id === "receipt") {
-    // 감열지 한 장 — 위쪽 끝이 돌돌 말려 올라간다
-    const g = new THREE.PlaneGeometry(0.2, 0.62, 1, 40);
-    const pos = g.attributes.position;
+  } else if (id === "mask") {
+    // 일회용 마스크 — 주름 셋이 잡힌 몸판이 바닥에 반쯤 오므라져 있다. 귀끈 둘, 코 철사 하나
+    // 크기 기준: 페트병 0.68 ≈ 22cm → 1 유닛 ≈ 32cm. 마스크 17.5cm × 9cm
+    const W = 0.54,
+      H = 0.28;
+    const body = new THREE.PlaneGeometry(W, H, 24, 12);
+    const pos = body.attributes.position;
     for (let i = 0; i < pos.count; i++) {
-      const y = pos.getY(i); // −0.31 ~ 0.31
-      const t = Math.max(0, (y - 0.06) / 0.25);
-      const angle = t * Math.PI * 1.5;
-      const r = 0.045;
-      const ny = t > 0 ? 0.06 + Math.sin(angle) * r : y;
-      const nz = t > 0 ? (1 - Math.cos(angle)) * r : 0;
-      pos.setXYZ(i, pos.getX(i), ny, nz + Math.sin(y * 9) * 0.004);
+      const x = pos.getX(i),
+        y = pos.getY(i);
+      const pleat = Math.abs(Math.sin(((y + H / 2) / H) * Math.PI * 3)) * 0.012;
+      const cup = (x / (W / 2)) ** 2 * 0.07 + (y / (H / 2)) ** 2 * 0.016; // 가장자리가 들린다
+      pos.setZ(i, pleat + cup);
     }
-    g.computeVertexNormals();
-    g.rotateX(-Math.PI / 2);
-    o.paper = g;
+    body.computeVertexNormals();
+    body.rotateX(-Math.PI / 2);
+    o.body = body;
+    o.wire = new THREE.BoxGeometry(0.15, 0.007, 0.01);
+    // 귀끈 둘은 한 메시 — 쓰레기 하나에 드로우콜을 아낀다
+    o.loops = mergeAndDispose(
+      [-1, 1].map((side) => {
+        const path = new THREE.CatmullRomCurve3([
+          new THREE.Vector3(side * (W / 2 - 0.01), 0.014, -H * 0.4),
+          new THREE.Vector3(side * (W / 2 + 0.1), 0.005, -H * 0.16),
+          new THREE.Vector3(side * (W / 2 + 0.13), 0.005, H * 0.16),
+          new THREE.Vector3(side * (W / 2 - 0.01), 0.014, H * 0.4),
+        ]);
+        return new THREE.TubeGeometry(path, 24, 0.006, 6, false);
+      }),
+    );
+  } else if (id === "chopsticks") {
+    // 쪼갠 나무젓가락 한 쌍 — 네모난 단면이 끝으로 갈수록 가늘다. 끝에 양념이 묻었다. 찢긴 종이 봉지가 옆에
+    // 젓가락 20cm → 0.62
+    // 한 쌍을 한 메시로, 양념 둘도 한 메시로 — 쓰레기 하나에 드로우콜 셋
+    const pair = (make: () => THREE.BufferGeometry) =>
+      mergeAndDispose(
+        [-1, 1].map((side) => {
+          const g = make();
+          g.rotateY(side * 0.07);
+          g.translate(0, 0, side * 0.018);
+          return g;
+        }),
+      );
+    o.sticks = pair(() => {
+      const g = new THREE.CylinderGeometry(0.009, 0.016, 0.62, 4);
+      g.rotateZ(Math.PI / 2);
+      g.rotateX(Math.PI / 4); // 각진 면이 바닥에 눕게
+      return g;
+    });
+    o.sauce = pair(() => {
+      const g = new THREE.SphereGeometry(0.018, 8, 6);
+      g.scale(1.8, 0.5, 1);
+      g.translate(-0.28, 0.006, 0);
+      return g;
+    });
+    o.sleeve = new THREE.PlaneGeometry(0.3, 0.11);
+    o.sleeve.rotateX(-Math.PI / 2);
+  } else if (id === "brokenCup") {
+    // 깨진 도자기 컵 — 아래 토막만 남아 테두리가 들쭉날쭉하고, 사금파리 셋과 손잡이 조각이 흩어져 있다
+    // 머그 지름 8cm → 0.25. 아래 토막이 옆으로 누워 들쭉날쭉한 테두리가 보인다
+    const cup = buildLatheGeometry(
+      [
+        [0, 0],
+        [0.1, 0],
+        [0.115, 0.012],
+        [0.122, 0.09],
+        [0.125, 0.2],
+      ],
+      20,
+    );
+    const rnd = createRandom(23);
+    const jag = Array.from({ length: 21 }, () => 0.1 + rnd() * 0.1);
+    const pos = cup.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      if (pos.getY(i) < 0.19) continue;
+      // 같은 각의 꼭짓점은 같은 높이로 — 이음새가 안 벌어진다
+      const angle = (Math.atan2(pos.getZ(i), pos.getX(i)) + Math.PI * 2) % (Math.PI * 2);
+      pos.setY(i, jag[Math.round((angle / (Math.PI * 2)) * 20)]);
+    }
+    cup.computeVertexNormals();
+    o.cup = cup;
+    o.handle = new THREE.TorusGeometry(0.055, 0.014, 6, 10, Math.PI * 0.95);
+    // 사금파리 셋은 자리까지 넣어 한 메시로
+    const shard = (points: [number, number][], at: [number, number], yaw: number) => {
+      const shape = new THREE.Shape();
+      points.forEach(([x, y], i) => (i ? shape.lineTo(x, y) : shape.moveTo(x, y)));
+      shape.closePath();
+      const g = new THREE.ExtrudeGeometry(shape, { depth: 0.006, bevelEnabled: false });
+      g.rotateX(-Math.PI / 2);
+      g.rotateY(yaw);
+      g.translate(at[0], 0, at[1]);
+      return g;
+    };
+    o.shards = mergeAndDispose([
+      shard(
+        [
+          [0, 0],
+          [0.13, 0.02],
+          [0.09, 0.11],
+          [0.02, 0.07],
+        ],
+        [-0.26, -0.08],
+        0.5,
+      ),
+      shard(
+        [
+          [0, 0],
+          [0.09, -0.035],
+          [0.11, 0.055],
+          [0.035, 0.065],
+        ],
+        [0.22, 0.2],
+        -0.9,
+      ),
+      shard(
+        [
+          [0, 0],
+          [0.07, 0.01],
+          [0.045, 0.08],
+        ],
+        [0.3, -0.14],
+        1.8,
+      ),
+    ]);
   } else {
     o.large = buildCrumpledGeometry(0.13, 7);
     o.small = buildCrumpledGeometry(0.09, 13);
@@ -240,54 +323,57 @@ export default function TrashModel({ id, brightness = 1 }: TrashModelProps) {
         </mesh>
       </group>
     );
-  if (id === "toothbrush")
+  if (id === "mask")
     return (
-      <group position={[0, 0.025, 0]} rotation={[0, 0.2, 0]}>
-        <mesh geometry={geo.handle} castShadow>
-          {toon("#2fb3a2")}
+      <group position={[0, 0.01, 0]} rotation={[0, 0.3, 0]}>
+        {/* 안팎이 다 보이는 얇은 부직포 — 겉은 희고 때가 탔다 */}
+        <mesh geometry={geo.body} castShadow>
+          {toon("#e9ebe6", 1, { side: THREE.DoubleSide })}
           {rim}
         </mesh>
-        <mesh position={[-0.2, 0.02, 0]}>
-          <boxGeometry args={[0.1, 0.04, 0.045]} />
-          {toon("#e9f1ef")}
+        <mesh geometry={geo.wire} position={[0, 0.02, -0.13]}>
+          {toon("#8c8f93")}
         </mesh>
-        {/* 털 뭉치 스물넷 — 끝이 벌어진 다 쓴 칫솔 */}
-        {Array.from({ length: 24 }, (_, i) => {
-          const row = i % 3,
-            column = Math.floor(i / 3);
-          return (
-            <mesh
-              key={i}
-              geometry={geo.bristle}
-              position={[0.14 + column * 0.018, 0.058, (row - 1) * 0.016]}
-              rotation={[(row - 1) * 0.35, 0, (column - 3.5) * 0.06]}
-            >
-              {toon(column % 3 === 0 ? "#6fb9e8" : "#f4f6f8")}
-            </mesh>
-          );
-        })}
+        <mesh geometry={geo.loops}>{toon("#f3f4f1")}</mesh>
       </group>
     );
-  if (id === "straw")
+  if (id === "chopsticks")
     return (
-      <group position={[0, 0.016, 0]}>
-        <mesh geometry={geo.straw} castShadow>
-          <meshToonMaterial map={makePrintTexture("straw")} color={white} gradientMap={TOON_GRADIENT} />
+      <group position={[0, 0.012, 0]} rotation={[0, -0.25, 0]}>
+        <mesh geometry={geo.sticks} castShadow>
+          {toon("#d9b878")}
           {rim}
         </mesh>
-      </group>
-    );
-  if (id === "receipt")
-    return (
-      <group position={[0, 0.012, 0]}>
-        <mesh geometry={geo.paper} castShadow>
+        {/* 가는 끝에 묻은 양념 */}
+        <mesh geometry={geo.sauce}>{toon("#9a3b1c")}</mesh>
+        <mesh geometry={geo.sleeve} position={[0.2, 0.001, 0.14]} rotation={[0, 0.7, 0]}>
           <meshToonMaterial
-            map={makePrintTexture("receipt")}
+            map={makePrintTexture("sleeve")}
             color={white}
             gradientMap={TOON_GRADIENT}
             side={THREE.DoubleSide}
           />
         </mesh>
+      </group>
+    );
+  if (id === "brokenCup")
+    return (
+      <group position={[0, 0.005, 0]} rotation={[0, 0.4, 0]}>
+        {/* 옆으로 누운 토막 — 깨진 입이 앞을 본다 */}
+        <mesh geometry={geo.cup} position={[0.05, 0.12, 0]} rotation={[0.1, 0, -1.35]} castShadow>
+          <meshToonMaterial
+            map={makePrintTexture("cup")}
+            color={white}
+            gradientMap={TOON_GRADIENT}
+            side={THREE.DoubleSide}
+          />
+          {rim}
+        </mesh>
+        <mesh geometry={geo.handle} position={[-0.16, 0.014, 0.16]} rotation={[Math.PI / 2, 0, 0.6]} castShadow>
+          {toon("#f1ede2")}
+          {rim}
+        </mesh>
+        <mesh geometry={geo.shards}>{toon("#f1ede2")}</mesh>
       </group>
     );
   return (
