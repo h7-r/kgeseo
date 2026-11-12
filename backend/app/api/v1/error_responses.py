@@ -426,6 +426,21 @@ ADMIN_DETAIL = {
     **_ADMIN_ONLY,
     404: error(ErrorMessage, "없는 사용자다.", "User not found."),
 }
+_INVALID_QUERY_SUMMARY = "새 쿼리 값(검색어 · 날짜 · 개수 · 필터) 오류. 입력값을 되돌려 보내지 않는다(관리자 API v0.2 §2.2)."
+# 회원 목록 — 기존 `offset` 형식 오류는 지금처럼 FastAPI 기본 422, 새 `q` · `limit` 은 `invalid_query`
+ADMIN_USER_SEARCH = {
+    **ADMIN_LIST,
+    422: error(
+        ValidationErrorResponse | CodedError,
+        _VALIDATION + " / " + _INVALID_QUERY_SUMMARY,
+        "invalid_query",
+    ),
+}
+# 새 관리자 조회(통계 · 감사 기록) — 쿼리 값 오류는 모두 `invalid_query`
+ADMIN_QUERY = {
+    **ADMIN_LIST,
+    422: error(CodedError, _INVALID_QUERY_SUMMARY, "invalid_query"),
+}
 
 
 # --- 플레이 API 쿠키 · Origin(11/6 PM: Play Session 소유권 · 게스트 세션) ---
