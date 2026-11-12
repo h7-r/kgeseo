@@ -2,10 +2,11 @@
  * 베타 설문 안내 카드 — 시작 전(pre) · 끝난 뒤(post) 설문을 새 창으로 연다. 참여 코드 · 폼 주소가 없으면 그리지 않는다.
  * 게임 화면 위에 덮이고, 누르기 · 키 입력이 뒤의 게임으로 새지 않게 막는다.
  */
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { betaLog } from "./betaLog";
 import { dismissSurvey, noteSurveyShown, openSurvey, shouldOfferSurvey, type SurveyKind } from "./betaSurvey";
+import { LaterSurveyContext } from "./laterSurvey";
 
 const TEXT: Record<"pre" | "post", { title: string; body: string; open: string; skip: string; skipHow: "already" | "later" }> = {
   pre: {
@@ -144,7 +145,8 @@ export function BetaPreSurvey() {
 
 /**
  * 끝난 뒤 설문 — 클리어 화면(현장 방문 창 포함)보다 먼저 묻는다. 방문 안내를 보기 전에 「보상 없는 방문 의향」(D1)을 받으려고
- * (수집 계획 「정할 것」 3번 가안). 「나중에」를 고르면 결과 화면 위에 작은 단추로 남긴다.
+ * (수집 계획 「정할 것」 3번 가안). 「나중에」를 고르면 결과 화면이 잘 보이는 자리에 다시 여는 단추를 그린다
+ * (useLaterSurvey — 미르 11/12, 오른쪽 위 작은 단추는 실수로 미룬 사람이 못 찾는다).
  */
 export function BetaPostSurveyGate({ children }: { children: ReactNode }) {
   // 계정을 아직 모르면(드묾 — 보통 페이지를 열 때 확인된다) 잠깐 기다렸다가 정한다. 3초가 지나도 모르면 결과 화면을 연다
@@ -166,6 +168,13 @@ export function BetaPostSurveyGate({ children }: { children: ReactNode }) {
       window.clearTimeout(timer);
     };
   }, [stage]);
+  const openLater = useCallback(() => {
+    openSurvey("post", "ending_later");
+    setStage("done");
+  }, []);
+  useEffect(() => {
+    if (stage === "later") noteSurveyShown("post", "ending_later");
+  }, [stage]);
   if (stage === "waiting") return null;
   if (stage === "card")
     return (
@@ -176,21 +185,7 @@ export function BetaPostSurveyGate({ children }: { children: ReactNode }) {
       />
     );
   return (
-    <>
-      {children}
-      {stage === "later" && (
-        <button
-          type="button"
-          style={{ ...buttonBase, position: "fixed", top: 16, right: 16, zIndex: 2147483000, background: "#f7f3ea", color: "#1c1a17" }}
-          onClick={() => {
-            openSurvey("post", "ending_later");
-            setStage("done");
-          }}
-        >
-          베타 설문 열기(3~5분)
-        </button>
-      )}
-    </>
+    <LaterSurveyContext.Provider value={stage === "later" ? openLater : null}>{children}</LaterSurveyContext.Provider>
   );
 }
 

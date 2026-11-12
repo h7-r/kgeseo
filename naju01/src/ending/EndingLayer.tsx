@@ -4,6 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useLaterSurvey } from "@/beta/laterSurvey";
 import { isGamePausedFlag } from "@/engine/input/gamePause";
 import type { LeaveResult, LeaveToLobbyAction } from "@/game/LeaveToLobby";
 import { isGameSaveEnabled } from "@/save/gameSave";
@@ -364,6 +365,8 @@ function ClearScreen({ leaveAction }: EndingLayerProps) {
   const [isConfirmingRestart, setIsConfirmingRestart] = useState(false);
   const isSaving = isGameSaveEnabled();
   const playTime = formatPlayTime(playClock.elapsed());
+  // 베타 — 설문을 「나중에」로 미뤘으면 결과 바로 아래 눈에 띄게 다시 권한다(누르면 사라진다)
+  const openLaterSurvey = useLaterSurvey();
 
   // 기차 · 로비로 간 뒤 브라우저 「뒤로」로 이 페이지가 캐시에서 되살아나면 단추를 다시 쓸 수 있게(PauseMenu 와 같게, Codex 리뷰)
   useEffect(() => {
@@ -418,6 +421,22 @@ function ClearScreen({ leaveAction }: EndingLayerProps) {
             <span>조사 시간</span>
             <b>{playTime}</b>
           </div>
+          {openLaterSurvey && (
+            <div className="naju-ending-survey" role="group" aria-label="베타 설문">
+              <div className="naju-ending-survey__text">
+                <b>베타 설문에 참여해 주세요</b>
+                <span>3~5분 · 남겨 주신 의견으로 게임을 고칩니다</span>
+              </div>
+              <button
+                type="button"
+                className="naju-ending-survey__open"
+                disabled={busy !== null}
+                onClick={openLaterSurvey}
+              >
+                설문 열기
+              </button>
+            </div>
+          )}
           <div className="naju-ending-clear__actions">
             {leaveAction && (
               <>
