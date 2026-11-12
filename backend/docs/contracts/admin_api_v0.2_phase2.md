@@ -125,4 +125,5 @@ Query 없음.
 ## 세진이 남은 확인(베타 뒤 계약 수정본 공유 때)
 1. `guest_session_transfers` 로 묶는 구현(P2-3) — 코드 리뷰 때 함께.
 2. `play_sessions.updated_at` · `beta_events.received_at` 인덱스 없음 — 베타 규모면 되고, 커지면 세진이 인덱스(DB 변경).
-3. 응답 시간 p95 는 아직 안 재고 있다 — 재는 자리(로그 · 미들웨어)는 세진 몫, 기준 숫자는 잠정.
+3. 응답 시간 p95 는 아직 안 재고 있다 — 측정 환경은 세진이 베타 뒤 검토(베타 전엔 추가 않음). 그 뒤 테스트 환경에서 7일 · 92일 조회를 비교해 GROUP BY 전환 여부를 정한다.
+4. **날짜별 DAU 의 게스트 · 회원 구분 기준(세진 3차, 11/12):** 지금 `members_dau` · `guests_dau` 는 `play_sessions` 의 **현재 소유자**로 가른다. 로그인(승계)이 세션의 `owner_user_id` 를 채우고 `owner_anonymous_session_id` 를 비우므로, 게스트로 플레이한 날의 세션이 뒤에 로그인하면 **그 날 숫자가 게스트 → 회원으로 옮겨 간다**(과거 날짜가 바뀐다). 「플레이 당시」 기준으로 가르려면 `guest_session_transfers.transferred_at` 과 세션 `created_at` 을 비교해야 하는데, 승계 때 익명 세션 id 가 지워져 어느 게스트였는지는 transfers 의 `anonymous_session_id` 로만 되짚을 수 있다. 게임 데이터(같은 사람 합치기)와 DAU(그날 누구였나)는 기준이 다르다는 세진 지적이 맞다 — 최종 계약 리뷰 때 「현재 소유자 기준 유지 + 설명 문구」 또는 「transferred_at 로 당시 기준 복원」 중 고른다.
