@@ -52,6 +52,11 @@ export interface PlayerMotionState {
   grounded: boolean;
   jumping: boolean;
   verticalVelocity: number;
+  /**
+   * 이 시각(performance.now(), ms)까지 걷기 입력을 받지 않는다 — 주먹처럼 제자리에서 하는 동작(src/app/punchPress, 11/12).
+   * 몸 방향도 그대로 둔다. 점프 · 앉기 · 시점은 막지 않는다
+   */
+  holdStillUntil?: number;
 }
 
 export interface MovementOptions {
@@ -572,6 +577,8 @@ export function useMovement(
         isTouchRunning.current = touch.isRunning;
       }
     }
+    // 주먹 같은 제자리 동작 중 — 그 자리에 선다. 걷던 중에 낸 주먹도 미끄러지지 않는다(키는 누른 채라 끝나면 바로 다시 걷는다)
+    if ((playerRef?.current?.holdStillUntil ?? 0) > performance.now()) wish.set(0, 0, 0);
     if (wish.lengthSq() > 0) wish.normalize();
     if (wish.lengthSq() > 0.00001) bodyYaw.current = Math.atan2(wish.x, wish.z);
     const isCrouching = k.crouchToggle;
