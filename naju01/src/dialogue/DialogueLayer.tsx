@@ -63,9 +63,8 @@ import { useLineBreaks } from "./useLineBreaks";
 import "./dialogue.css";
 
 const TICK_MS = 500;
-/** 한 쪽 줄 수 — 터치는 키가 작아 세 줄. 낱말 단위로 줄이 바뀌어 줄 끝이 조금씩 비므로 여유를 둔다 */
+/** 한 쪽 줄 수 — 터치는 키가 작아 세 줄. 문장마다 줄을 바꿔 이 줄 수 안에서 쪽을 나눈다(paginateLines, 미르 11/12) */
 const PAGE_LINES = { desktop: 4, touch: 3 };
-const LINE_FILL = 0.85;
 /** 창 너비에서 글이 못 쓰는 폭 — 안쪽 여백 · 테두리 · 얼굴 · 사이 간격(dialogue.css) */
 const BOX_CHROME_PX = { desktop: 96, touch: 28 };
 
@@ -148,14 +147,14 @@ export default function DialogueLayer() {
     [],
   );
 
-  // 창 너비 → 한 쪽에 들어가는 글자 수(동행 말만 쪽으로 나눈다)
+  // 창 너비 → 한 줄에 들어가는 글자 수 · 쪽 줄 수(동행 말만 쪽으로 나눈다)
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root) return undefined;
     const measure = () => {
       const mode = isTouch ? "touch" : "desktop";
       const perLine = (root.clientWidth - BOX_CHROME_PX[mode]) / fontPx(isTouch);
-      dialogue.setCapacity(perLine * PAGE_LINES[mode] * LINE_FILL);
+      dialogue.setLayout(perLine, PAGE_LINES[mode]);
     };
     measure();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
@@ -206,8 +205,7 @@ export default function DialogueLayer() {
       }
       if (event.code !== "KeyF") return;
       // 다른 인물을 겨눴으면 그쪽으로 바꾸고, 아니면 글자가 찍히는 중이면 먼저 다 보여 준다
-      const handled =
-        switchTalkKey(isPointerActive()) || typingRef.current?.() || pressTalkKey(isPointerActive());
+      const handled = switchTalkKey(isPointerActive()) || typingRef.current?.() || pressTalkKey(isPointerActive());
       if (handled) event.stopImmediatePropagation();
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });
@@ -289,6 +287,10 @@ function SceneSpeech({
   isTouch: boolean;
   toScreen: (text: string) => string;
 }) {
+  // 문장마다 줄을 바꾼다 — 창 줄 수 안일 때만(미르 11/12). 쪽을 나누지 않는 말이라 넘치면 예전처럼 흘려 그린다
+  const [textRef, lined] = useLineBreaks<HTMLParagraphElement>(toScreen(speech.text), {
+    sentenceLines: PAGE_LINES[isTouch ? "touch" : "desktop"],
+  });
   return (
     <div key={speech.key} className="npc-talk__body npc-talk__body--scene">
       <div className="npc-talk__head">
@@ -301,8 +303,8 @@ function SceneSpeech({
           </span>
         )}
       </div>
-      <p className="npc-talk__text" data-testid="npc-talk-text">
-        {withKeys(toScreen(speech.text))}
+      <p ref={textRef} className="npc-talk__text" data-testid="npc-talk-text">
+        {withKeys(lined)}
       </p>
       {speech.onNext && isTouch && (
         // 터치 — 창이 조작층 위에 떠 있어 「다음」을 바로 누른다(위 줄 💬 도 같은 일 — 동행 말과 같은 모양)

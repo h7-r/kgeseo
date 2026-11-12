@@ -72,7 +72,12 @@ export default function InteractionHud() {
           {labels.isTouch ? (
             labels.text(inCompanionVoice(notice.text))
           ) : (
-            <BrokenLines style={pcNoticeTextStyle} text={labels.text(inCompanionVoice(notice.text))} />
+            // 문장마다 줄을 바꾼다 — 네 줄 안일 때만(미르 11/12). 휴대폰은 화면을 덜 덮게 그대로 흘린다
+            <BrokenLines
+              style={pcNoticeTextStyle}
+              text={labels.text(inCompanionVoice(notice.text))}
+              sentenceLines={NOTICE_SENTENCE_LINES}
+            />
           )}
         </div>
       )}
@@ -92,6 +97,8 @@ const NOTICE_BOTTOM =
  * 알림의 높이만 재고 아랫변은 CSS 식 그대로 둔다 — 대사 상자 · 게이지가 뜨거나 내려가면 브라우저가 다시 푼다(박람회 출품판 22회차 Codex)
  */
 const NOTICE_TOP_VAR = "--naju-notice-top";
+/** PC 알림을 문장마다 줄 바꿔 보일 때 넘기지 않을 줄 수 — 넘치면 예전처럼 흘려 끊는다 */
+const NOTICE_SENTENCE_LINES = 4;
 
 function useNoticeTop(ref: RefObject<HTMLDivElement | null>, key: number | null) {
   useLayoutEffect(() => {
