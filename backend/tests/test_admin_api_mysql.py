@@ -344,7 +344,7 @@ def test_user_search_is_nickname_partial_and_email_exact_only():
         ]
         assert body["next_offset"] is None
         row = body["users"][2]
-        # 기존 필드는 그대로, 이메일은 가린 값, 추가 필드
+        # 기존 필드는 그대로, 추가 필드
         assert set(row) == {
             "user_id",
             "email",
@@ -358,8 +358,9 @@ def test_user_search_is_nickname_partial_and_email_exact_only():
             "last_login_at",
             "last_session_started_at",
         }
-        assert row["email"] == "mi***@example.com"
-        assert body["users"][0]["email"] == "a***@example.org"
+        # 목록 이메일은 아직 전체(「베타 기록」 화면이 이것으로 시험 계정을 거른다 — 서버 가림은 베타 뒤)
+        assert row["email"] == "minsoo@example.com"
+        assert body["users"][0]["email"] == "ab@example.org"
         assert row["providers"] == ["google", "local"]
         assert row["last_login_at"] is None
         assert row["last_session_started_at"] == (now - HOUR).isoformat()

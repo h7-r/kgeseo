@@ -54,7 +54,6 @@ from app.services.admin_query import (
     kst_range,
     kst_today,
     like_contains,
-    mask_email,
     parse_bool,
     parse_int,
     parse_kst_date,
@@ -127,7 +126,10 @@ async def list_users(
     admin: AppUser = Depends(current_admin),
     db: AsyncSession = Depends(get_db),
 ) -> AdminUserSearchList:
-    """회원 목록(§3.1). 기존 필드 · 기본 50 · `next_offset` 은 그대로, 이메일은 서버가 가리고(§2.5) 필드를 더한다.
+    """회원 목록(§3.1). 기존 필드 · 기본 50 · `next_offset` 은 그대로, 필드를 더한다.
+
+    목록 이메일은 아직 가리지 않는다(지금처럼 전체) — 「베타 기록」 화면(BetaLogPage)이 이 목록의 전체 이메일로 시험 계정을
+    거르므로, 서버 가림(§2.5 · `mask_email`)은 베타 뒤 그 화면을 정확 검색(`q=이메일`)으로 바꿀 때 함께 한다(미르 11/12).
 
     검색어는 감사 기록에 남기지 않는다(이메일 원문이 기록에 남지 않게) — 한 번 부를 때마다 `list_users` 한 행.
     """
@@ -163,7 +165,7 @@ async def list_users(
             providers=providers.get(user.id, []),
             last_login_at=None,
             last_session_started_at=last_sessions.get(user.id),
-        ).model_copy(update={"email": mask_email(user.email)})
+        )
         for user, save in page
     ]
     await _audit(db, admin, "list_users", None)

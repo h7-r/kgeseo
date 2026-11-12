@@ -13,7 +13,7 @@ from app.schemas.account_data import AdminUserSummary
 class AdminUserListItem(AdminUserSummary):
     """회원 목록 한 줄 — 기존 `AdminUserSummary` 필드는 그대로, 아래는 추가만(§3.1).
 
-    `email` 은 목록에서 서버가 가린 값이다(§2.5). 상세(`/admin/users/{id}`)는 지금처럼 전체를 보인다.
+    `email` 은 지금처럼 전체다 — 서버 가림(§2.5)은 베타 뒤 「베타 기록」 화면을 정확 검색으로 바꿀 때 함께(미르 11/12).
     """
 
     region: str | None = None
