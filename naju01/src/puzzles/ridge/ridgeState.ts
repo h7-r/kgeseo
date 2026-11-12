@@ -124,8 +124,13 @@ export const ridgeQuest = {
 };
 export const useRidgeQuest = () => useSyncExternalStore(questSignal.subscribe, () => questVersion);
 
-/** 아랑사의 함 — 속의 것을 꺼내 챙겼나. 함(BoxOpening)이 적고, 챙기기 전에는 틈(GateRift)이 끌어들이지 않는다 */
-export const ridgeBox = { isEmptied: false };
+/**
+ * 아랑사의 함 — 함(BoxOpening)이 적는다.
+ * isEmptied: 속의 것을 꺼내 챙겼나 — 챙기기 전에는 틈(GateRift)이 끌어들이지 않는다.
+ * isOnPlatform: 함이 평상 위에 놓여 있나 — 그동안 평상 널 살피기(StumpStairs)는 끈다. 같은 자리라 자물통을 살짝 빗겨
+ *   누른 [E] 가 널 살피기로 가서 새긴 이야기 알림이 떴다가 「철컥」 · 영상에 곧바로 걷혔다(미르 11/12)
+ */
+export const ridgeBox = { isEmptied: false, isOnPlatform: false };
 
 /** 퍼즐을 건너뛰고 뒤 연출을 볼 때 — 돌새 쪽이 풀이를 등록한다 */
 export const ridgeDev: { solve: (() => void) | null } = { solve: null };
