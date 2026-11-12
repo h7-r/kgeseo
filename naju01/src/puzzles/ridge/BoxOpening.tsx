@@ -41,6 +41,11 @@ import { makeVertexColorMaterial } from "./vertexPaint";
 const showNotice = noticeFor("box");
 const registerInteractable = interactableFor("box");
 
+/** 함이 이 거리(미터, 수평) 안에 놓이면 평상 위다 — 평상 널 살피기를 끈다(ridgeBox.isOnPlatform) */
+const ON_PLATFORM_RADIUS = 1.2;
+const isOnPlatform = (position: THREE.Vector3) =>
+  Math.hypot(position.x / M - PLATFORM.x, position.z / M - PLATFORM.z) < ON_PLATFORM_RADIUS;
+
 /** 함을 실물보다 조금 크게 — 1인칭에서 자물통이 보이게 */
 const BOX_SCALE = 1.5;
 const INSERT_SECONDS = 0.8;
@@ -253,6 +258,7 @@ export default function BoxOpening() {
     box.root.rotation.y = Math.atan2(camera.position.x - position.x, camera.position.z - position.z);
     box.root.visible = true;
     phase.current = "placed";
+    ridgeBox.isOnPlatform = isOnPlatform(position);
     placeTime.current = 0;
     box.play.prepare();
     showNotice("함을 내려놓았다. 청동 자물통 끝에 열쇠 구멍이 있다. 열쇠가 없으면 [E] 로 다시 챙긴다.", 4);
@@ -261,11 +267,14 @@ export default function BoxOpening() {
   // 이어 하기: 내려놓은 함을 그 자리에 되돌린다. 열던 중인 함은 여는 장면부터 다시 본다(열쇠는 이미 썼다).
   useEffect(() => {
     const saved = recall<SavedBox | null>("ridge.box", null);
+    // 처음부터 다시 · 새 판 — 앞 판에 평상 위에 있던 함 표시가 남지 않게
+    ridgeBox.isOnPlatform = false;
     if (saved && saved.phase !== "none") {
       box.restAt.fromArray(saved.restAt);
       box.root.position.copy(box.restAt);
       box.root.rotation.y = saved.yaw;
       box.root.visible = true;
+      ridgeBox.isOnPlatform = isOnPlatform(box.restAt);
       box.play.prepare();
       phase.current = "placed";
       placeTime.current = -1;
@@ -295,6 +304,7 @@ export default function BoxOpening() {
   const takeBackBox = useRef(() => {
     if (phase.current !== "placed" || !inventory.add("letterBox")) return false;
     phase.current = "none";
+    ridgeBox.isOnPlatform = false;
     placeTime.current = -1;
     box.root.visible = false;
     return true;
