@@ -3,7 +3,7 @@ import { Route } from "react-router-dom";
 import ActivityLogPage from "./pages/ActivityLogPage";
 import BetaLogPage from "./pages/BetaLogPage";
 import ContentsPage from "./pages/ContentsPage";
-import DashboardPage from "./pages/DashboardPage";
+import DashboardPage, { StatsScopeTabs } from "./pages/DashboardPage";
 import GameDataPage, { GameDataVersion } from "./pages/GameDataPage";
 import NoticesPage, { NoticeWriteButton } from "./pages/NoticesPage";
 import SecurityPage from "./pages/SecurityPage";
@@ -19,7 +19,7 @@ import { ADMIN_SCREENS, type ScreenId } from "./screens";
 
 /** 화면 설정(screens.ts)의 각 화면에 그릴 코드를 붙인다. 화면을 늘리면 두 곳(설정 · 여기)만 고친다. */
 const SCREEN_VIEWS: Record<ScreenId, ScreenView> = {
-  dashboard: { Component: DashboardPage },
+  dashboard: { Component: DashboardPage, HeaderActions: StatsScopeTabs },
   betaLog: { Component: BetaLogPage },
   traffic: { Component: TrafficPage, HeaderActions: TrafficRangeTabs },
   users: { Component: UsersPage },

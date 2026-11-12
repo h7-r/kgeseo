@@ -48,6 +48,14 @@ export default function ResourceView<T>({
       );
     case "notFound":
       return <StatusScreen kind="notFound" title={notFoundText ?? "찾는 항목이 없습니다"} />;
+    case "invalidQuery":
+      return (
+        <StatusScreen
+          kind="error"
+          title="조회 조건을 서버가 받지 않았습니다"
+          description="검색어 길이나 기간을 바꿔 다시 조회해 주세요."
+        />
+      );
     default:
       return (
         <StatusScreen

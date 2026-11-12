@@ -23,21 +23,12 @@ const perMinute: Point[] = Array.from({ length: 60 }, (_, index) => {
 export const PREVIEW_DATA: PreviewData = {
   dashboard: {
     concurrent: 148,
-    dau: 612,
-    totalMembers: 3_480,
-    signupsToday: 37,
     openInquiries: 5,
     visitors7d: series(days, [402, 455, 431, 520, 588, 571, 612]),
     stageCompletion: series(
       ["스테이지 1", "스테이지 2", "스테이지 3", "스테이지 4", "스테이지 5"],
       [82, 64, 47, 31, 22],
     ),
-    adminActions: [
-      { at: "2026-11-10 14:21", admin: "운영자 하늘", action: "회원 상세 열람", target: "회원 강가의여우" },
-      { at: "2026-11-10 13:58", admin: "운영자 하늘", action: "회원 목록 열람", target: "—" },
-      { at: "2026-11-10 11:12", admin: "운영자 바다", action: "회원 상세 열람", target: "회원 새벽조사관" },
-      { at: "2026-11-10 09:40", admin: "운영자 바다", action: "회원 목록 열람", target: "—" },
-    ],
   },
   traffic: {
     concurrent: 148,
@@ -88,59 +79,6 @@ export const PREVIEW_DATA: PreviewData = {
       { id: "P03", name: "소리로 항아리 맞추기", judge: "서버", attempts: 2_640, wrong: 1_180, hints: 731 },
       { id: "P07", name: "조개 진주 빛 잇기", judge: "서버", attempts: 1_310, wrong: 420, hints: 266 },
       { id: "P09", name: "물레 고리 숫자", judge: "서버", attempts: 1_480, wrong: 640, hints: 388 },
-    ],
-  },
-  activity: {
-    totals: { all: 1_284, warn: 18, error: 3, critical: 0 },
-    logs: [
-      {
-        id: "L-1042",
-        at: "2026-11-10 14:21",
-        admin: "운영자 하늘",
-        action: "회원 상세 열람",
-        target: "회원",
-        level: "INFO",
-      },
-      {
-        id: "L-1041",
-        at: "2026-11-10 13:58",
-        admin: "운영자 하늘",
-        action: "회원 목록 열람",
-        target: "회원",
-        level: "INFO",
-      },
-      {
-        id: "L-1040",
-        at: "2026-11-10 12:30",
-        admin: "시스템",
-        action: "DB 응답 지연",
-        target: "인프라",
-        level: "WARN",
-      },
-      {
-        id: "L-1039",
-        at: "2026-11-10 11:12",
-        admin: "운영자 바다",
-        action: "회원 상세 열람",
-        target: "회원",
-        level: "INFO",
-      },
-      {
-        id: "L-1038",
-        at: "2026-11-10 10:03",
-        admin: "시스템",
-        action: "로비 연결 끊김",
-        target: "인프라",
-        level: "ERROR",
-      },
-      {
-        id: "L-1037",
-        at: "2026-11-10 09:40",
-        admin: "운영자 바다",
-        action: "회원 목록 열람",
-        target: "회원",
-        level: "INFO",
-      },
     ],
   },
   security: {

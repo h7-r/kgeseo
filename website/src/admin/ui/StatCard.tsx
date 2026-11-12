@@ -4,6 +4,8 @@ interface StatCardProps {
   label: string;
   /** null 이면 서버 값이 아직 없다는 뜻이다. 0 과 구분한다. */
   value: string | null;
+  /** value 가 null 일 때 캡션 자리에 보일 말. 서버에 원천이 없는 지표는 「준비 중 — …」으로 까닭을 적는다. */
+  pendingText?: string;
   unit?: string;
   caption: string;
   delta?: { text: string; tone: DeltaTone };
@@ -12,8 +14,16 @@ interface StatCardProps {
 }
 
 /** 큰 숫자 하나. 숫자는 한 줄로 두고 넘치면 말줄임 — 두 줄로 깨지지 않게. */
-export default function StatCard({ label, value, unit, caption, delta, isAlert }: StatCardProps) {
-  const full = value === null ? "서버 연결 전" : `${value}${unit ?? ""}`;
+export default function StatCard({
+  label,
+  value,
+  pendingText = "서버 연결 전",
+  unit,
+  caption,
+  delta,
+  isAlert,
+}: StatCardProps) {
+  const full = value === null ? pendingText : `${value}${unit ?? ""}`;
   return (
     <div className="adm-stat">
       <div className="adm-stat__head">
@@ -24,7 +34,7 @@ export default function StatCard({ label, value, unit, caption, delta, isAlert }
         {value ?? "—"}
         {value !== null && unit && <span className="adm-stat__unit">{unit}</span>}
       </p>
-      <span className="adm-stat__caption">{value === null ? "서버 연결 전" : caption}</span>
+      <span className="adm-stat__caption">{value === null ? pendingText : caption}</span>
     </div>
   );
 }

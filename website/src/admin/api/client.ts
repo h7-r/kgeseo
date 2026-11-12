@@ -1,7 +1,8 @@
 import { apiUrl } from "@/config/env";
 
 /** 관리자 요청이 실패한 까닭. 화면은 이것만 보고 무엇을 보여 줄지 고른다. */
-export type AdminErrorKind = "unauthenticated" | "forbidden" | "notFound" | "server" | "offline";
+/** invalidQuery = 서버가 질의 값(검색어 · 날짜 등)을 받지 않음(422 invalid_query). */
+export type AdminErrorKind = "unauthenticated" | "forbidden" | "notFound" | "invalidQuery" | "server" | "offline";
 
 export class AdminApiError extends Error {
   readonly kind: AdminErrorKind;
@@ -19,6 +20,7 @@ function kindOf(status: number): AdminErrorKind {
   if (status === 401) return "unauthenticated";
   if (status === 403) return "forbidden";
   if (status === 404) return "notFound";
+  if (status === 422) return "invalidQuery";
   if (status >= 502 && status <= 504) return "offline";
   return "server";
 }

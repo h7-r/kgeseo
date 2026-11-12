@@ -1,12 +1,21 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation, useSearchParams } from "react-router-dom";
 
 import { toAdminError, type AdminApiError } from "../api/client";
+import { fetchStatsSummary } from "../api/stats";
 import { useAdminResource } from "../api/useAdminResource";
-import { USER_PAGE_SIZE, fetchUserPage, fetchUsersUpTo, type AdminUserSummary, type LoadedUsers } from "../api/users";
+import {
+  USER_PAGE_SIZE,
+  fetchUserPage,
+  fetchUsersUpTo,
+  userIdOf,
+  type AdminUserListItem,
+  type LoadedUsers,
+} from "../api/users";
 import ResourceView from "../auth/ResourceView";
 import { formatDate, formatDateTime, formatNumber, maskEmail } from "../lib/format";
 import { stageLabel } from "../lib/gameStage";
+import { SEARCH_MAX_LENGTH, appendUnique, providerLabel, readMemberSearch, recentLogin } from "../lib/memberSearch";
 import { useQueryChoice } from "../lib/useQueryChoice";
 import { ADMIN_PATHS, adminLoginPath } from "../paths";
 import Badge from "../ui/Badge";
@@ -25,6 +34,9 @@ const OPEN_TABS = TABS.filter((tab) => !("pendingNote" in tab));
 
 /** 주소의 ?shown= — 「더 보기」로 펼친 만큼. 새로고침 · 뒤로 가기에서 그만큼 다시 받는다. */
 const SHOWN_PARAM = "shown";
+/** 주소의 ?q= — 검색어. 새로고침 · 상세에서 돌아와도 같은 결과가 나온다. */
+const SEARCH_PARAM = "q";
+const TOO_LONG = `검색어는 ${SEARCH_MAX_LENGTH}자까지 넣을 수 있습니다.`;
 const MAX_RESTORE = USER_PAGE_SIZE * 20;
 
 function readShown(params: URLSearchParams): number {
@@ -35,32 +47,126 @@ function readShown(params: URLSearchParams): number {
 
 export default function UsersPage() {
   const [tab, setTab] = useQueryChoice("tab", OPEN_TABS, "all");
+  const [params, setParams] = useSearchParams();
+  const raw = params.get(SEARCH_PARAM) ?? "";
+  const search = readMemberSearch(raw);
+  const q = search.kind === "nickname" || search.kind === "email" ? search.q : undefined;
+
+  // 검색어가 바뀌면 펼친 만큼(shown)은 처음부터 다시 센다
+  const applySearch = (next: string | undefined) =>
+    setParams(
+      (previous) => {
+        const updated = new URLSearchParams(previous);
+        updated.delete(SHOWN_PARAM);
+        if (next) updated.set(SEARCH_PARAM, next);
+        else updated.delete(SEARCH_PARAM);
+        return updated;
+      },
+      { replace: true },
+    );
 
   return (
     <>
       <PillTabs label="회원 구분" items={TABS} activeId={tab} onSelect={setTab} />
-      <div className="adm-toolbar">
-        <label className="adm-search">
-          <span className="adm-sr-only">닉네임 · 이메일 검색</span>
-          <input className="adm-input" placeholder="닉네임 · 이메일 검색 — 서버 연결 전 준비 중" disabled />
-        </label>
-      </div>
-      <div className="adm-grid adm-grid--four">
-        <StatCard label="전체" value={null} caption="누적" />
-        <StatCard label="활성" value={null} caption="최근 30일 접속" />
-        <StatCard label="정지" value={null} caption="이용 제한" />
-        <StatCard label="탈퇴" value={null} caption="누적" />
-      </div>
-      {tab === "all" && <UserList />}
+      <SearchBar key={`search:${raw}`} initial={raw} hasSearch={q !== undefined} onSearch={applySearch} />
+      <MemberStatCards />
+      {tab === "all" && <UserList key={`list:${q ?? ""}`} q={q} />}
     </>
   );
 }
 
-function UserList() {
+function SearchBar({
+  initial,
+  hasSearch,
+  onSearch,
+}: {
+  initial: string;
+  hasSearch: boolean;
+  onSearch: (q: string | undefined) => void;
+}) {
+  const [value, setValue] = useState(initial);
+  const [error, setError] = useState(() => (readMemberSearch(initial).kind === "tooLong" ? TOO_LONG : ""));
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    const search = readMemberSearch(value);
+    if (search.kind === "tooLong") {
+      setError(TOO_LONG);
+      return;
+    }
+    setError("");
+    onSearch(search.kind === "none" ? undefined : search.q);
+  };
+
+  return (
+    <div className="adm-filters">
+      <form className="adm-search-form" role="search" onSubmit={submit}>
+        <label className="adm-search">
+          <span className="adm-sr-only">닉네임 · 이메일 검색</span>
+          <input
+            className="adm-input"
+            type="search"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            placeholder="닉네임 일부 또는 이메일 전체"
+            aria-describedby="adm-user-search-help"
+            aria-invalid={error ? true : undefined}
+          />
+        </label>
+        <button type="submit" className="adm-button adm-button--primary">
+          검색
+        </button>
+        {hasSearch && (
+          <button type="button" className="adm-button adm-button--ghost" onClick={() => onSearch(undefined)}>
+            검색 지우기
+          </button>
+        )}
+      </form>
+      <p
+        id="adm-user-search-help"
+        className={error ? "adm-field__error" : "adm-search-help"}
+        role={error ? "alert" : undefined}
+      >
+        {error || "닉네임은 일부만 맞아도, 이메일은 주소 전체가 같아야 찾습니다. 검색어는 서버 기록에 남지 않습니다."}
+      </p>
+    </div>
+  );
+}
+
+/** 전체 · 활성은 통계 요약 API(관리자 제외). 정지 · 탈퇴는 서버에 기능이 없어 준비 중이다. */
+function MemberStatCards() {
+  const [resource] = useAdminResource("stats:members", (signal) => fetchStatsSummary(false, signal));
+  const stats = resource.status === "ready" ? resource.data : null;
+  const waiting = resource.status === "loading" ? "불러오는 중" : "불러오지 못했습니다";
+  return (
+    <div className="adm-grid adm-grid--four">
+      <StatCard
+        label="전체"
+        value={stats && formatNumber(stats.members.total)}
+        pendingText={waiting}
+        unit="명"
+        caption="누적 · 관리자 제외"
+      />
+      <StatCard
+        label="활성"
+        value={stats && formatNumber(stats.activity.members_mau)}
+        pendingText={waiting}
+        unit="명"
+        caption="최근 30일 로그인 · 플레이 시작"
+      />
+      <StatCard label="정지" value={null} pendingText="준비 중 — 정지 기능 전" caption="이용 제한" />
+      <StatCard label="탈퇴" value={null} pendingText="준비 중 — 탈퇴 기능 전" caption="누적" />
+    </div>
+  );
+}
+
+function UserList({ q }: { q: string | undefined }) {
   const location = useLocation();
   const [params, setParams] = useSearchParams();
   const [initialCount] = useState(() => readShown(params));
-  const [resource, retry] = useAdminResource(`users:${initialCount}`, (signal) => fetchUsersUpTo(initialCount, signal));
+  const [resource, retry] = useAdminResource(`users:${q ?? ""}:${initialCount}`, (signal) =>
+    fetchUsersUpTo(initialCount, signal, q),
+  );
   const [extra, setExtra] = useState<LoadedUsers | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState<AdminApiError | null>(null);
@@ -72,7 +178,7 @@ function UserList() {
   return (
     <ResourceView resource={resource} retry={retry} loadingText="회원 목록을 불러오고 있습니다">
       {(loaded) => {
-        const users = extra ? [...loaded.users, ...extra.users] : loaded.users;
+        const users = extra ? appendUnique(loaded.users, extra.users, userIdOf) : loaded.users;
         const nextOffset = extra ? extra.nextOffset : loaded.nextOffset;
 
         const loadMore = async () => {
@@ -80,13 +186,13 @@ function UserList() {
           setIsLoadingMore(true);
           setMoreError(null);
           try {
-            const page = await fetchUserPage(nextOffset);
-            const appended = [...(extra?.users ?? []), ...page.users];
+            const page = await fetchUserPage(nextOffset, q);
+            const appended = appendUnique(extra?.users ?? [], page.users, userIdOf);
             setExtra({ users: appended, nextOffset: page.next_offset });
             setParams(
               (previous) => {
                 const updated = new URLSearchParams(previous);
-                updated.set(SHOWN_PARAM, String(loaded.users.length + appended.length));
+                updated.set(SHOWN_PARAM, String(nextOffset + page.users.length));
                 return updated;
               },
               { replace: true },
@@ -104,14 +210,16 @@ function UserList() {
               목록을 열 때마다 서버 관리자 기록에 남습니다. 이메일은 상세에서만 전체가 보입니다.
             </p>
             <DataTable
-              caption="회원 목록"
+              caption={q ? `「${q}」 검색 결과` : "회원 목록"}
               rows={users}
-              rowKey={(user) => user.user_id}
-              emptyText="가입한 회원이 없습니다."
+              rowKey={userIdOf}
+              emptyText={q ? "찾는 회원이 없습니다. 이메일은 주소 전체를 넣어야 찾습니다." : "가입한 회원이 없습니다."}
               columns={userColumns(location.pathname + location.search)}
+              minWidth={1040}
             />
             <footer className="adm-table-foot">
               <span className="adm-table-foot__count">
+                {q ? `「${q}」 검색 결과 ` : ""}
                 {formatNumber(users.length)}명 표시{nextOffset === null ? " · 마지막까지 모두" : ""}
               </span>
               {moreError && (
@@ -137,19 +245,21 @@ function UserList() {
   );
 }
 
-function userColumns(listPath: string): Column<AdminUserSummary>[] {
+const ESTIMATE_NOTE = "로그인 · 가입 때 만든 세션의 시각입니다. 자동 로그인으로 계속 쓰면 바뀌지 않습니다.";
+
+function userColumns(listPath: string): Column<AdminUserListItem>[] {
   return [
     {
       key: "nickname",
       header: "닉네임",
-      width: "18%",
+      width: "16%",
       truncate: (user) => user.nickname,
       render: (user) => <b>{user.nickname}</b>,
     },
     {
       key: "email",
       header: "이메일",
-      width: "22%",
+      width: "20%",
       mono: true,
       truncate: (user) => maskEmail(user.email),
       render: (user) => maskEmail(user.email),
@@ -160,7 +270,14 @@ function userColumns(listPath: string): Column<AdminUserSummary>[] {
       width: "88px",
       render: (user) => (user.role === "admin" ? <Badge tone="blue">관리자</Badge> : <Badge tone="gray">회원</Badge>),
     },
-    { key: "created", header: "가입일", mono: true, width: "120px", render: (user) => formatDate(user.created_at) },
+    {
+      key: "providers",
+      header: "로그인 수단",
+      width: "112px",
+      render: (user) =>
+        user.providers.length ? user.providers.map(providerLabel).join(" · ") : <span className="adm-muted">—</span>,
+    },
+    { key: "created", header: "가입일", mono: true, width: "112px", render: (user) => formatDate(user.created_at) },
     {
       key: "stage",
       header: "진행 단계",
@@ -168,10 +285,30 @@ function userColumns(listPath: string): Column<AdminUserSummary>[] {
       render: (user) => <span className={user.stage ? undefined : "adm-muted"}>{stageLabel(user.stage)}</span>,
     },
     {
+      key: "login",
+      header: "최근 로그인",
+      mono: true,
+      width: "196px",
+      render: (user) => {
+        const login = recentLogin(user);
+        if (!login) return <span className="adm-muted">기록 없음</span>;
+        return (
+          <span title={login.isEstimate ? ESTIMATE_NOTE : undefined}>
+            {formatDateTime(login.at)}
+            {login.isEstimate && (
+              <span className="adm-stamp">
+                <Badge tone="gray">추정</Badge>
+              </span>
+            )}
+          </span>
+        );
+      },
+    },
+    {
       key: "saved",
       header: "마지막 저장",
       mono: true,
-      width: "176px",
+      width: "160px",
       render: (user) => formatDateTime(user.save_updated_at),
     },
     {
