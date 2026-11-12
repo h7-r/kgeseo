@@ -288,6 +288,14 @@ function ReportView({ report, loadedAt }: { report: BetaReport; loadedAt: number
               가운데 {sec(quantile(report.najuLoad.readyMs, 0.5))} · 75% {sec(quantile(report.najuLoad.readyMs, 0.75))}{" "}
               ({report.najuLoad.readyMs.length}건) · 시간 초과 {report.najuLoad.timeouts}건
             </Field>
+            <Field label="오프닝 영상">
+              {frac(report.videos.opening.skipped, report.videos.opening.people)}이 SKIP · 누른 때 가운데{" "}
+              {sec(quantile(report.videos.opening.skipAtMs, 0.5))} (길이 {sec(quantile(report.videos.opening.lengthMs, 0.5))})
+            </Field>
+            <Field label="엔딩 필름">
+              {frac(report.videos.endingFilm.skipped, report.videos.endingFilm.people)}이 건너뜀 · 가운데{" "}
+              {quantile(report.videos.endingFilm.skipShot, 0.5) ?? "—"}번째 장 / {quantile(report.videos.endingFilm.shots, 0.5) ?? "—"}장
+            </Field>
             <Field label="설화 근거 줄">{frac(report.story.heardAll, report.story.najuPeople)}이 세 줄을 모두 봄</Field>
             <Field label="동행 응답">
               {report.companion.responses}건(대답 {report.companion.withReply} · 할 말 없음 {report.companion.noReply} ·
