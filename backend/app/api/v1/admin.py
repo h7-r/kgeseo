@@ -554,7 +554,28 @@ async def list_audit_logs(
         for log, admin_nickname, target_nickname in rows[:page_size]
     ]
     await _audit(db, admin, "list_audit_logs", target_filter)
+    # 방금 쓴 조회 기록이 같은 조건의 다음 쪽 맨 앞에 끼어든다 — 그만큼 다음 시작을 밀어 같은 기록이 되풀이되지 않게(Codex 리뷰).
+    # 다른 관리자의 동시 기록으로 밀리는 것은 offset 방식의 알려진 한계 그대로(§2.3)
+    shift = int(
+        _matches_own_record(admin.id, admin_filter, target_filter, action, last)
+    )
     return AuditLogList(
         logs=logs,
-        next_offset=start_at + page_size if len(rows) > page_size else None,
+        next_offset=start_at + page_size + shift if len(rows) > page_size else None,
+    )
+
+
+def _matches_own_record(
+    admin_id: str,
+    admin_filter: str | None,
+    target_filter: str | None,
+    action: str | None,
+    last: date,
+) -> bool:
+    """이 조회가 남긴 `list_audit_logs` 행이 같은 필터의 다음 조회에 잡히나(대상은 필터의 target 그대로 기록한다)."""
+
+    return (
+        (action is None or action == "list_audit_logs")
+        and (admin_filter is None or admin_filter == admin_id)
+        and last >= kst_today()
     )

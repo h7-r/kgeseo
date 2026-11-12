@@ -481,8 +481,22 @@ def test_audit_logs_list_filter_and_record_their_own_reading():
         )
         assert [log["admin"]["nickname"] for log in widened["logs"]] == ["부운영자"]
 
-        paged = await get_json("/api/v1/admin/audit-logs", limit="2")
-        assert len(paged["logs"]) == 2 and paged["next_offset"] == 2
+        # 쪽을 넘겨도 같은 기록이 되풀이되지 않는다 — 조회마다 맨 앞에 끼어드는 자기 기록만큼 다음 시작이 밀린다
+        snapshot = await get_json("/api/v1/admin/audit-logs", limit="50")
+        expected = [log["id"] for log in snapshot["logs"]]
+        seen: list[int] = []
+        offset = 0
+        while True:
+            page = await get_json(
+                "/api/v1/admin/audit-logs", limit="1", offset=str(offset)
+            )
+            seen += [log["id"] for log in page["logs"]]
+            if page["next_offset"] is None:
+                break
+            offset = page["next_offset"]
+        # 첫 쪽 앞에는 snapshot 조회의 기록이 하나 더 끼어 있다
+        assert seen[1:] == expected
+        assert len(seen) == len(set(seen))
 
         async with sessions() as db:
             reads_recorded = await db.scalar(
@@ -490,7 +504,7 @@ def test_audit_logs_list_filter_and_record_their_own_reading():
                 .select_from(AdminAuditLog)
                 .where(AdminAuditLog.action == "list_audit_logs")
             )
-        assert reads_recorded == 8  # 감사 기록 조회 8번 — 한 번에 한 행
+        assert reads_recorded == 7 + 1 + len(seen)  # 감사 기록 조회 한 번에 한 행
 
     mysql_run(scenario)
 
