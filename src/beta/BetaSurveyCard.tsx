@@ -16,7 +16,7 @@ const TEXT: Record<"pre" | "post", { title: string; body: string; open: string; 
     skipHow: "already",
   },
   post: {
-    title: "조사 완료! 베타 설문(3~4분)",
+    title: "조사 완료! 베타 설문(3~5분)",
     body: "결과 화면을 보기 전에 설문에 먼저 답해 주세요. 새 창에서 열리고, 답한 뒤 이 창으로 돌아오면 결과 화면이 이어져요.",
     open: "설문 열기",
     skip: "나중에 할게요",
@@ -187,7 +187,7 @@ export function BetaPostSurveyGate({ children }: { children: ReactNode }) {
             setStage("done");
           }}
         >
-          베타 설문 열기(3~4분)
+          베타 설문 열기(3~5분)
         </button>
       )}
     </>
