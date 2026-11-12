@@ -51,18 +51,18 @@ test("둘째 칸은 막대가 닿기까지 0.3 초 넘게 남는 자리에서만
   // 첫 판 가운데 칸 오른쪽 가장자리(.62)에서 맞히고 오른쪽으로 가는 중 — 오른쪽 .64 칸은 이미 막대 밑이다
   const cursor = { position: 0.62, direction: 1 as const };
   for (let i = 0; i < 20; i++) {
-    const choice = pickZone(SECOND, 0.15, cursor, 1.15, 0.3, () => i / 20);
-    const seconds = reachSeconds(cursor, choice.center - 0.075, choice.center + 0.075, 1.15);
+    const choice = pickZone(SECOND, 0.15, cursor, 1.0, 0.3, () => i / 20);
+    const seconds = reachSeconds(cursor, choice.center - 0.075, choice.center + 0.075, 1.0);
     assert.ok(seconds >= 0.3, `${choice.center} 는 ${seconds.toFixed(2)} 초 만에 닿는다`);
   }
 });
 
 test("셋째(반대편 고정)에서 0.3 초를 못 채우면 가장 오래 걸리는 자리", () => {
-  // 둘째 왼쪽 칸 오른쪽 끝(.435)에서 맞히고 오른쪽으로 — 셋째 오른쪽 칸 .70 · .76 둘 다 0.3 초 안에 닿는다
+  // 둘째 왼쪽 칸 오른쪽 끝(.435)에서 맞히고 오른쪽으로 — 셋째 오른쪽 칸 .70 · .76 둘 다 0.3 초 안에 닿는다(셋째 칸 .13 · 0.85 초)
   const cursor = { position: 0.435, direction: 1 as const };
   const third: ZoneChoice[] = [0.24, 0.3].map((left) => ({ center: 1 - left, isRight: true }));
-  const choice = pickZone(third, 0.12, cursor, 0.95, 0.3, () => 0);
+  const choice = pickZone(third, 0.13, cursor, 0.85, 0.3, () => 0);
   near(choice.center, 0.76, "더 먼 .76");
-  const seconds = reachSeconds(cursor, 0.7, 0.82, 0.95);
+  const seconds = reachSeconds(cursor, 0.695, 0.825, 0.85);
   assert.ok(seconds > 0.2 && seconds < 0.3, `셋째 최장 ${seconds}`);
 });
