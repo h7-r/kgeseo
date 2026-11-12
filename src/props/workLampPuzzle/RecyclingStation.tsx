@@ -36,7 +36,7 @@ const TRASH_SPOTS: Record<TrashId, [number, number, number]> = {
   takeoutCup: [-28.1, -39.3, 1.2],
   mask: [-26.8, -42.7, 0.9],
   chopsticks: [-29.2, -41.0, -0.5],
-  brokenCup: [-26.5, -40.1, 0.25],
+  trashBag: [-26.5, -40.1, 0.25],
   tissue: [-28.5, -37.8, 0],
 };
 

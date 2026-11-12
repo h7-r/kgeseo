@@ -49,7 +49,7 @@ const isWireShape = (value: string): value is WireShape => Object.hasOwn(WIRE_SH
 
 export type TrashBin = "general" | "plastic";
 export type TrashId =
-  "petBottle" | "detergentBottle" | "yogurtBottle" | "takeoutCup" | "mask" | "chopsticks" | "brokenCup" | "tissue";
+  "petBottle" | "detergentBottle" | "yogurtBottle" | "takeoutCup" | "mask" | "chopsticks" | "trashBag" | "tissue";
 
 interface TrashItem {
   id: TrashId;
@@ -61,7 +61,7 @@ interface TrashItem {
 /**
  * 쓰레기 여덟. 자리·모양은 그림 쪽이 갖는다.
  * 일반 넷은 한눈에 일반쓰레기로 읽히는 것만 — 플라스틱·종이처럼 보여 「판단」이 되던 칫솔·빨대·영수증은
- * 애매해서 뺐다(해랑 11/12). 환경부 「내 손안의 분리배출」 기준으로도 넷 다 종량제 봉투다.
+ * 애매해서 뺐고, 깨진 컵도 「누가 봐도」가 아니라 뺐다(해랑 11/12). 환경부 「내 손안의 분리배출」 기준으로도 넷 다 종량제 봉투다.
  */
 export const TRASH_ITEMS: readonly TrashItem[] = [
   { id: "petBottle", name: "페트병", bin: "plastic" },
@@ -70,7 +70,7 @@ export const TRASH_ITEMS: readonly TrashItem[] = [
   { id: "takeoutCup", name: "테이크아웃 컵", bin: "plastic" },
   { id: "mask", name: "쓴 마스크", bin: "general" },
   { id: "chopsticks", name: "나무젓가락", bin: "general" },
-  { id: "brokenCup", name: "깨진 컵", bin: "general" }, // 도자기는 재활용이 안 된다
+  { id: "trashBag", name: "묶은 종량제 봉투", bin: "general" }, // 통 표지 그림 그대로 — 누가 봐도 일반쓰레기
   { id: "tissue", name: "쓴 휴지", bin: "general" },
 ];
 /** 화면에 보이는 통 이름 */

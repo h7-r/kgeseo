@@ -151,7 +151,7 @@ export function makeBinSignTexture(bin: TrashBin) {
       g.fillText(isPlastic ? "비우고 · 헹구고 · 뚜껑 닫아서" : "재활용 안 되는 것만", W / 2, 510);
       g.font = `24px ${SIGN_FONT}`;
       g.fillStyle = "#3a3d42";
-      g.fillText(isPlastic ? "PET · PP · PE 용기류" : "휴지 · 마스크 · 나무젓가락 · 깨진 그릇", W / 2, 556);
+      g.fillText(isPlastic ? "PET · PP · PE 용기류" : "휴지 · 마스크 · 나무젓가락 · 종량제 봉투", W / 2, 556);
       const rnd = createRandom(isPlastic ? 91 : 93);
       g.globalAlpha = 0.18;
       for (let i = 0; i < 60; i++) {
@@ -188,17 +188,17 @@ export function makeFloorStainTexture() {
   );
 }
 
-type PrintKind = "water" | "detergent" | "yogurt" | "cup" | "sleeve";
+type PrintKind = "water" | "detergent" | "yogurt" | "bag" | "sleeve";
 
 const PRINT_SIZE: Record<PrintKind, [number, number]> = {
   water: [256, 64],
   detergent: [256, 256],
   yogurt: [256, 64],
-  cup: [256, 128],
+  bag: [512, 256],
   sleeve: [128, 64],
 };
 
-/** 쓰레기에 붙은 작은 인쇄물 — 상표 띠 · 세제 라벨 · 컵 무늬 · 젓가락 봉지 */
+/** 쓰레기에 붙은 작은 인쇄물 — 상표 띠 · 세제 라벨 · 종량제 봉투 인쇄 · 젓가락 봉지 */
 export function makePrintTexture(kind: PrintKind) {
   const [width, height] = PRINT_SIZE[kind];
   return makeCachedCanvasTexture(
@@ -234,21 +234,30 @@ export function makePrintTexture(kind: PrintKind) {
         g.fillText("액체세제", 128, 152);
         g.font = `16px ${SIGN_FONT}`;
         g.fillText("2.5L · 드럼 겸용", 128, 186);
-      } else if (kind === "cup") {
-        // 역 매점 도자기 컵 — 크림 바탕에 파란 띠 둘, 때가 탄 자국
-        g.fillStyle = "#f1ede2";
-        g.fillRect(0, 0, 256, 128);
-        g.fillStyle = "#2f5d9e";
-        g.fillRect(0, 18, 256, 9);
-        g.fillRect(0, 34, 256, 4);
-        g.font = `bold 22px ${SIGN_FONT}`;
+      } else if (kind === "bag") {
+        // 묶은 종량제 봉투 — 흰 비닐에 파란 테 인쇄 한 칸(구면 UV 라 앞쪽 한 번만), 아랫단은 때가 탔다
+        g.fillStyle = "#f3f4f1";
+        g.fillRect(0, 0, 512, 256);
+        const grime = g.createLinearGradient(0, 170, 0, 256);
+        grime.addColorStop(0, "rgba(70,62,48,0)");
+        grime.addColorStop(1, "rgba(70,62,48,0.35)");
+        g.fillStyle = grime;
+        g.fillRect(0, 170, 512, 86);
+        // 인쇄는 앞뒤 두 번 — 어느 쪽에서 봐도 한 칸은 읽힌다
         g.textAlign = "center";
         g.textBaseline = "middle";
-        g.fillText("왜곡역", 64, 78);
-        g.fillText("왜곡역", 192, 78);
-        const rnd = createRandom(77);
-        g.fillStyle = "rgba(96,78,52,0.22)";
-        for (let i = 0; i < 18; i++) g.fillRect(rnd() * 256, 90 + rnd() * 38, 6 + rnd() * 40, 2 + rnd() * 6);
+        for (const cx of [128, 384]) {
+          g.strokeStyle = "#1f5fae";
+          g.lineWidth = 6;
+          g.strokeRect(cx - 100, 60, 200, 130);
+          g.fillStyle = "#1f5fae";
+          g.font = `900 40px ${SIGN_FONT}`;
+          g.fillText("일반쓰레기", cx, 98);
+          g.font = `bold 28px ${SIGN_FONT}`;
+          g.fillText("종량제 봉투", cx, 138);
+          g.font = `18px ${SIGN_FONT}`;
+          g.fillText("왜곡구 · 5L", cx, 170);
+        }
       } else if (kind === "sleeve") {
         // 찢긴 나무젓가락 종이 봉지
         g.fillStyle = "#f4efe3";

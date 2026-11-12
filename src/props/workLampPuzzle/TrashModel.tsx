@@ -153,73 +153,37 @@ function buildTrashGeometries(id: TrashId): TrashGeometries {
     });
     o.sleeve = new THREE.PlaneGeometry(0.3, 0.11);
     o.sleeve.rotateX(-Math.PI / 2);
-  } else if (id === "brokenCup") {
-    // 깨진 도자기 컵 — 아래 토막만 남아 테두리가 들쭉날쭉하고, 사금파리 셋과 손잡이 조각이 흩어져 있다
-    // 머그 지름 8cm → 0.25. 아래 토막이 옆으로 누워 들쭉날쭉한 테두리가 보인다
-    const cup = buildLatheGeometry(
-      [
-        [0, 0],
-        [0.1, 0],
-        [0.115, 0.012],
-        [0.122, 0.09],
-        [0.125, 0.2],
-      ],
-      20,
-    );
-    const rnd = createRandom(23);
-    const jag = Array.from({ length: 21 }, () => 0.1 + rnd() * 0.1);
-    const pos = cup.attributes.position;
+  } else if (id === "trashBag") {
+    // 묶은 종량제 봉투(5L) — 구를 울퉁불퉁 눌러 속이 찬 꼴로. UV 는 구면 그대로라 인쇄가 앞쪽에 한 번 붙는다
+    const sack = new THREE.SphereGeometry(0.3, 28, 18);
+    const rnd = createRandom(41);
+    const bumps = new Map<string, number>();
+    const pos = sack.attributes.position;
     for (let i = 0; i < pos.count; i++) {
-      if (pos.getY(i) < 0.19) continue;
-      // 같은 각의 꼭짓점은 같은 높이로 — 이음새가 안 벌어진다
-      const angle = (Math.atan2(pos.getZ(i), pos.getX(i)) + Math.PI * 2) % (Math.PI * 2);
-      pos.setY(i, jag[Math.round((angle / (Math.PI * 2)) * 20)]);
+      const key = `${pos.getX(i).toFixed(3)},${pos.getY(i).toFixed(3)},${pos.getZ(i).toFixed(3)}`;
+      let k = bumps.get(key);
+      if (k === undefined) {
+        k = 0.86 + rnd() * 0.24;
+        bumps.set(key, k);
+      }
+      // 아래는 바닥에 눌려 납작, 위는 묶어 오므라든다
+      const y = pos.getY(i) / 0.3;
+      const squash = y < 0 ? 0.78 : 1 - y * 0.18;
+      pos.setXYZ(i, pos.getX(i) * k, pos.getY(i) * k * squash, pos.getZ(i) * k);
     }
-    cup.computeVertexNormals();
-    o.cup = cup;
-    o.handle = new THREE.TorusGeometry(0.055, 0.014, 6, 10, Math.PI * 0.95);
-    // 사금파리 셋은 자리까지 넣어 한 메시로
-    const shard = (points: [number, number][], at: [number, number], yaw: number) => {
-      const shape = new THREE.Shape();
-      points.forEach(([x, y], i) => (i ? shape.lineTo(x, y) : shape.moveTo(x, y)));
-      shape.closePath();
-      const g = new THREE.ExtrudeGeometry(shape, { depth: 0.006, bevelEnabled: false });
-      g.rotateX(-Math.PI / 2);
-      g.rotateY(yaw);
-      g.translate(at[0], 0, at[1]);
-      return g;
-    };
-    o.shards = mergeAndDispose([
-      shard(
-        [
-          [0, 0],
-          [0.13, 0.02],
-          [0.09, 0.11],
-          [0.02, 0.07],
-        ],
-        [-0.26, -0.08],
-        0.5,
-      ),
-      shard(
-        [
-          [0, 0],
-          [0.09, -0.035],
-          [0.11, 0.055],
-          [0.035, 0.065],
-        ],
-        [0.22, 0.2],
-        -0.9,
-      ),
-      shard(
-        [
-          [0, 0],
-          [0.07, 0.01],
-          [0.045, 0.08],
-        ],
-        [0.3, -0.14],
-        1.8,
-      ),
-    ]);
+    sack.computeVertexNormals();
+    o.sack = sack;
+    // 묶은 매듭과 양쪽으로 삐죽 선 손잡이 귀
+    o.knot = new THREE.SphereGeometry(0.05, 10, 8);
+    o.ears = mergeAndDispose(
+      [-1, 1].map((side) => {
+        const g = new THREE.ConeGeometry(0.045, 0.22, 7);
+        g.translate(0, 0.11, 0);
+        g.rotateZ(side * 0.7);
+        g.translate(side * 0.03, 0, 0);
+        return g;
+      }),
+    );
   } else {
     o.large = buildCrumpledGeometry(0.13, 7);
     o.small = buildCrumpledGeometry(0.09, 13);
@@ -356,24 +320,20 @@ export default function TrashModel({ id, brightness = 1 }: TrashModelProps) {
         </mesh>
       </group>
     );
-  if (id === "brokenCup")
+  if (id === "trashBag")
     return (
-      <group position={[0, 0.005, 0]} rotation={[0, 0.4, 0]}>
-        {/* 옆으로 누운 토막 — 깨진 입이 앞을 본다 */}
-        <mesh geometry={geo.cup} position={[0.05, 0.12, 0]} rotation={[0.1, 0, -1.35]} castShadow>
-          <meshToonMaterial
-            map={makePrintTexture("cup")}
-            color={white}
-            gradientMap={TOON_GRADIENT}
-            side={THREE.DoubleSide}
-          />
+      <group position={[0, 0.23, 0]} rotation={[0.12, 1.9, 0]}>
+        <mesh geometry={geo.sack} castShadow>
+          <meshToonMaterial map={makePrintTexture("bag")} color={white} gradientMap={TOON_GRADIENT} />
           {rim}
         </mesh>
-        <mesh geometry={geo.handle} position={[-0.16, 0.014, 0.16]} rotation={[Math.PI / 2, 0, 0.6]} castShadow>
-          {toon("#f1ede2")}
-          {rim}
-        </mesh>
-        <mesh geometry={geo.shards}>{toon("#f1ede2")}</mesh>
+        <group position={[0, 0.27, 0]}>
+          <mesh geometry={geo.knot}>{toon("#e4e6e1")}</mesh>
+          <mesh geometry={geo.ears} castShadow>
+            {toon("#eceeea")}
+            {rim}
+          </mesh>
+        </group>
       </group>
     );
   return (
