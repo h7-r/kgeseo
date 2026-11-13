@@ -50,6 +50,12 @@ EXPECTED_ERRORS = {
     ("GET", "/api/v1/admin/beta-events"): {401, 403, 422},
     ("GET", "/api/v1/admin/stats/summary"): {401, 403, 422},
     ("GET", "/api/v1/admin/audit-logs"): {401, 403, 422},
+    # 2단계(11/12 해랑) — 조회 전용 통계 · 보안 집계
+    ("GET", "/api/v1/admin/stats/traffic"): {401, 403, 422},
+    ("GET", "/api/v1/admin/stats/active-sessions"): {401, 403},
+    ("GET", "/api/v1/admin/stats/members"): {401, 403, 422},
+    ("GET", "/api/v1/admin/stats/game"): {401, 403, 422},
+    ("GET", "/api/v1/admin/security/summary"): {401, 403},
     # 11/11 베타 분석 기록: 쿠키 없이도 받는다(401 없음). 형식 오류 422, 64KB 초과 413.
     ("POST", "/api/v1/beta-events"): {403, 413, 422, 429},
     ("POST", "/api/v1/auth/email-exists"): {403, 422, 429},
@@ -60,7 +66,13 @@ EXPECTED_ERRORS = {
     ("POST", "/api/v1/play-sessions"): {401, 403, 404, 409, 410, 422, 500},
     ("GET", "/api/v1/play-sessions/{play_session_id}"): {401, 404, 422},
     ("GET", "/api/v1/play-sessions/{play_session_id}/clues"): {401, 404, 409, 422, 500},
-    ("GET", "/api/v1/play-sessions/{play_session_id}/bundle"): {401, 404, 409, 422, 500},
+    ("GET", "/api/v1/play-sessions/{play_session_id}/bundle"): {
+        401,
+        404,
+        409,
+        422,
+        500,
+    },
     ("POST", "/api/v1/play-sessions/{play_session_id}/interactions"): {
         401,
         403,
@@ -188,7 +200,13 @@ def test_success_responses_keep_their_schemas():
             continue
         success = [code for code in operation["responses"] if int(code) < 400]
         assert len(success) == 1, (method, path)
-        expected = 201 if (method, path) in CREATED else 204 if (method, path) in NO_CONTENT else 200
+        expected = (
+            201
+            if (method, path) in CREATED
+            else 204
+            if (method, path) in NO_CONTENT
+            else 200
+        )
         assert int(success[0]) == expected, (method, path)
 
 
