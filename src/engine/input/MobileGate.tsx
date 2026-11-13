@@ -23,7 +23,7 @@ import { markGameStarted, pauseGame, resumeAllAudio, resumeFromGate, useGamePaus
 import { addFullscreenExitListener, isPortraitNow, passFirstTap, useLandscapeState } from "./landscape";
 import { cancelAllTouchInput } from "./touchInput";
 import { useTouchMode } from "./touchMode";
-import { addPointerActiveListener, installVirtualLock, isVirtuallyLocked } from "./virtualLock";
+import { addPointerActiveListener, installLookGuard, installVirtualLock, isVirtuallyLocked } from "./virtualLock";
 
 interface MobileGateProps {
   controlsRef: RefObject<PointerLockControls | null>;
@@ -41,6 +41,14 @@ export function MobileGate({ controlsRef, isWindowOpen, pausedExtra }: MobileGat
   const [hasControls, setHasControls] = useState(false);
   /** 덮개가 바뀐 시각 — 막 뜬 덮개에 앞 손가락의 클릭이 떨어지면 무시한다(멈춤 단추를 뗀 손가락 등) */
   const shownAt = useRef(0);
+
+  // PC 마우스 시점 지킴이(튀는 값 · 연출 중 입력) — 터치 여부와 상관없이 조작기마다 심는다
+  useEffect(() => {
+    const check = () => installLookGuard(controlsRef.current);
+    check();
+    const timer = window.setInterval(check, 250);
+    return () => window.clearInterval(timer);
+  }, [controlsRef]);
 
   // 조작기는 씬과 함께 늦게 생기기도 하고(나주), 카메라가 바뀌면 새로 생긴다 — 자주 보고 심는다
   useEffect(() => {

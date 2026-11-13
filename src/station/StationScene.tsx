@@ -2,6 +2,7 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, type RefObject } fro
 import type * as THREE from "three";
 
 import { IS_ZONE_CULLING_DISABLED } from "@/app/runtimeFlags";
+import SceneAtmosphere from "@/engine/SceneAtmosphere";
 import type { AvatarLink } from "@/engine/avatarLink";
 import { pickOutlineValues } from "@/engine/leva/savedControls";
 import { PLAYER_RADIUS } from "@/engine/movement/constants";
@@ -267,10 +268,14 @@ function StationScene({
 
   return (
     <>
-      {/* 배경·안개는 group 바깥이어야 한다. attach 는 바로 위 부모에 꽂아서 group 안이면 Group.fog 가 되고
-          렌더러는 scene.fog 만 읽는다. 이 컴포넌트는 <Canvas> 직계 자식이라 부모가 곧 씬이다. */}
-      {enabled && <color attach="background" args={[train.backdrop.backgroundColor]} />}
-      {enabled && <fog attach="fog" args={[lighting.fogColor, lighting.fogNear, lighting.fogFar]} />}
+      {/* 배경·안개는 켜진 씬만 건다(SceneAtmosphere — attach 로 붙였다 떼면 기차를 두 번째 탈 때부터 사라졌다) */}
+      <SceneAtmosphere
+        enabled={enabled}
+        background={train.backdrop.backgroundColor}
+        fogColor={lighting.fogColor}
+        fogNear={lighting.fogNear}
+        fogFar={lighting.fogFar}
+      />
 
       <group visible={enabled}>
         {/* 전체는 어둑하고 차갑게 눌러 버려진 역의 음침함을 만든다 */}

@@ -8,6 +8,7 @@ import type { PointerLockControls as PointerLockControlsImpl } from "three-stdli
 
 import type { AvatarLink } from "@/engine/avatarLink";
 import { TouchLook } from "@/engine/input";
+import { DEFAULT_SETTINGS, useSettings } from "@/settings/settings";
 import { scaleColor } from "@/engine/color";
 import { pickOutlineValues } from "@/engine/leva/savedControls";
 import { TOON_GRADIENT } from "@/engine/toon";
@@ -251,7 +252,9 @@ export default function NajuScene({
 
   const river = useRiver(controls, terrain);
 
-  const { camera, gl, scene } = useRendererSetup(controls.fov);
+  // 설정의 시야각(기본 60°)을 기준 값에 더한다
+  const fovOffset = useSettings().fov - DEFAULT_SETTINGS.fov;
+  const { camera, gl, scene } = useRendererSetup(controls.fov + fovOffset);
   // 검수 작업대가 시점을 잡고 있는 동안은 걷기·연출을 멈춘다
   //   통합 편집 모드도 같다 — 그 모드가 둘러보기 카메라를 몬다(걷기·안개를 멈춘다, 10/15)
   const isReviewCameraHold = useReviewCameraHold();

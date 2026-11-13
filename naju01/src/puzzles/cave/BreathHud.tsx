@@ -1,7 +1,7 @@
 /**
  * 숨 게이지 — 물속에서만 왼쪽 아래에 뜬다. 먹물을 뒤집어쓰면 화면 여기저기에 먹 얼룩이 튀었다가 번지며 걷힌다. 숨이 다하면 화면이 까매졌다 걷힌다.
  *
- * 숨 경고(미르 11/10): 30초 아래부터 화면 테두리가 붉게 깜빡이고, 20 · 10초 아래로 갈 때마다 더 빨리 · 더 진하게. 숨 게이지 테두리도 같은
+ * 숨 경고(미르 11/10, 베타 뒤 11/13 에 30 → 20초): 20초 아래부터 화면 테두리가 붉게 깜빡이고, 15 · 10초 아래로 갈 때마다 더 빨리 · 더 진하게. 숨 게이지 테두리도 같은
  * 박자로 붉게 빛난다. 30 · 10초에는 조작을 막지 않는 안내 띠 — 「서서」 숨을 채운다는 것까지(Codex 01). 공기 기둥에 들면 「숨을 고르는 중…」.
  * 10초 아래는 화면이 뿌옇게 조여 오고(예전 15초) 5초 아래는 흔들린다(CaveWorld). 장면을 보여 주는 동안(숨 보호)은 깜빡임을 멈추고 옅게.
  */
@@ -20,13 +20,14 @@ const LOW_SECONDS = 10;
 /** 경고 단계 — 남은 숨(초)이 below 아래면 화면 테두리가 period 초마다 깜빡인다. 앞에서부터 고른다 */
 const WARN_STEPS = [
   { below: 10, period: 0.5, strength: 1 },
-  { below: 20, period: 1.0, strength: 0.72 },
-  { below: 30, period: 1.6, strength: 0.48 },
+  { below: 15, period: 1.0, strength: 0.72 },
+  { below: 20, period: 1.6, strength: 0.48 },
 ] as const;
-const WARN_START = 30;
+// 30 → 20(베타 11/13 「숨 쉬러 가는 주기가 짧다」) — 숨을 90초로 늘리고 경고도 늦춰, 가득 채운 뒤 70초는 쫓기지 않는다
+const WARN_START = 20;
 const WARN_URGENT = 10;
 /** 숨을 이만큼 채우면 경고가 다시 걸린다 */
-const WARN_REARM = 40;
+const WARN_REARM = 30;
 /** 안내 띠를 띄워 두는 시간(초, 게임 시계) */
 const BAND_SECONDS = 4;
 export const BREATH_BAND_START = "숨이 부족하다. 공기방울이 솟는 곳에 서서 숨을 채우자.";
@@ -36,8 +37,8 @@ export const BREATH_BAND_REFILL = "숨을 고르는 중…";
 const warnStepOf = (breath: number) => WARN_STEPS.find((step) => breath < step.below) ?? null;
 
 /**
- * 안내 띠 — 30초 아래로 처음 내려갈 때 · 10초 아래로 내려갈 때 한 번씩(한 번에 35→9 처럼 떨어지면 10초 것만). 공기 기둥에서 숨이 차오르는
- * 동안은 「숨을 고르는 중…」. 40초를 넘게 채우면 다시 걸린다. 장면을 보여 주는 동안은 미뤘다가 끝나면 띄운다
+ * 안내 띠 — 20초 아래로 처음 내려갈 때 · 10초 아래로 내려갈 때 한 번씩(한 번에 35→9 처럼 떨어지면 10초 것만). 공기 기둥에서 숨이 차오르는
+ * 동안은 「숨을 고르는 중…」. 30초를 넘게 채우면 다시 걸린다. 장면을 보여 주는 동안은 미뤘다가 끝나면 띄운다
  */
 function useBreathBand(breath: number, isUnderwater: boolean, isGuarded: boolean): string | null {
   const [band, setBand] = useState<string | null>(null);

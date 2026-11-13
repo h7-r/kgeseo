@@ -134,6 +134,9 @@ const CAMERA = {
 
 // dpr 2 면 그릴 픽셀이 4배다 — 내장 GPU 가 검게 죽는 원인 1순위.
 // 「자동」은 저사양 1 · 아니면 1~1.5. 기기 픽셀보다 높게는 안 쓴다.
+/** 역이 선 뒤 기차 안을 미리 짓기까지(ms) — 첫 화면의 셰이더 굽기(400 ms · 3 초)와 겹치지 않게 그 뒤로 */
+const TRAIN_PREMOUNT_MS = 6000;
+
 function canvasDpr({ resolution }: Settings): number | [number, number] {
   if (resolution !== "auto" && RESOLUTION_DPR[resolution]) {
     return Math.min(RESOLUTION_DPR[resolution], window.devicePixelRatio || 1);
@@ -199,6 +202,13 @@ export default function App() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 커밋을 나눠야 위 안개 문제가 없다
     if (isTrain) setIsTrainMounted(true);
   }, [isTrain]);
+  // 첫 탑승 때 기차 안을 그 자리에서 짓느라 화면이 멎었다(베타 11/13 「기차 탈 때 렉」) — 역이 선 뒤 한가할 때 미리 지어 둔다.
+  // 지어 두기만 하고 보이지 않는다(탔다 내린 뒤와 같은 상태). 저사양은 메모리를 아끼려 예전대로 탈 때 짓는다
+  useEffect(() => {
+    if (IS_LOW_QUALITY || IS_MOBILE_QUALITY) return;
+    const timer = window.setTimeout(() => setIsTrainMounted(true), TRAIN_PREMOUNT_MS);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   // 다시 접속 · 나주에서 「로비로 나가기」면 로비(본부실) 자리에서, 아니면 나갔던 자리에서 시작한다. Canvas 는 처음 한 번만 읽는다.
   // 로비 표시(?entry=lobby)는 저장 단계가 본부실 뒤일 때만 받는다 — 튜토리얼 중인 사람에게 주소만으로 본부실을 열지 않게

@@ -14,6 +14,7 @@ import type { PointerLockControls } from "three-stdlib";
 
 import { exposeDevHook } from "@/debug/devHooks";
 import { isTouchMode } from "@/engine/input";
+import { requestGameLock } from "@/engine/input/lookGuard";
 import { isTypingTarget } from "@/game/overlayLayer";
 import { createChangeSignal } from "@/lib/changeSignal";
 
@@ -106,12 +107,7 @@ function attempt() {
 function requestLock(controls: PointerLockControls | null) {
   const element = controls?.domElement as (HTMLElement & { requestPointerLock(): unknown }) | undefined;
   if (typeof element?.requestPointerLock !== "function") return;
-  try {
-    const result = element.requestPointerLock();
-    if (result instanceof Promise) result.catch(() => {});
-  } catch {
-    // 막는 브라우저 — 기다림(다음 클릭 · 키)으로 넘어간다
-  }
+  requestGameLock(element);
 }
 
 /** 게임 화면으로 돌아간다 — 지금 잠글 수 없으면(ESC 직후) 잠글 수 있게 되는 대로 */

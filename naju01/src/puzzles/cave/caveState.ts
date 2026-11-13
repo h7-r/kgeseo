@@ -65,7 +65,7 @@ export const TOUCH_UNDERWATER_SPEED = (() => {
 })();
 
 /** 숨(초) */
-export const BREATH_SECONDS = 70;
+export const BREATH_SECONDS = 90;
 /** 공기 기둥 안에서 숨이 차는 빠르기(초/초) */
 const BREATH_REFILL = 28;
 
