@@ -100,6 +100,18 @@ interface TerrainMovementOptions {
 }
 
 /** 물속 점프 세기 · 중력 배율 · 가라앉는 최고 빠르기(m/s) · 걸음이 붙고 풀리는 빠르기(1/초) · 오르내림(m · 1/초) */
+/**
+ * 정면이 막혔을 때 꺾어 보는 각(라디안) — 작은 각부터. 이미 닿아 있으면 조금이라도 앞으로 가는 길은 다 막혀 있어
+ * 옆(90°)과 살짝 뒤(110°)까지 본다 — 둥근 것의 겉을 따라 돌아 나간다
+ */
+const DEFLECT_ANGLES = [0.7, 1.2, Math.PI / 2, 1.92];
+/** 돌아 나갈 수 있는지 볼 자리(미터) — 가던 쪽으로 ahead, 옆으로 aside */
+const DEFLECT_PROBE = { ahead: 0.6, aside: 1.1 };
+/** 도는 쪽을 바꾼 뒤 다시 바꾸기까지(초) */
+const DEFLECT_FLIP_SECONDS = 0.8;
+/** 비켜 가는 동안의 빠르기(가려던 빠르기 대비) */
+const DEFLECT_SPEED = 0.8;
+
 const SWIM = { jump: 0.66, gravity: 0.24, sinkLimit: 1.6, glide: 2.2, bob: 0.035, bobRate: 1.5 };
 
 export function useTerrainMovement(
@@ -163,6 +175,10 @@ export function useTerrainMovement(
   /** 부감에서 막 내려왔는가 */
   const wasPaused = useRef(false);
   const travelled = useRef(0);
+  /** 장애물을 비켜 갈 때 마지막으로 돈 쪽(+1 · −1) */
+  const deflectSide = useRef(1);
+  /** 도는 쪽을 마지막으로 바꾼 때(걷기 시계, 초) */
+  const deflectFlippedAt = useRef(-99);
   const elapsed = useRef(0);
   /** 지난 프레임의 발 높이(m) — 앉기를 눌러 눈높이가 바뀌어도 발은 그대로다 */
   const lastFootY = useRef<number | null>(null);
@@ -438,6 +454,8 @@ export function useTerrainMovement(
           ? v
           : THREE.MathUtils.clamp(v, min * UNITS_PER_METER, max * UNITS_PER_METER);
 
+      const wantX = velocity.current.x;
+      const wantZ = velocity.current.z;
       const tryX = p.x + velocity.current.x * dt;
       const nx = clampToCore(tryX, CORE_BOUNDS.minX, CORE_BOUNDS.maxX, tryX, p.z);
       if (canMoveTo(nx, p.z)) p.x = nx;
@@ -447,6 +465,54 @@ export function useTerrainMovement(
       const nz = clampToCore(tryZ, CORE_BOUNDS.minZ, CORE_BOUNDS.maxZ, p.x, tryZ);
       if (canMoveTo(p.x, nz)) p.z = nz;
       else velocity.current.z = 0;
+
+      // 비켜 가기 — 가려던 길의 절반도 못 갔으면(바위 · 사람 · 소반에 정면으로 닿음) 가던 쪽에서 좌우로 꺾은 길을 차례로 본다.
+      // 축을 따로 옮기는 위 방식은 비스듬히 닿으면 벽을 타고 미끄러지지만 정면이면 그 자리에 섰다 — 돌탑을 끌고 오가는
+      // 자갈밭에서 직선 44줄 중 20줄이 중간에 멈췄다(베타 11/13 「길막힘 · 이동 방해」).
+      const wantStep = Math.hypot(wantX, wantZ) * dt;
+      if (wantStep > 1e-6 && Math.hypot(p.x - before.x, p.z - before.z) < wantStep * 0.5) {
+        const sides = deflectSide.current >= 0 ? [1, -1] : [-1, 1];
+        // 돌아 나갈 수 있는 작은 것(바위 · 사람 · 소반)에서만 — 그쪽으로 한 걸음 옆 · 조금 앞이 비어 있어야 한다.
+        // 이 확인이 없으면 긴 벽 · 벼랑을 정면으로 밀 때도 옆으로 미끄러진다
+        const forwardX = wantX / (wantStep / dt);
+        const forwardZ = wantZ / (wantStep / dt);
+        const probe = (side: number, ahead: number, aside: number) =>
+          canMoveTo(
+            before.x + (forwardX * ahead - forwardZ * side * aside) * UNITS_PER_METER,
+            before.z + (forwardZ * ahead + forwardX * side * aside) * UNITS_PER_METER,
+          );
+        // 옆으로 가는 길 중간도 비어 있어야 한다 — 끝점만 보면 얇은 벽 너머를 돌아갈 길로 잘못 본다(Codex 리뷰)
+        const canRound = (side: number) =>
+          probe(side, 0, DEFLECT_PROBE.aside * 0.5) &&
+          probe(side, 0, DEFLECT_PROBE.aside) &&
+          probe(side, DEFLECT_PROBE.ahead, DEFLECT_PROBE.aside);
+        // 돌던 쪽을 바로 뒤집지 않는다 — 좁은 곳에서 좌우로 떨지 않게, 방금 쪽이 막혔어도 잠깐은 반대쪽으로 안 간다
+        const canFlip = elapsed.current - deflectFlippedAt.current > DEFLECT_FLIP_SECONDS;
+        const open = {
+          [1]: (deflectSide.current === 1 || canFlip) && canRound(1),
+          [-1]: (deflectSide.current === -1 || canFlip) && canRound(-1),
+        } as Record<number, boolean>;
+        search: for (const angle of DEFLECT_ANGLES)
+          for (const side of sides) {
+            if (!open[side]) continue;
+            const cos = Math.cos(angle * side);
+            const sin = Math.sin(angle * side);
+            const dx = (wantX * cos - wantZ * sin) * dt * DEFLECT_SPEED;
+            const dz = (wantX * sin + wantZ * cos) * dt * DEFLECT_SPEED;
+            const sx = clampToCore(before.x + dx, CORE_BOUNDS.minX, CORE_BOUNDS.maxX, before.x + dx, before.z + dz);
+            const sz = clampToCore(before.z + dz, CORE_BOUNDS.minZ, CORE_BOUNDS.maxZ, before.x + dx, before.z + dz);
+            if (!canMoveTo(sx, sz)) continue;
+            p.x = sx;
+            p.z = sz;
+            // 가려던 빠르기는 지킨다 — 0 으로 만들면 장애물을 돌 때마다 걸음이 끊긴다
+            velocity.current.x = wantX;
+            velocity.current.z = wantZ;
+            // 한번 고른 쪽으로 계속 돈다(좌우로 떨지 않게)
+            if (deflectSide.current !== side) deflectFlippedAt.current = elapsed.current;
+            deflectSide.current = side;
+            break search;
+          }
+      }
 
       travelled.current += Math.hypot(p.x - before.x, p.z - before.z) * METERS_PER_UNIT;
       elapsed.current += dt;

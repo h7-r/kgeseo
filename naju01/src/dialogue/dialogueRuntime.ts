@@ -21,7 +21,7 @@ import { getUnderwater } from "../puzzles/cave/caveState";
 import { isHandlingObjects, pressAimedTalk, switchAimedTalk } from "../puzzles/interaction";
 import { isOtherWindowHeld } from "../puzzles/pointerHold";
 import { advanceNpcSpeech, isTalkTaken } from "../scene/firstScene/npcSpeech";
-import { createDialogueStore, type Speech } from "./dialogueStore.ts";
+import { DIALOGUE_TIMING, createDialogueStore, pageDurationMs, type Speech } from "./dialogueStore.ts";
 import { createDirector } from "./director.ts";
 import {
   currentObjective,
@@ -37,6 +37,9 @@ import { hasDraftLines, setTone } from "./lines.ts";
 import { loadDraftLines } from "./previewMode";
 import { createSituationWatcher, type Situation } from "./situations.ts";
 import { IS_COMPANION_ACTIVE } from "./talkButton";
+import { subscribeNoticePosted } from "../puzzles/interaction";
+import { MANUAL_HOLD_MS, isManualAdvance, setReadingHeld } from "./readPace";
+import { textLog } from "./textLog.ts";
 
 /** 대화창 이름 줄 — 동행 캐릭터 이름은 아직 정해지지 않았다(PM 결정 대기). 세진 님 companion 쪽과 같은 자리 표시 */
 export const COMPANION_NAME = "동행";
@@ -53,9 +56,38 @@ interface Panel {
 }
 
 // 쪽 · 물음 시간은 게임 시계로 — 터치에서 창 때문에 「전부 멈춤」인 동안 말이 흘러가지 않게(companionRuntime 과 같다)
+/** [F] 를 기다리는 말 — 퍼즐 설명 · 힌트 · 플레이어가 청한 대답. 주변 한마디 · 알림은 제 시간에 지나간다 */
+const waitsForKey = (speech: Speech) =>
+  speech.kind === "guide" || speech.kind === "hint" || (speech.kind === "line" && !!speech.asked);
+
 export const dialogue = createDialogueStore({
   setTimer: (run, ms) => gameSetTimeout(run, ms),
   clearTimer: (handle) => gameClearTimeout(handle as number),
+  manualHoldMs: (speech) => (isManualAdvance() && waitsForKey(speech) ? MANUAL_HOLD_MS : 0),
+});
+// 수동으로 기다리는 말이 제 글 길이만큼은 이미 떠 있었으면, 새 알림(오답 · 조작 실패의 까닭)이 오는 순간 넘긴다 —
+// 알림은 대화창이 떠 있는 동안 줄을 서다 몇 초 뒤 버려지므로, 45초를 붙들면 까닭을 못 본다(Codex 리뷰). 넘긴 글은 「지난 글」에 있다
+let pageShownAt = 0;
+let pageKey = "";
+subscribeNoticePosted(() => {
+  const shown = dialogue.getState();
+  if (!shown || !isManualAdvance() || !waitsForKey(shown.speech)) return;
+  const byLength = pageDurationMs(shown.pages[shown.pageIndex], DIALOGUE_TIMING, shown.speech.holdMs);
+  if (gameNow() - pageShownAt >= byLength) dialogue.advance();
+});
+// 뜬 말을 「지난 글」에 적고, 수동으로 넘기는 말이 떠 있는 동안을 알린다(물속 숨 보호)
+let loggedSerial = -1;
+dialogue.subscribe(() => {
+  const shown = dialogue.getState();
+  const key = shown ? `${shown.serial}:${shown.pageIndex}` : "";
+  if (key !== pageKey) {
+    pageKey = key;
+    pageShownAt = gameNow();
+  }
+  setReadingHeld(!!shown && isManualAdvance() && waitsForKey(shown.speech));
+  if (!shown || shown.serial === loggedSerial || shown.pageIndex !== 0) return;
+  loggedSerial = shown.serial;
+  textLog.add("동행", shown.speech.text);
 });
 const watcher = createSituationWatcher();
 

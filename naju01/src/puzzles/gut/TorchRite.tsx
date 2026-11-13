@@ -528,7 +528,11 @@ function TorchRiteScene() {
       halfZ: BRAZIER.size * 0.28,
       bottom: ground - 0.2,
       top: ground + BRAZIER.size,
-      enabled: true,
+      // 화덕이 보일 때만 막는다 — 늘 켜 두면 굿판에 오기 전(돌탑을 끌고 오가는 기우제 터)에도 소반 옆에 보이지 않는 벽이
+      // 서 있었다(베타 11/13 「석탑 지역 길막힘」)
+      get enabled() {
+        return rite.brazier.visible;
+      },
       walkable: false,
     });
     return () => {

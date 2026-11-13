@@ -19,14 +19,21 @@ export default function LoadingCover({ progress, isFading }: LoadingCoverProps) 
   const text =
     progress.phase === "fetching"
       ? `에셋 받는 중 ${progress.done} / ${progress.total}${progress.label ? ` · ${progress.label}` : ""}`
-      : "지형을 세우는 중…";
+      : "지형을 세우는 중… 잠시만 기다려 주세요";
   return (
     <div style={{ ...coverStyle, opacity: isFading ? 0 : 1 }}>
       <div style={textBoxStyle}>
         <div style={titleStyle}>NAJU-01</div>
         <div style={barStyle}>
-          <div style={{ ...barFillStyle, width: `${Math.round(ratio * 100)}%` }} />
+          {progress.phase === "fetching" ? (
+            <div style={{ ...barFillStyle, width: `${Math.round(ratio * 100)}%` }} />
+          ) : (
+            // 씬을 세우는 동안은 주 스레드가 바빠 화면이 멎는다 — transform 애니메이션은 합성 스레드에서 돌아 그동안에도 움직인다.
+            // 가득 찬 막대 + 멈춘 글만 있으면 「멈췄다 · 렉」으로 읽혔다(베타 11/13 「지역 이동할 때 버벅인다」)
+            <div style={barSlideStyle} />
+          )}
         </div>
+        <style>{SLIDE_KEYFRAMES}</style>
         <div style={captionStyle}>{text}</div>
       </div>
     </div>
@@ -73,6 +80,17 @@ const barFillStyle: CSSProperties = {
   height: "100%",
   background: "#8FE3B0",
   transition: "width .25s ease",
+};
+
+const SLIDE_KEYFRAMES = `@keyframes naju-loading-slide { from { transform: translateX(-100%); } to { transform: translateX(260%); } }`;
+
+const barSlideStyle: CSSProperties = {
+  width: "40%",
+  height: "100%",
+  borderRadius: 2,
+  background: "#8FE3B0",
+  animation: "naju-loading-slide 1.1s linear infinite",
+  willChange: "transform",
 };
 
 const captionStyle: CSSProperties = {

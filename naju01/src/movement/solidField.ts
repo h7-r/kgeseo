@@ -184,6 +184,19 @@ class InstanceRaster {
   }
 }
 
+/** 거리로 자리를 넣었다 빼는 무리의 전체 자리(없으면 null) — InstanceGroupMesh 가 solidFull 로 알린다 */
+const fullMatricesOf = (object: THREE.Object3D): Float32Array | null =>
+  object.userData.solidFull && object.userData.originalMatrices instanceof Float32Array
+    ? (object.userData.originalMatrices as Float32Array)
+    : null;
+
+/** 전체 자리의 지문 — 수는 같고 자리 · 크기만 바뀐 편집도 다시 굽게(Codex 리뷰). 자리 · 첫 배율만 더한다 */
+function placementSum(matrices: Float32Array) {
+  let sum = 0;
+  for (let i = 0; i < matrices.length; i += 16) sum += matrices[i] + matrices[i + 12] + matrices[i + 13] * 3 + matrices[i + 14] * 7;
+  return Math.round(sum * 100);
+}
+
 /** 지금 화면에 선 단단한 것들 — 원본 무리(교체 안 된 자리)와 교체본 */
 function collectSources(scene: THREE.Scene): Source[] {
   const sources: Source[] = [];
@@ -195,10 +208,16 @@ function collectSources(scene: THREE.Scene): Source[] {
     const mesh = object as THREE.Mesh;
     if (!mesh.isMesh || object.userData.publicAsset || !isShown(object)) return;
     if (!isSolidName(object.name) || !isSolidMaterial(mesh.material)) return;
+    // 거리로 자리를 넣었다 빼는 무리(InstanceGroupMesh) — 가까운 판의 전체 자리로 굽고 원경판은 건너뛴다
+    if (object.userData.solidSkip) return;
     object.updateWorldMatrix(true, false);
     const instanced = object as THREE.InstancedMesh;
     const matrices: THREE.Matrix4[] = [];
-    if (instanced.isInstancedMesh)
+    const full = fullMatricesOf(object);
+    if (full)
+      for (let i = 0; i < full.length / 16; i++)
+        matrices.push(new THREE.Matrix4().fromArray(full, i * 16).premultiply(object.matrixWorld));
+    else if (instanced.isInstancedMesh)
       for (let i = 0; i < instanced.count; i++) {
         const matrix = new THREE.Matrix4();
         instanced.getMatrixAt(i, matrix);
@@ -219,7 +238,14 @@ function signatureOf(scene: THREE.Scene) {
   scene.traverse((object) => {
     if (!(object as THREE.Mesh).isMesh || !isSolidName(object.name)) return;
     if (object.userData.publicAsset && object.userData.lodPaired) return; // 원근 나눔이 수시로 count 를 바꾼다
-    const count = object.userData.publicAsset ? "" : ((object as THREE.InstancedMesh).count ?? 1);
+    if (object.userData.solidSkip) return;
+    const full = fullMatricesOf(object);
+    // 전체 자리로 굽는 무리는 지금 담긴 수(걸을 때마다 바뀐다)가 아니라 전체 수를 적는다
+    const count = object.userData.publicAsset
+      ? ""
+      : full
+        ? `f${full.length / 16}:${placementSum(full)}`
+        : ((object as THREE.InstancedMesh).count ?? 1);
     signature += `|${object.id}:${object.visible ? 1 : 0}:${count}`;
   });
   return signature;
