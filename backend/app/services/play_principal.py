@@ -15,7 +15,6 @@ from fastapi import Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.db.session import get_db
 from app.models.play_session import PlaySession
 from app.services.guest_session import guest_from_request
@@ -23,9 +22,6 @@ from app.services.user_session import require_same_origin, session_user_from_req
 
 PLAY_SESSION_NOT_FOUND = "Play session not found."
 PLAY_LOGIN_REQUIRED = "Play session cookie required."
-PRODUCTION_PLAY_ORIGINS = frozenset(
-    {"https://www.k-escape.com", "https://play.k-escape.com"}
-)
 
 
 @dataclass(frozen=True)
@@ -115,13 +111,13 @@ async def require_play_session_owner(
 
 
 def require_play_origin(request: Request) -> None:
-    """플레이 상태를 바꾸는 요청의 Origin 검사 — 로그인 · 저장 API 와 같은 규칙(정확한 CORS_ORIGINS 일치)."""
+    """플레이 상태를 바꾸는 요청의 Origin 검사 — 로그인 · 저장 API 와 같은 규칙(정확한 CORS_ORIGINS 일치).
+
+    허용 목록은 CORS 미들웨어와 같은 `settings.cors_origins` 하나뿐이다(11/8 PM: preview 등 운영 Origin 추가는
+    CORS_ORIGINS 설정으로만 한다). production 에서는 시작 때 `validate_deployment` 가 이 목록이 비지 않았고
+    `*` 없이 HTTPS 정확 Origin 만 있는지 검사한다. Origin 이 없거나 목록에 정확히 없으면 403 이다.
+    """
     require_same_origin(request)
-    if (
-        settings.app_env == "production"
-        and request.headers.get("origin") not in PRODUCTION_PLAY_ORIGINS
-    ):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Origin not allowed.")
 
 
 def owner_for_new_play_session(
