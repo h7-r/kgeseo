@@ -113,3 +113,16 @@ test("인라인 스크립트 해시가 지금 index.html 과 맞는다", () => {
     for (const hash of inlineScripts(read(file))) assert.ok(play.includes(hash), `${file} ${hash}`);
   }
 });
+
+test("관리자 서버 상태가 재는 에셋 CDN 을 웹(www) connect-src 가 허용한다", () => {
+  const health = read("website/src/admin/api/health.ts");
+  const cdn = health.match(/PRODUCTION_CDN = "([^"]+)"/)?.[1];
+  assert.ok(cdn, "health.ts PRODUCTION_CDN");
+  const connect = (site) =>
+    header(blockFor(site), "Content-Security-Policy-Report-Only")
+      .split(";")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith("connect-src "));
+  assert.ok(connect(SITES.www.live).split(" ").includes(cdn), "www connect-src");
+  assert.ok(connect(SITES.play.live).split(" ").includes(cdn), "play 도 같은 CDN");
+});
