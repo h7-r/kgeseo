@@ -7,6 +7,8 @@
   ③ 승계 없는 게스트 — 게스트 쪽 그대로
   ④ 날짜 경계 — KST 자정 앞에 만들고 자정 뒤에 승계: 만든 날은 게스트, 승계 뒤 같은 쿠키로 만든 새 세션은 회원
   ⑤ (세진 M1) 로그인한 채로 발급된 게스트 — 회원이 그 익명 id 로 만든 세션은 승계(옮긴 세션 0)가 뒤에 와도 회원 쪽
+  ⑥ (세진 G안) 한 게스트에 회원 세션과 게스트 세션이 섞인 뒤 승계 — 승계가 안 건드린 회원 세션(updated_at < 승계 시각)은 회원, 옮겨진 것은 게스트
+  보안: 창(15분)은 지났지만 잠금이 유효한 키도 센다
 """
 
 import hashlib
@@ -77,7 +79,7 @@ class Seed2(Seed):
             )
         )
 
-    def member_play(self, at, *, user: AppUser, cookie: str) -> None:
+    def member_play(self, at, *, user: AppUser, cookie: str, updated_at=None) -> None:
         """로그인한 회원이 만든 세션 — 쿠키 익명 id 는 그대로 실리지만 소유자는 회원이다."""
 
         self.groups[2].append(
@@ -87,7 +89,7 @@ class Seed2(Seed):
                 case_id="naju-angam-01",
                 state_json={},
                 created_at=at,
-                updated_at=at,
+                updated_at=updated_at or at,
                 hint_balance=0,
                 help_used=0,
                 owner_user_id=user.id,
@@ -143,7 +145,8 @@ def test_dau_counts_session_owner_at_creation_time_across_transfer_and_midnight(
                 end - 30 * MINUTE,
                 guest=edge_guest,
                 user=edge_user,
-                reused_until=end + 10 * MINUTE,
+                reused_until=end
+                + 30 * MINUTE,  # 승계가 updated_at 을 승계 시각으로 세운다(_transfer),
             )
             seed.transfer(edge_guest, edge_user, end + 30 * MINUTE)
             seed.member_play(end + HOUR, user=edge_user, cookie=edge_guest)
@@ -155,18 +158,36 @@ def test_dau_counts_session_owner_at_creation_time_across_transfer_and_midnight(
                 start + 6 * HOUR + 20 * MINUTE, user=issued_user, cookie=issued_guest
             )
             seed.transfer(issued_guest, issued_user, start + 8 * HOUR, moved=0)
+            # ⑥ 로그인(09:00) → 로그인한 채 게스트 발급 → 09:10 회원 세션(09:20 까지 함) → 로그아웃 → 09:40 게스트 세션
+            #    → 10:00 로그인하며 승계(옮긴 세션 1 — 게스트 세션만 소유자 · updated_at 이 승계로 바뀜)
+            mixed_user = seed.user("섞인게스트", start - 10 * DAY)
+            seed.login(mixed_user, start + 9 * HOUR)
+            mixed_guest = seed.guest()
+            seed.member_play(
+                start + 9 * HOUR + 10 * MINUTE,
+                user=mixed_user,
+                cookie=mixed_guest,
+                updated_at=start + 9 * HOUR + 20 * MINUTE,
+            )
+            seed.transferred_play(
+                start + 9 * HOUR + 40 * MINUTE,
+                guest=mixed_guest,
+                user=mixed_user,
+                reused_until=start + 10 * HOUR,
+            )
+            seed.transfer(mixed_guest, mixed_user, start + 10 * HOUR, moved=1)
             await seed.save()
         sign_in(admin)
 
         summary = await get_json("/api/v1/admin/stats/summary", date=target.isoformat())
-        assert summary["activity"]["members_dau"] == 2  # ② · ⑤
+        assert summary["activity"]["members_dau"] == 3  # ② · ⑤ · ⑥
         assert (
-            summary["activity"]["guests_dau"] == 3
+            summary["activity"]["guests_dau"] == 4
         )  # ① · ③ · ④ (⑤ 는 게스트가 아니다)
         assert summary["play_sessions"] == {
-            "created_on_date": 5,
-            "created_on_date_by_member": 2,
-            "created_on_date_by_guest": 3,
+            "created_on_date": 7,
+            "created_on_date_by_member": 3,
+            "created_on_date_by_guest": 4,
         }
 
         traffic = await get_json(
@@ -177,7 +198,7 @@ def test_dau_counts_session_owner_at_creation_time_across_transfer_and_midnight(
             today["members_dau"],
             today["guests_dau"],
             today["play_sessions_created"],
-        ) == (2, 3, 5)
+        ) == (3, 4, 7)
         # 다음 날 — ④ 의 승계 자체는 세션이 아니고, 승계 뒤 같은 쿠키로 만든 새 세션만 회원으로 든다
         after = _day(traffic["daily"], target + DAY)
         assert (
@@ -209,14 +230,19 @@ def test_security_summary_counts_only_current_login_throttle_window():
                 window_started_at=now - 40 * MINUTE,
                 locked_until=now - 25 * MINUTE,
             )  # 창도 잠김도 지남
+            seed.throttle(
+                failed=4,
+                window_started_at=now - 20 * MINUTE,
+                locked_until=now + 3 * MINUTE,
+            )  # 창은 지났지만 잠김이 유효 — 센다(세진 8차)
             await seed.save()
         sign_in(admin)
 
         body = await get_json("/api/v1/admin/security/summary")
         assert body["login_throttle"] == {
-            "locked_now": 1,
-            "keys_with_failures": 2,
-            "failures_in_window": 7,
+            "locked_now": 2,
+            "keys_with_failures": 3,
+            "failures_in_window": 11,
         }
 
     mysql_run(scenario)

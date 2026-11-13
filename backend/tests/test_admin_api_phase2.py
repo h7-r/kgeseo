@@ -115,8 +115,14 @@ def test_play_time_basis_joins_transfers_by_anonymous_session_and_time():
     # 승계 기록: 같은 익명 세션 · 세션 생성이 승계보다 앞
     link = "guest_session_transfers.anonymous_session_id = play_sessions.anonymous_session_id"
     before = "play_sessions.created_at < guest_session_transfers.transferred_at"
-    assert link in guest and before in guest and "EXISTS" in guest
-    assert link in member and before in member and "NOT (EXISTS" in member
+    # 옮긴 세션이 있는 승계만(M1) · 소유자 = 승계 계정 · 승계 때 갱신된 updated_at(G안, 세진 11/13)
+    moved = "guest_session_transfers.play_session_count > "
+    owner = "play_sessions.owner_user_id = guest_session_transfers.app_user_id"
+    touched = "play_sessions.updated_at >= guest_session_transfers.transferred_at"
+    for sql in (guest, member):
+        assert link in sql and before in sql and "EXISTS" in sql
+        assert moved in sql and owner in sql and touched in sql
+    assert "NOT (EXISTS" in member
     # 지금 게스트 소유(소유자 없는 옛 세션은 제외) 도 게스트
     assert (
         "owner_user_id IS NULL" in guest

@@ -373,13 +373,19 @@ def _transferred_after_creation():
     (`owner_for_new_play_session`) `play_sessions.anonymous_session_id` 로 이어도 된다.
     로그인한 채로 게스트가 발급될 수 있다(게스트 발급 창구는 로그인 쿠키가 있어도 새 게스트를 내준다) — 그때 회원이 만든 세션은
     소유자가 처음부터 계정이라 승계가 옮기지 않고(`play_session_count` 0), 다음 로그인의 승계 기록만 남는다. 그 기록으로 회원 세션을
-    게스트 것으로 읽지 않게 옮긴 세션이 하나라도 있는 승계만 본다(세진 11/13 M1). 옮긴 것과 회원이 만든 것이 한 게스트에 섞인
-    드문 경우(로그인 → 게스트 발급 → 로그아웃 → 게스트로 플레이 → 로그인)는 열만으로는 못 가른다 — 계약서 P2-1 에 적음."""
+    게스트 것으로 읽지 않게 옮긴 세션이 하나라도 있는 승계만 본다(세진 11/13 M1).
+    승계(`_transfer`)는 옮긴 세션의 `owner_user_id` 를 승계 계정으로, `updated_at` 을 승계 시각(같은 `now`)으로 쓴다 — 그래서 옮겨진
+    세션은 반드시 소유자 = 승계 계정이고 `updated_at >= transferred_at` 이다(세진 G안). 이 둘을 더해 한 게스트에 회원 세션과 게스트 세션이
+    섞인 경우(로그인 → 게스트 발급 → 로그아웃 → 게스트로 플레이 → 로그인)도 승계 뒤 안 건드린 회원 세션은 회원으로 남는다.
+    남는 한계: 승계 뒤에 이어 한 회원 세션(`updated_at` 이 승계 뒤로 밀림)은 열만으로 못 가른다 — 미르 11/13 「이번 베타는 알려진 제한으로
+    수용, 베타 뒤 세진이 DB 보완」. 계약서 P2-1."""
 
     return exists().where(
         GuestSessionTransfer.anonymous_session_id == PlaySession.anonymous_session_id,
         PlaySession.created_at < GuestSessionTransfer.transferred_at,
         GuestSessionTransfer.play_session_count > 0,
+        PlaySession.owner_user_id == GuestSessionTransfer.app_user_id,
+        PlaySession.updated_at >= GuestSessionTransfer.transferred_at,
     )
 
 
