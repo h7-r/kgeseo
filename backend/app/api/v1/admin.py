@@ -90,7 +90,7 @@ from app.services.admin_stats import (
     previous_month_first,
 )
 from app.services.local_auth import utc_now
-from app.services.user_session import current_admin
+from app.services.user_session import THROTTLE_WINDOW, current_admin
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -1061,12 +1061,25 @@ async def security_summary(
         .select_from(LoginThrottle)
         .where(LoginThrottle.locked_until > now),
     )
-    failing = select(LoginThrottle).where(LoginThrottle.failed_count > 0).subquery()
-    keys_with_failures = await _count(db, select(func.count()).select_from(failing))
+    # 현재 창에 든 줄만 센다(세진 11/13) — record_login_failure 는 window_started_at 이 THROTTLE_WINDOW(15분)보다 오래된 줄을
+    # 다음 실패 때 새 창으로 바꾼다(옛 실패 수는 버린다). 그 규칙 그대로 창이 지난 줄은 빼고, 아직 잠긴 줄은 창이 지났어도 센다
+    # (잠김이 유효한 동안은 그 실패 수가 살아 있다 — 잠긴 키가 keys_with_failures 에서 빠지면 안 맞는다).
+    in_window = or_(
+        LoginThrottle.window_started_at >= now - THROTTLE_WINDOW,
+        LoginThrottle.locked_until > now,
+    )
+    keys_with_failures = await _count(
+        db,
+        select(func.count())
+        .select_from(LoginThrottle)
+        .where(LoginThrottle.failed_count > 0, in_window),
+    )
     failures_in_window = int(
         (
             await db.execute(
-                select(func.coalesce(func.sum(LoginThrottle.failed_count), 0))
+                select(func.coalesce(func.sum(LoginThrottle.failed_count), 0)).where(
+                    in_window
+                )
             )
         ).scalar_one()
     )
