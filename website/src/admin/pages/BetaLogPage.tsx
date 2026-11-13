@@ -19,6 +19,7 @@ import {
   type BetaReport,
   type ObjectiveRow,
 } from "../lib/betaReport";
+import { PRE_BETA_TEST_KEYS, testAccountsIn } from "../lib/betaTestAccounts";
 import { formatDateTime, formatNumber } from "../lib/format";
 import BarChart from "../ui/BarChart";
 import DataTable, { type Column } from "../ui/DataTable";
@@ -40,15 +41,23 @@ interface Loaded {
 const SHORT_STEPS = ["첫 실행", "캐릭터 시작", "캐릭터 완료", "본부실", "나주", "P01 해결", "엔딩"];
 const SURVEY_NAMES: Record<string, string> = { pre: "시작 전", post: "끝난 뒤", exit: "중단" };
 
-// 거름 기억 — 「관리자 빼기」는 이 브라우저(localStorage)에, 이메일이 들어가는 「뺄 계정」은 이 탭(sessionStorage)에만 둔다.
-// 탭을 닫으면 이메일은 지워진다(Codex 리뷰). 저장소가 막혀도 화면은 그대로 돈다
+// 거름 기억 — 「관리자 빼기」 · 「베타 전 시험 계정 빼기」는 이 브라우저(localStorage)에, 이메일이 들어가는 「뺄 계정」은
+// 이 탭(sessionStorage)에만 둔다. 탭을 닫으면 이메일은 지워진다(Codex 리뷰). 저장소가 막혀도 화면은 그대로 돈다
 const ADMINS_KEY = "admin.betaLog.excludeAdmins";
+const PRE_BETA_KEY = "admin.betaLog.excludePreBeta";
 const TEXT_KEY = "admin.betaLog.excludeText";
-function readFilter(): { excludeAdmins: boolean; excludeText: string } {
+interface Filter {
+  excludeAdmins: boolean;
+  excludePreBeta: boolean;
+  excludeText: string;
+}
+function readFilter(): Filter {
   let excludeAdmins = true;
+  let excludePreBeta = true;
   let excludeText = "";
   try {
     excludeAdmins = localStorage.getItem(ADMINS_KEY) !== "0";
+    excludePreBeta = localStorage.getItem(PRE_BETA_KEY) !== "0";
   } catch {
     // 기본값
   }
@@ -57,11 +66,12 @@ function readFilter(): { excludeAdmins: boolean; excludeText: string } {
   } catch {
     // 기본값
   }
-  return { excludeAdmins, excludeText };
+  return { excludeAdmins, excludePreBeta, excludeText };
 }
-function saveFilter(value: { excludeAdmins: boolean; excludeText: string }) {
+function saveFilter(value: Filter) {
   try {
     localStorage.setItem(ADMINS_KEY, value.excludeAdmins ? "1" : "0");
+    localStorage.setItem(PRE_BETA_KEY, value.excludePreBeta ? "1" : "0");
   } catch {
     // 기억만 못 할 뿐 집계는 그대로
   }
@@ -92,7 +102,7 @@ export default function BetaLogPage() {
 
 function BetaLogView({ loaded, onReload }: { loaded: Loaded; onReload: () => void }) {
   const [filter, setFilter] = useState(readFilter);
-  const updateFilter = (next: Partial<typeof filter>) => {
+  const updateFilter = (next: Partial<Filter>) => {
     const value = { ...filter, ...next };
     setFilter(value);
     saveFilter(value);
@@ -101,6 +111,7 @@ function BetaLogView({ loaded, onReload }: { loaded: Loaded; onReload: () => voi
   const { exclude, unknown } = useMemo(() => {
     const ids = new Set<string>();
     if (filter.excludeAdmins) for (const user of loaded.users) if (user.role === "admin") ids.add(user.user_id);
+    if (filter.excludePreBeta) for (const id of testAccountsIn(loaded.rows.map((row) => row.app_user_id))) ids.add(id);
     const byEmail = new Map(loaded.users.map((user) => [user.email.toLowerCase(), user.user_id]));
     const misses: string[] = [];
     for (const raw of filter.excludeText.split(/[\s,]+/)) {
@@ -111,7 +122,7 @@ function BetaLogView({ loaded, onReload }: { loaded: Loaded; onReload: () => voi
       else misses.push(item);
     }
     return { exclude: ids, unknown: misses };
-  }, [loaded.users, filter]);
+  }, [loaded.users, loaded.rows, filter]);
 
   const report = useMemo(
     () => buildBetaReport(loaded.rows, { now: loaded.loadedAt, exclude }),
@@ -137,6 +148,14 @@ function BetaLogView({ loaded, onReload }: { loaded: Loaded; onReload: () => voi
             onChange={(event) => updateFilter({ excludeAdmins: event.target.checked })}
           />
           관리자 계정 기록 빼기
+        </label>
+        <label className="adm-beta-tools__check">
+          <input
+            type="checkbox"
+            checked={filter.excludePreBeta}
+            onChange={(event) => updateFilter({ excludePreBeta: event.target.checked })}
+          />
+          베타 전 시험 계정 {PRE_BETA_TEST_KEYS.size}개 기록 빼기(11/13 정리)
         </label>
         <label className="adm-field">
           <span className="adm-field__label">
