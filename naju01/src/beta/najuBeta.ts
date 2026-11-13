@@ -7,6 +7,7 @@
  * 목표: 1초마다 퍼즐 상태로 본 완료 목록 · 지금 목표를 읽어 바뀐 것만 남긴다. 페이지를 연 때 이미 끝나 있던 것(이어 하기 복원)은
  *       완료로 다시 세지 않고 시작 기록(completed_at_start)에 적는다.
  */
+import { droppedLookSpikes } from "@/engine/input/lookGuard";
 import { betaLog } from "@/beta/betaLog";
 import { onBetaHidden, trackError } from "@/beta/betaBoot";
 
@@ -151,6 +152,8 @@ export function initNajuBeta() {
               restarts: attemptCount.restarts(),
               help_received: helpLog.asked(),
               answer_seen: helpLog.isAnswerSeen(),
+              // 이번 접속에서 버린 「튀는 마우스 값」 수 — 윈도우 크롬에서 실제로 튀는지 본다(lookGuard, 11/13)
+              look_spikes: droppedLookSpikes(),
             },
           });
         else if (stage === "rite") betaLog.track("objective_state", "rite", { objective_id: "GUT", data: { active_ms: activeMs() } });
