@@ -6,7 +6,7 @@ export interface StatsSummary {
   /** 기준 날짜(KST) */
   date: string;
   include_internal: boolean;
-  /** 뺀 관리자 수. test_accounts 가 null 이면 테스트 계정을 아직 가려내지 못해 포함돼 있다 */
+  /** 뺀 관리자 수 · 테스트 계정 수(is_test, 세진 11/13). test_accounts 가 null 이면 아직 is_test 가 배포되기 전 — 테스트 계정이 포함돼 있다 */
   excluded: { admins: number; test_accounts: number | null };
   members: { total: number; signups_on_date: number; signups_in_month: number };
   /** 회원은 그날 로그인하거나 플레이를 새로 시작한 사람. 게스트는 브라우저 단위로 따로 센다 */
