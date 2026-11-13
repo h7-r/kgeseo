@@ -13,7 +13,7 @@ import { createChangeSignal } from "@/lib/changeSignal";
 
 import { setKeyInterceptor } from "../interaction";
 import { beginHold, endHold, isWindowHeld } from "../pointerHold";
-import { continuedStart, cursorAt, pickZone, type ZoneChoice } from "./gaugeMath";
+import { continuedStart, cursorAt, isGaugeHit, pickZone, type ZoneChoice } from "./gaugeMath";
 
 export const GAUGE_HITS = 3;
 
@@ -122,15 +122,23 @@ function nextRound(hits: number, now: number): Pick<GaugeState, "zone" | "center
 /** 막대 자리 0~1 — 왼쪽 끝에서 출발해 오간다 */
 export const gaugeCursor = (now: number) => cursorAt(now - state.startedAt, state.sweep).position;
 
-const isInZone = (cursor: number) => Math.abs(cursor - state.center) <= state.zone / 2;
+let shown: { position: number; at: number } | null = null;
+/** HUD 가 막대를 그릴 때마다 알린다 — 화면이 느린 기기에서는 「보이는 자리」와 「지금 시각의 자리」가 벌어진다 */
+export function noteGaugeShown(position: number, at: number) {
+  shown = { position, at };
+}
+
 
 function handleKey() {
   if (!state.active) return false;
   // 터치 멈춤(창 · 메뉴) 동안은 막대도 서 있다 — 그 사이 누른 것은 판정하지 않는다(02회차 Codex)
   if (isGameFrozen()) return false;
   const now = performance.now();
-  if (isInZone(gaugeCursor(now))) {
+  // 지금 시각의 자리 또는 방금 화면에 그려진 자리로 판정한다(gaugeMath.isGaugeHit)
+  if (isGaugeHit({ cursor: gaugeCursor(now), shown, now, center: state.center, zone: state.zone })) {
     const hits = state.hits + 1;
+    // 판이 바뀐다 — 앞 판에서 그려진 자리로 새 칸까지 맞지 않게 버린다(Codex 리뷰)
+    shown = null;
     const isLast = hits >= GAUGE_HITS;
     // 마지막이면 다음 판을 만들지 않고 끝낸다
     update({ hits, flash: "hit", flashKey: state.flashKey + 1, ...(isLast ? {} : nextRound(hits, now)) });
@@ -148,6 +156,7 @@ export function startGauge(label: string, next: GaugeHandlers) {
   handlers = next;
   setKeyInterceptor(handleKey);
   beginHold("gauge", "interaction");
+  shown = null;
   update({ active: true, label, hits: 0, flash: null, ...firstRound(performance.now()) });
 }
 
@@ -178,5 +187,7 @@ export const useGauge = () => useSyncExternalStore(signal.subscribe, () => state
 
 exposeDevHook("najuGauge", {
   state: () => state,
-  isOnZone: () => state.active && isInZone(gaugeCursor(performance.now())),
+  isOnZone: () =>
+    state.active &&
+    isGaugeHit({ cursor: gaugeCursor(performance.now()), shown: null, now: 0, center: state.center, zone: state.zone }),
 });

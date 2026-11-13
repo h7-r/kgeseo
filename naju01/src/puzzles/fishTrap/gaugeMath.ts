@@ -67,3 +67,29 @@ export function pickZone(
   if (roomy.length > 0) return roomy[Math.floor(random() * roomy.length)].choice;
   return timed.reduce((best, entry) => (entry.seconds > best.seconds ? entry : best)).choice;
 }
+
+/** 막대 폭의 절반(게이지 길이 대비) — 막대 가장자리가 칸에 걸쳐 보이면 맞은 것으로 친다(HUD: 길이 380 에 막대 12) */
+export const MARKER_HALF = 6 / 380;
+/** 마지막으로 그린 막대 자리를 이 시간(ms) 안에 눌렀으면 그 자리로도 판정한다 */
+export const SHOWN_GRACE_MS = 150;
+
+export interface HitInput {
+  /** 누른 순간의 막대 자리(0~1) */
+  cursor: number;
+  /** 마지막으로 화면에 그린 막대 자리와 그 시각(ms) */
+  shown: { position: number; at: number } | null;
+  /** 누른 시각(ms) */
+  now: number;
+  center: number;
+  zone: number;
+}
+
+/**
+ * 맞았나 — 누른 순간의 자리가 칸 안이거나, 방금(SHOWN_GRACE_MS 안) 화면에 그려진 자리가 칸 안이면 맞은 것.
+ * 화면이 느린 기기에서는 성공 칸(셋째 판 84ms)이 그려진 한 장 사이에 지나가 「칸 안에서 눌렀는데 실패」가 났다(베타 11/12).
+ */
+export function isGaugeHit({ cursor, shown, now, center, zone }: HitInput): boolean {
+  const inZone = (position: number) => Math.abs(position - center) <= zone / 2 + MARKER_HALF;
+  if (inZone(cursor)) return true;
+  return shown !== null && now - shown.at >= 0 && now - shown.at <= SHOWN_GRACE_MS && inZone(shown.position);
+}

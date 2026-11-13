@@ -176,11 +176,26 @@ export function useTerrainMovement(
       else if (code === "KeyS" || (arrows && code === "ArrowDown")) k.back = isDown;
       else if (code === "KeyA" || (arrows && code === "ArrowLeft")) k.left = isDown;
       else if (code === "KeyD" || (arrows && code === "ArrowRight")) k.right = isDown;
-      else if (code === "ShiftLeft" || code === "ShiftRight") k.run = isDown;
+    };
+    // 달리기는 Shift 가 지금 눌려 있는지로 읽는다(event.shiftKey) — 좌우 Shift 를 한 값으로 적으면 하나만 떼도 꺼지고,
+    // 창을 오갔다 돌아오면(blur 가 다 끔) 누른 채여도 다시 안 켜졌다(베타 11/12 「달리기가 안 된다」). 어느 키든 눌릴 때마다 맞춘다
+    const syncRun = (e: KeyboardEvent) => {
+      const k = keys.current;
+      const wasRunning = k.run;
+      k.run = e.shiftKey;
+      // 달리기를 시작하면 일어선다 — 앉기(C)는 토글이라 모르고 앉은 채면 Shift 를 눌러도 느렸다
+      if (k.run && !wasRunning) k.crouch = false;
+    };
+    const isTyping = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      return !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ctrl/⌘ 를 누른 채면 이동으로 안 친다 — Ctrl+S(저장)가 S(뒤로 걷기)와 맞물려 저장할 때마다 뒷걸음질쳤다.
       if (e.ctrlKey || e.metaKey) return;
+      // 글을 치는 중이면 이동 키로 안 친다(C 로 앉기가 걸리던 것 포함)
+      if (isTyping(e)) return;
+      syncRun(e);
       if (HANDLED_KEYS.has(e.code)) e.preventDefault();
       if (e.code === "Space" && isGrounded.current && !isCameraFocused()) {
         verticalVelocity.current = JUMP_VELOCITY * (swimRef.current ? SWIM.jump : 1);
@@ -191,7 +206,15 @@ export function useTerrainMovement(
       if (e.code === "KeyC" && !e.repeat) keys.current.crouch = !keys.current.crouch;
       setKey(e.code, true);
     };
-    const handleKeyUp = (e: KeyboardEvent) => setKey(e.code, false);
+    const handleKeyUp = (e: KeyboardEvent) => {
+      setKey(e.code, false);
+      // 글을 치는 중에 뗀 키로는 달리기를 켜지 않는다(Shift+글자를 치면 앉기가 풀렸다, Codex 리뷰) — 끄는 것만 받는다
+      if (isTyping(e)) {
+        if (!e.shiftKey) keys.current.run = false;
+        return;
+      }
+      syncRun(e);
+    };
     const handleBlur = () => {
       keys.current = { forward: false, back: false, left: false, right: false, run: false, crouch: false };
       velocity.current.x = 0;

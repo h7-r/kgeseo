@@ -7,7 +7,7 @@ import { isPointerActive } from "@/engine/input/virtualLock";
 
 import { isInteractionHeld } from "../pointerHold";
 
-import { GAUGE_HITS, gaugeCursor, stopGauge, useGauge } from "./pullGauge";
+import { GAUGE_HITS, gaugeCursor, noteGaugeShown, stopGauge, useGauge } from "./pullGauge";
 
 // 반원 게이지 — 낚시 릴처럼 위로 휜 반투명 띠. 잿빛 막대가 잿빛 띠를 따라 오가고 흰 칸에서 [E]
 // 칸은 판마다 좁아지고 옮겨 가지만 빛깔은 세 판 다 같은 흰색(판마다 달라 보이면 규칙이 바뀐 줄 안다)
@@ -97,7 +97,10 @@ export default function PullGaugeHud() {
         stopGauge();
         return;
       }
-      markerRef.current?.setAttribute("transform", markerTransform(gaugeCursor(performance.now())));
+      const drawnAt = performance.now();
+      const position = gaugeCursor(drawnAt);
+      markerRef.current?.setAttribute("transform", markerTransform(position));
+      noteGaugeShown(position, drawnAt);
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
