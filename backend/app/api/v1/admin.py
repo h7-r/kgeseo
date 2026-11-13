@@ -6,6 +6,7 @@
 """
 
 from datetime import date, datetime, timedelta
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import Select, and_, exists, func, or_, select, union
@@ -26,6 +27,7 @@ from app.models.app_user import AppUser
 from app.models.auth_identity import AuthIdentity
 from app.models.beta_event import BetaEvent
 from app.models.guest_session import GuestSessionTransfer
+from app.models.inquiry import Inquiry, InquiryReply
 from app.models.play_session import PlaySession
 from app.schemas.account_data import (
     AdminUserDetail,
@@ -56,28 +58,55 @@ from app.schemas.admin import (
     StageStats,
     StatsActivity,
     StatsExcluded,
+    StatsInquiries,
     StatsMembers,
     StatsPlaySessions,
     StatsRangeUtc,
     TrafficDay,
     TrafficLive,
 )
+from app.schemas.admin_content import ContentCaseDetail, ContentList
+from app.schemas.admin_setting import (
+    AdminAccount,
+    AdminAccountList,
+    AdminSettingsEditable,
+    AdminSettingsResponse,
+    MaintenanceMode,
+    MaintenanceModeUpdate,
+)
 from app.schemas.beta_event import (
     PARTICIPANT_CODE_PATTERN,
     BetaEventExport,
     BetaEventOut,
 )
+from app.schemas.inquiry import (
+    AdminInquiryDetail,
+    AdminInquiryList,
+    AdminInquiryListItem,
+    AdminInquiryReply,
+    AdminInquiryStats,
+    InquiryPatch,
+    InquiryReplyCreate,
+)
+from app.services.admin_content import case_detail, list_cases
 from app.services.admin_query import (
     KST_NAME,
     invalid_query,
     kst_range,
     kst_today,
     like_contains,
+    mask_email,
     parse_bool,
     parse_int,
     parse_kst_date,
     parse_user_search,
     parse_uuid,
+)
+from app.services.admin_settings import (
+    MaintenanceValue,
+    read_maintenance,
+    readonly_values,
+    write_maintenance,
 )
 from app.services.admin_stats import (
     GameEvent,
@@ -89,8 +118,19 @@ from app.services.admin_stats import (
     person_key,
     previous_month_first,
 )
+from app.services.inquiry import (
+    average_first_reply_hours,
+    ip_display,
+    kst_today_start_utc,
+    replies_of,
+    reply_counts,
+)
 from app.services.local_auth import utc_now
-from app.services.user_session import THROTTLE_WINDOW, current_admin
+from app.services.user_session import (
+    THROTTLE_WINDOW,
+    current_admin,
+    require_same_origin,
+)
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -127,6 +167,12 @@ AUDIT_ACTIONS = frozenset(
         "view_member_stats",
         "view_active_sessions",
         "view_security_summary",
+        "list_inquiries",
+        "read_inquiry",
+        "reply_inquiry",
+        "update_inquiry",
+        "update_setting",
+        "list_admins",
     }
 )
 
@@ -552,6 +598,14 @@ async def stats_summary(
             created_on_date=by_member + by_guest,
             created_on_date_by_member=by_member,
             created_on_date_by_guest=by_guest,
+        ),
+        inquiries=StatsInquiries(
+            open=await _count(
+                db,
+                select(func.count())
+                .select_from(Inquiry)
+                .where(Inquiry.status == "open"),
+            )
         ),
         unavailable={"lobby_concurrent": "lobby_metrics_not_connected"},
     )
@@ -1142,3 +1196,378 @@ async def security_summary(
     )
     await _audit(db, admin, "view_security_summary", None)
     return result
+
+
+# --- 관리자 API v0.3 3단계(11/13 해랑): 1:1 문의 · 설정 · 관리자 목록 · 콘텐츠(읽기 전용) ---
+
+INQUIRY_PAGE_SIZE = 50
+INQUIRY_STATUS_FILTERS = ("all", "open", "answered", "closed")
+
+
+async def _inquiry_or_404(db: AsyncSession, inquiry_id: str) -> Inquiry:
+    row = await db.scalar(select(Inquiry).where(Inquiry.id == inquiry_id))
+    if row is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail="Inquiry not found.",
+            headers={"Cache-Control": "no-store"},
+        )
+    return row
+
+
+async def _nicknames(db: AsyncSession, user_ids: list[str | None]) -> dict[str, str]:
+    ids = [user_id for user_id in user_ids if user_id]
+    if not ids:
+        return {}
+    rows = await db.execute(
+        select(AppUser.id, AppUser.nickname).where(AppUser.id.in_(ids))
+    )
+    return {user_id: nickname for user_id, nickname in rows.all()}
+
+
+async def _inquiry_detail(db: AsyncSession, row: Inquiry) -> AdminInquiryDetail:
+    replies = (await replies_of(db, [row.id])).get(row.id, [])
+    names = await _nicknames(
+        db, [row.app_user_id, *[reply.admin_user_id for reply in replies]]
+    )
+    return AdminInquiryDetail(
+        id=row.id,
+        number=row.number or "",
+        title=row.title,
+        body=row.body,
+        category=row.category,
+        status=row.status,
+        priority=row.priority,
+        email=row.email,
+        nickname=names.get(row.app_user_id or ""),
+        user_id=row.app_user_id,
+        client_ip_display=ip_display(row.client_ip),
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+        answered_at=row.answered_at,
+        replies=[
+            AdminInquiryReply(
+                id=reply.id,
+                body=reply.body,
+                created_at=reply.created_at,
+                admin_user_id=reply.admin_user_id,
+                admin_nickname=names.get(reply.admin_user_id or ""),
+            )
+            for reply in replies
+        ],
+    )
+
+
+@router.get(
+    "/inquiries",
+    response_model=AdminInquiryList,
+    responses=error_responses.ADMIN_INQUIRY_LIST,
+)
+async def list_inquiries(
+    offset: int = Query(default=0, ge=0),
+    limit: str | None = Query(
+        default=None, description=f"1~{INQUIRY_PAGE_SIZE}, 기본 {INQUIRY_PAGE_SIZE}"
+    ),
+    status_filter: str | None = Query(
+        default=None, alias="status", description="all(기본) · open · answered · closed"
+    ),
+    priority: str | None = Query(default=None, description="urgent 만 거를 때"),
+    admin: AppUser = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminInquiryList:
+    """문의 목록(§P3-1) — 최신순, 이메일은 가림, 집계 카드 넷. 닉네임 · 가린 이메일이 보이므로 기록한다."""
+
+    page_size = parse_int(
+        limit, "limit", default=INQUIRY_PAGE_SIZE, low=1, high=INQUIRY_PAGE_SIZE
+    )
+    chosen = status_filter or "all"
+    if chosen not in INQUIRY_STATUS_FILTERS:
+        raise invalid_query("status 는 all · open · answered · closed 중 하나다.")
+    if priority is not None and priority != "urgent":
+        raise invalid_query("priority 는 urgent 만 받는다.")
+    query = select(Inquiry)
+    if chosen != "all":
+        query = query.where(Inquiry.status == chosen)
+    if priority == "urgent":
+        query = query.where(Inquiry.priority == "urgent")
+    rows = (
+        (
+            await db.execute(
+                query.order_by(Inquiry.created_at.desc(), Inquiry.seq.desc())
+                .offset(offset)
+                .limit(page_size + 1)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    page = rows[:page_size]
+    names = await _nicknames(db, [row.app_user_id for row in page])
+    counts = await reply_counts(db, [row.id for row in page])
+    total = await _count(db, select(func.count()).select_from(Inquiry))
+    open_count = await _count(
+        db, select(func.count()).select_from(Inquiry).where(Inquiry.status == "open")
+    )
+    today = await _count(
+        db,
+        select(func.count())
+        .select_from(Inquiry)
+        .where(Inquiry.created_at >= kst_today_start_utc()),
+    )
+    stats = AdminInquiryStats(
+        total=total,
+        open=open_count,
+        today=today,
+        avg_first_reply_hours=await average_first_reply_hours(db),
+    )
+    await _audit(db, admin, "list_inquiries", None)
+    return AdminInquiryList(
+        stats=stats,
+        items=[
+            AdminInquiryListItem(
+                id=row.id,
+                number=row.number or "",
+                title=row.title,
+                category=row.category,
+                status=row.status,
+                priority=row.priority,
+                email=mask_email(row.email),
+                nickname=names.get(row.app_user_id or ""),
+                user_id=row.app_user_id,
+                created_at=row.created_at,
+                answered_at=row.answered_at,
+                reply_count=counts.get(row.id, 0),
+            )
+            for row in page
+        ],
+        next_offset=offset + page_size if len(rows) > page_size else None,
+    )
+
+
+@router.get(
+    "/inquiries/{inquiry_id}",
+    response_model=AdminInquiryDetail,
+    responses=error_responses.ADMIN_INQUIRY_DETAIL,
+)
+async def read_inquiry(
+    inquiry_id: str,
+    admin: AppUser = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminInquiryDetail:
+    """문의 상세 — 본문 · 전체 이메일 · IP 앞 두 자리 · 답변. 기록한다."""
+
+    row = await _inquiry_or_404(db, inquiry_id)
+    detail = await _inquiry_detail(db, row)
+    await _audit(db, admin, "read_inquiry", row.app_user_id)
+    return detail
+
+
+@router.post(
+    "/inquiries/{inquiry_id}/replies",
+    response_model=AdminInquiryDetail,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_same_origin)],
+    responses=error_responses.ADMIN_INQUIRY_REPLY,
+)
+async def reply_inquiry(
+    inquiry_id: str,
+    payload: InquiryReplyCreate,
+    admin: AppUser = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminInquiryDetail:
+    """답변 등록 — open 이면 answered 로, 첫 답변이면 answered_at. 종료된 문의는 409."""
+
+    row = await _inquiry_or_404(db, inquiry_id)
+    if row.status == "closed":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "code": "inquiry_closed",
+                "message": "종료된 문의에는 답할 수 없다.",
+            },
+            headers={"Cache-Control": "no-store"},
+        )
+    now = utc_now()
+    db.add(
+        InquiryReply(
+            id=str(uuid4()),
+            inquiry_id=row.id,
+            admin_user_id=admin.id,
+            body=payload.body,
+            created_at=now,
+        )
+    )
+    if row.status == "open":
+        row.status = "answered"
+    if row.answered_at is None:
+        row.answered_at = now
+    row.updated_at = now
+    await db.commit()
+    await db.refresh(row)
+    detail = await _inquiry_detail(db, row)
+    await _audit(db, admin, "reply_inquiry", row.app_user_id)
+    return detail
+
+
+@router.patch(
+    "/inquiries/{inquiry_id}",
+    response_model=AdminInquiryDetail,
+    dependencies=[Depends(require_same_origin)],
+    responses=error_responses.ADMIN_INQUIRY_PATCH,
+)
+async def update_inquiry(
+    inquiry_id: str,
+    payload: InquiryPatch,
+    admin: AppUser = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminInquiryDetail:
+    """상태 · 우선순위 변경(하나 이상)."""
+
+    if payload.status is None and payload.priority is None:
+        raise invalid_query("바꿀 값(status · priority)이 하나도 없다.")
+    row = await _inquiry_or_404(db, inquiry_id)
+    if payload.status is not None:
+        row.status = payload.status
+    if payload.priority is not None:
+        row.priority = payload.priority
+    row.updated_at = utc_now()
+    await db.commit()
+    await db.refresh(row)
+    detail = await _inquiry_detail(db, row)
+    await _audit(db, admin, "update_inquiry", row.app_user_id)
+    return detail
+
+
+def _maintenance_out(
+    value: MaintenanceValue, updated_by_nickname: str | None
+) -> MaintenanceMode:
+    return MaintenanceMode(
+        on=value.on,
+        message=value.message,
+        updated_at=value.updated_at,
+        updated_by=updated_by_nickname,
+    )
+
+
+@router.get(
+    "/settings",
+    response_model=AdminSettingsResponse,
+    responses=error_responses.ADMIN_SETTINGS,
+)
+async def read_settings(
+    response: Response,
+    admin: AppUser = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminSettingsResponse:
+    """설정(§P3-2) — 바꿀 수 있는 값(점검 모드)과 실행 중 서버의 읽기 전용 값. 사람이 안 보여 기록하지 않는다."""
+
+    response.headers["Cache-Control"] = "no-store"
+    value = await read_maintenance(db)
+    names = await _nicknames(db, [value.updated_by])
+    return AdminSettingsResponse(
+        editable=AdminSettingsEditable(
+            maintenance_mode=_maintenance_out(value, names.get(value.updated_by or ""))
+        ),
+        readonly=readonly_values(),
+    )
+
+
+@router.put(
+    "/settings/maintenance_mode",
+    response_model=MaintenanceMode,
+    dependencies=[Depends(require_same_origin)],
+    responses=error_responses.ADMIN_SETTINGS_WRITE,
+)
+async def update_maintenance_mode(
+    payload: MaintenanceModeUpdate,
+    response: Response,
+    admin: AppUser = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> MaintenanceMode:
+    """점검 모드 켜기 · 끄기(값 저장). 적용은 웹사이트가 `GET /site/status` 를 읽어서 한다. 기록 `update_setting`."""
+
+    response.headers["Cache-Control"] = "no-store"
+    value = await write_maintenance(
+        db, admin_user_id=admin.id, on=payload.on, message=payload.message.strip()
+    )
+    await _audit(db, admin, "update_setting", None)
+    return _maintenance_out(value, admin.nickname)
+
+
+@router.get(
+    "/admins",
+    response_model=AdminAccountList,
+    responses=error_responses.ADMIN_SETTINGS,
+)
+async def list_admins(
+    response: Response,
+    admin: AppUser = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminAccountList:
+    """관리자 계정 목록(읽기). 지정 · 해제는 서버 스크립트로만. 이메일이 보이므로 기록한다."""
+
+    response.headers["Cache-Control"] = "no-store"
+    rows = (
+        (
+            await db.execute(
+                select(AppUser)
+                .where(AppUser.role == ADMIN_ROLE)
+                .order_by(AppUser.created_at.asc(), AppUser.id.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    last_sessions = await _last_session_by_user(db, [row.id for row in rows])
+    await _audit(db, admin, "list_admins", None)
+    return AdminAccountList(
+        items=[
+            AdminAccount(
+                user_id=row.id,
+                nickname=row.nickname,
+                email=mask_email(row.email),
+                created_at=row.created_at,
+                last_login_at=None,
+                last_session_started_at=last_sessions.get(row.id),
+            )
+            for row in rows
+        ]
+    )
+
+
+@router.get(
+    "/contents",
+    response_model=ContentList,
+    responses=error_responses.ADMIN_CONTENT_LIST,
+)
+async def list_contents(
+    response: Response,
+    admin: AppUser = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> ContentList:
+    """콘텐츠 읽기 전용 목록(§P3-3). 정답 · 서버 런타임 · 원문 없음. 사람이 안 보여 기록하지 않는다."""
+
+    response.headers["Cache-Control"] = "no-store"
+    return ContentList(cases=await list_cases(db))
+
+
+@router.get(
+    "/contents/{case_id}",
+    response_model=ContentCaseDetail,
+    responses=error_responses.ADMIN_CONTENT_DETAIL,
+)
+async def read_content(
+    case_id: str,
+    response: Response,
+    admin: AppUser = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> ContentCaseDetail:
+    response.headers["Cache-Control"] = "no-store"
+    detail = await case_detail(db, case_id)
+    if detail is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail="Case not found.",
+            headers={"Cache-Control": "no-store"},
+        )
+    return detail

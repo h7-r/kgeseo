@@ -8,6 +8,7 @@ import { FONT } from "@/lib/style";
 import { QUERY, ROUTES, launchGame, useSiteNavigate, withQuery } from "@/navigation/routes";
 import type { AccountData } from "@/services/account/db";
 import { deleteAccount, exportMyData, readAccountData, writeAccountData } from "@/services/account/manageAccount";
+import { fetchMyInquiries, type MyInquiry } from "@/services/inquiries";
 import { signOut, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
@@ -66,6 +67,20 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
     };
   }, [user?.email]);
   const emailNotifications = accountData?.settings?.emailNotifications ?? true;
+  // 서버의 내 문의 — 탭을 열 때 받는다(문의 서버, 11/13). 로그아웃하면 비운다
+  // 받은 결과에 「누구 · 몇 번째 열기」표식을 붙여 둔다 — 표식이 다르면 아직 받는 중으로 본다(효과 안에서 바로 setState 하지 않게)
+  const inquiriesKey = `${user?.id ?? ""}:${tab === "inquiries" ? "open" : "closed"}`;
+  const [loadedInquiries, setLoadedInquiries] = useState<{ key: string; items: MyInquiry[] | null } | null>(null);
+  useEffect(() => {
+    if (!user?.id || tab !== "inquiries") return;
+    const controller = new AbortController();
+    fetchMyInquiries(controller.signal).then((items) => {
+      if (!controller.signal.aborted) setLoadedInquiries({ key: inquiriesKey, items });
+    });
+    return () => controller.abort();
+  }, [user?.id, tab, inquiriesKey]);
+  const myInquiries: MyInquiry[] | null | "loading" =
+    loadedInquiries?.key === inquiriesKey ? loadedInquiries.items : "loading";
 
   const handleSignOut = () => {
     signOut();
@@ -125,7 +140,8 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
       <div style={{ display: "flex", flexDirection: "column", gap: "16px", width: "100%" }}>
         {tab === "inquiries" && (
           <InquiriesTab
-            inquiries={accountData?.inquiries ?? []}
+            inquiries={myInquiries}
+            legacy={accountData?.inquiries ?? []}
             onWrite={() => navigate(withQuery(ROUTES.support, { [QUERY.tab]: "inquiry" }))}
           />
         )}

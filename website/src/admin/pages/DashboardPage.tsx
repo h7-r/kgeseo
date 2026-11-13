@@ -51,6 +51,8 @@ export default function DashboardPage() {
   const [traffic] = useAdminResource(`traffic:7:${scope}`, (signal) => fetchStatsTraffic(7, includeInternal, signal));
   const [game] = useAdminResource("game:30", (signal) => fetchStatsGame(30, signal));
   const [detail, setDetail] = useState<Detail | null>(null);
+  // 미답변 1:1 문의 수 — 요약이 오기 전엔 모른다
+  const openInquiries = resource.status === "ready" ? resource.data.inquiries.open : null;
 
   return (
     <>
@@ -133,9 +135,14 @@ export default function DashboardPage() {
             활동 로그 열기
           </Link>
         </Panel>
-        <Panel title="문의" meta="support@k-escape.com">
+        <Panel title="문의" meta={openInquiries === null ? "집계 중" : `미답변 ${formatNumber(openInquiries)}건`}>
           <p className="adm-dashboard-note">
-            1:1 문의는 웹 고객센터에서 support 메일로 받습니다(미르 11/12). 문의 API 는 베타 뒤 필요 여부부터 정합니다.
+            {openInquiries === null
+              ? "미답변 문의 수를 불러오는 중입니다."
+              : openInquiries > 0
+                ? `답변을 기다리는 1:1 문의가 ${formatNumber(openInquiries)}건 있습니다.`
+                : "답변을 기다리는 1:1 문의가 없습니다."}{" "}
+            <Link to={ADMIN_PATHS.support}>CS 관리에서 답하기</Link>
           </p>
         </Panel>
       </div>

@@ -8,7 +8,6 @@ import GameDataPage, { GameDataRangeTabs } from "./pages/GameDataPage";
 import NoticesPage, { NoticeWriteButton } from "./pages/NoticesPage";
 import SecurityPage from "./pages/SecurityPage";
 import SettingsPage from "./pages/SettingsPage";
-import SubscriptionsPage from "./pages/SubscriptionsPage";
 import SupportPage from "./pages/SupportPage";
 import TrafficPage, { TrafficRangeTabs } from "./pages/TrafficPage";
 import UserDetailPage from "./pages/UserDetailPage";
@@ -31,7 +30,6 @@ const SCREEN_VIEWS: Record<ScreenId, ScreenView> = {
   notices: { Component: NoticesPage, HeaderActions: NoticeWriteButton },
   contents: { Component: ContentsPage },
   support: { Component: SupportPage },
-  subscriptions: { Component: SubscriptionsPage },
   settings: { Component: SettingsPage },
 };
 

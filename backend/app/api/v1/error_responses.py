@@ -391,6 +391,16 @@ _LOGIN_REQUIRED = {
 FOREIGN_ORIGIN = {
     403: error(ErrorMessage, "다른 사이트에서 온 쓰기 요청이다.", "Origin not allowed.")
 }
+# 관리자 쓰기(문의 답변 · 상태 · 설정) — 관리자 검사 + Origin 검사
+_ADMIN_WRITE = {
+    **_LOGIN_REQUIRED,
+    403: error(
+        ErrorMessage,
+        "관리자가 아니거나 다른 사이트에서 온 쓰기 요청이다(문장 구분).",
+        "Admin only.",
+        "Origin not allowed.",
+    ),
+}
 _TOO_LARGE = {
     413: error(ErrorMessage, "저장 값이 크기 한도를 넘었다.", "Save data too large.")
 }
@@ -440,6 +450,55 @@ ADMIN_USER_SEARCH = {
 ADMIN_QUERY = {
     **ADMIN_LIST,
     422: error(CodedError, _INVALID_QUERY_SUMMARY, "invalid_query"),
+}
+
+# --- 관리자 API v0.3 3단계(11/13 해랑): 1:1 문의 · 설정 · 콘텐츠 ---
+INQUIRY_CREATE = {
+    **FOREIGN_ORIGIN,
+    422: error(
+        ValidationErrorResponse | CodedError,
+        _VALIDATION
+        + " 분류 다섯 값 · 제목 1~100자 · 본문 1~4000자 / 답변 받을 이메일이 형식에 안 맞음.",
+        "invalid_email",
+    ),
+    429: error(
+        CodedError,
+        "같은 IP 의 문의 접수가 최근 창(기본 10분 5건, 운영 설정 `RATE_LIMIT_INQUIRY_*`)을 넘었다. "
+        "`Retry-After` 헤더(정수 초) 뒤 다시 보낸다." + _NO_STORE,
+        "rate_limited",
+    ),
+}
+_INQUIRY_NOT_FOUND = {404: error(ErrorMessage, "없는 문의다.", "Inquiry not found.")}
+ADMIN_INQUIRY_LIST = ADMIN_QUERY
+ADMIN_INQUIRY_DETAIL = {**ADMIN_LIST, **_INQUIRY_NOT_FOUND}
+ADMIN_INQUIRY_REPLY = {
+    **_ADMIN_WRITE,
+    **_INQUIRY_NOT_FOUND,
+    409: error(CodedError, "종료된 문의에는 답할 수 없다.", "inquiry_closed"),
+    422: error(ValidationErrorResponse, _VALIDATION + " 답변 1~4000자."),
+}
+ADMIN_INQUIRY_PATCH = {
+    **_ADMIN_WRITE,
+    **_INQUIRY_NOT_FOUND,
+    422: error(
+        ValidationErrorResponse | CodedError,
+        _VALIDATION + " / 바꿀 값(status · priority)이 하나도 없다.",
+        "invalid_query",
+    ),
+}
+ADMIN_SETTINGS = ADMIN_LIST
+ADMIN_SETTINGS_WRITE = {
+    **_ADMIN_WRITE,
+    422: error(
+        ValidationErrorResponse, _VALIDATION + " on 은 bool · message 는 200자까지."
+    ),
+}
+ADMIN_CONTENT_LIST = ADMIN_LIST
+ADMIN_CONTENT_DETAIL = {
+    **ADMIN_LIST,
+    404: error(
+        ErrorMessage, "없는 사건이거나 식별자 모양이 아니다.", "Case not found."
+    ),
 }
 
 

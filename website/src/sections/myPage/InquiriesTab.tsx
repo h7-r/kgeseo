@@ -3,21 +3,27 @@ import { useState, type CSSProperties } from "react";
 import { SUPPORT_EMAIL } from "@/data/contact";
 import { FONT } from "@/lib/style";
 import type { InquiryRecord } from "@/services/account/db";
+import { categoryLabel, parseUtc, type MyInquiry } from "@/services/inquiries";
 import { COLOR } from "@/styles/tokens";
 
 import { darkCardStyle, labelTextStyle, profileStartStyle, valueTextStyle } from "./myPageStyles";
 
 interface InquiriesTabProps {
-  inquiries: readonly InquiryRecord[];
+  /** 서버의 내 문의. "loading" 은 받는 중, null 은 못 받음 */
+  inquiries: readonly MyInquiry[] | null | "loading";
+  /** 문의 서버 전에 이 브라우저에만 남긴 접수(운영팀에 닿지 않았다) */
+  legacy: readonly InquiryRecord[];
   onWrite: () => void;
 }
 
+const STATUS_LABEL: Record<MyInquiry["status"], string> = { open: "답변 대기", answered: "답변 완료", closed: "종료" };
+
 /**
- * 내 문의. 지금 1:1 문의는 메일(SUPPORT_EMAIL)로 받는다 — 문의 서버가 생기면 서버의 내 문의 목록으로 바뀐다.
- * 그 전에 이 사이트 양식으로 「접수」했던 문의는 이 브라우저에만 남고 운영팀에 닿지 않았다. 그래서 「전달 안 됨」으로 보이고 메일로 다시 보내 달라고 안내한다.
+ * 내 문의 — 로그인한 채 접수한 1:1 문의와 운영팀 답변(관리자 API v0.3 P3-1, 11/13).
+ * 문의 서버 전에 이 사이트 양식으로 「접수」했던 것은 이 브라우저에만 남고 운영팀에 닿지 않았다 — 아래에 따로 「전달 안 됨」으로 둔다.
  */
-export function InquiriesTab({ inquiries, onWrite }: InquiriesTabProps) {
-  const [openNumber, setOpenNumber] = useState<string | null>(null);
+export function InquiriesTab({ inquiries, legacy, onWrite }: InquiriesTabProps) {
+  const [openId, setOpenId] = useState<string | null>(null);
   return (
     <>
       <div
@@ -31,53 +37,76 @@ export function InquiriesTab({ inquiries, onWrite }: InquiriesTabProps) {
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-          <span style={labelTextStyle}>1:1 문의는 메일로 받고 있습니다</span>
-          <span style={{ ...valueTextStyle, fontWeight: 700, fontSize: "20px" }}>{SUPPORT_EMAIL}</span>
+          <span style={labelTextStyle}>1:1 문의</span>
+          <span style={{ ...valueTextStyle, fontWeight: 700, fontSize: "20px" }}>
+            {inquiries === "loading"
+              ? "불러오는 중…"
+              : inquiries === null
+                ? "불러오지 못했습니다"
+                : `${inquiries.length}건`}
+          </span>
         </div>
         <button type="button" className="button button--primary" style={profileStartStyle} onClick={onWrite}>
-          <span className="button__label">문의 방법 보기</span>
+          <span className="button__label">문의하기</span>
         </button>
       </div>
 
-      {inquiries.length === 0 ? (
+      {inquiries === null ? (
         <div style={emptyStyle}>
           <span style={{ ...labelTextStyle, fontSize: "15px" }}>
-            궁금한 점은 위 메일로 보내 주세요. 문의 접수 화면이 열리면 여기에서 내 문의와 답변을 볼 수 있습니다.
+            내 문의를 불러오지 못했습니다. 새로고침해 주세요. 급하면 {SUPPORT_EMAIL} 로 보내 주세요.
+          </span>
+        </div>
+      ) : inquiries !== "loading" && inquiries.length === 0 ? (
+        <div style={emptyStyle}>
+          <span style={{ ...labelTextStyle, fontSize: "15px" }}>
+            아직 접수한 문의가 없습니다. 로그인한 채 접수하면 답변을 여기에서 볼 수 있습니다.
           </span>
         </div>
       ) : (
+        inquiries !== "loading" &&
         inquiries.map((inquiry) => {
-          const isOpen = openNumber === inquiry.number;
+          const isOpen = openId === inquiry.id;
           return (
-            <div key={inquiry.number} style={{ ...rowStyle, borderColor: isOpen ? "#2f3a5c" : "#1f2433" }}>
+            <div key={inquiry.id} style={{ ...rowStyle, borderColor: isOpen ? "#2f3a5c" : "#1f2433" }}>
               <button
                 type="button"
                 className="interactive-row"
                 style={rowHeadStyle}
                 aria-expanded={isOpen}
-                onClick={() => setOpenNumber(isOpen ? null : inquiry.number)}
+                onClick={() => setOpenId(isOpen ? null : inquiry.id)}
               >
-                <span style={typeChipStyle}>{inquiry.type}</span>
+                <span style={typeChipStyle}>{categoryLabel(inquiry.category)}</span>
                 <span style={titleStyle}>{inquiry.title}</span>
                 <span style={{ ...labelTextStyle, fontSize: "14px", flexShrink: 0 }}>
-                  {formatDate(inquiry.receivedAt)}
+                  {formatDate(parseUtc(inquiry.created_at))}
                 </span>
-                <span style={statusChipStyle}>전달 안 됨</span>
+                <span style={inquiry.status === "answered" ? answeredChipStyle : statusChipStyle}>
+                  {STATUS_LABEL[inquiry.status]}
+                </span>
                 <span style={{ ...labelTextStyle, fontSize: "14px", width: "16px", flexShrink: 0 }} aria-hidden="true">
                   {isOpen ? "▴" : "▾"}
                 </span>
               </button>
               {isOpen && (
                 <div style={detailStyle}>
-                  <p style={contentStyle}>{inquiry.content}</p>
+                  <p style={contentStyle}>{inquiry.body}</p>
                   <div style={metaGridStyle}>
                     <span style={labelTextStyle}>접수 번호</span>
                     <span style={valueTextStyle}>{inquiry.number}</span>
-                    <span style={labelTextStyle}>답변 받을 이메일</span>
-                    <span style={valueTextStyle}>{inquiry.email}</span>
-                    <span style={labelTextStyle}>첨부파일</span>
-                    <span style={valueTextStyle}>{inquiry.attachment ?? "없음"}</span>
                   </div>
+                  {inquiry.replies.length === 0 ? (
+                    <span style={{ ...labelTextStyle, fontSize: "14px" }}>아직 답변이 없습니다.</span>
+                  ) : (
+                    inquiry.replies.map((reply) => (
+                      <div key={`${inquiry.id}:${reply.created_at}`} style={replyStyle}>
+                        <span style={{ ...labelTextStyle, fontSize: "13px" }}>
+                          운영팀 · {formatDate(parseUtc(reply.created_at))}
+                        </span>
+                        <p style={{ ...contentStyle, margin: 0 }}>{reply.body}</p>
+                      </div>
+                    ))
+                  )}
                 </div>
               )}
             </div>
@@ -85,11 +114,26 @@ export function InquiriesTab({ inquiries, onWrite }: InquiriesTabProps) {
         })
       )}
 
-      <span style={{ ...labelTextStyle, fontSize: "14px", color: COLOR.textDim }}>
-        {inquiries.length
-          ? `위 문의는 예전 접수 화면에 남긴 것으로, 운영팀에 전달되지 않았습니다. 답변이 필요하면 ${SUPPORT_EMAIL} 로 다시 보내 주세요.`
-          : `답변은 보내 주신 메일 주소로 드립니다.`}
-      </span>
+      {legacy.length > 0 && (
+        <>
+          <span style={{ ...labelTextStyle, fontSize: "14px", color: COLOR.textDim }}>
+            아래는 문의 서버가 열리기 전에 이 브라우저에서만 「접수」된 것으로, 운영팀에 전달되지 않았습니다. 답변이
+            필요하면 위 「문의하기」로 다시 접수하거나 {SUPPORT_EMAIL} 로 보내 주세요.
+          </span>
+          {legacy.map((inquiry) => (
+            <div key={inquiry.number} style={{ ...rowStyle, opacity: 0.75 }}>
+              <div style={rowHeadStyle}>
+                <span style={typeChipStyle}>{inquiry.type}</span>
+                <span style={titleStyle}>{inquiry.title}</span>
+                <span style={{ ...labelTextStyle, fontSize: "14px", flexShrink: 0 }}>
+                  {formatDate(inquiry.receivedAt)}
+                </span>
+                <span style={statusChipStyle}>전달 안 됨</span>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
     </>
   );
 }
@@ -130,6 +174,7 @@ const rowHeadStyle: CSSProperties = {
   border: 0,
   textAlign: "left",
   cursor: "pointer",
+  boxSizing: "border-box",
 };
 const typeChipStyle: CSSProperties = {
   padding: "4px 10px",
@@ -138,54 +183,56 @@ const typeChipStyle: CSSProperties = {
   fontFamily: FONT.body,
   fontSize: "13px",
   color: "#9fb2ea",
-  whiteSpace: "nowrap",
   flexShrink: 0,
 };
 const titleStyle: CSSProperties = {
-  flex: "1 0 0",
+  flex: "1 1 auto",
   minWidth: 0,
-  fontFamily: FONT.body,
-  fontWeight: 700,
-  fontSize: "16px",
-  lineHeight: 1.4,
-  color: COLOR.textBright,
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
+  fontFamily: FONT.body,
+  fontSize: "16px",
+  color: COLOR.textBright,
 };
-// 예전 양식으로 남긴 문의 — 운영팀에 닿지 않았다는 것을 경고색으로
 const statusChipStyle: CSSProperties = {
   padding: "4px 10px",
   borderRadius: "999px",
-  fontFamily: FONT.body,
-  fontSize: "13px",
-  fontWeight: 600,
-  color: COLOR.warning,
-  background: "rgba(251,191,36,0.1)",
-  border: "1px solid rgba(251,191,36,0.4)",
-  whiteSpace: "nowrap",
+  background: "rgba(255,255,255,0.06)",
+  fontFamily: FONT.mono,
+  fontSize: "12px",
+  color: COLOR.textDim,
   flexShrink: 0,
 };
+const answeredChipStyle: CSSProperties = { ...statusChipStyle, background: "rgba(80,160,120,0.18)", color: "#8fd3ad" };
 const detailStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "16px",
-  padding: "4px 20px 20px",
+  gap: "14px",
+  padding: "0 20px 20px",
   borderTop: "1px solid #1f2433",
+  paddingTop: "16px",
 };
-// 문의 본문은 이용자가 쓴 글 그대로 — 글자로만 보이고(HTML 해석 없음) 줄바꿈은 지킨다.
 const contentStyle: CSSProperties = {
-  margin: "16px 0 0",
+  margin: 0,
   fontFamily: FONT.body,
   fontSize: "15px",
-  lineHeight: 1.7,
-  color: "#c9d2e6",
+  lineHeight: 1.6,
+  color: COLOR.textBright,
   whiteSpace: "pre-wrap",
-  overflowWrap: "anywhere",
 };
 const metaGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "160px 1fr",
-  rowGap: "8px",
-  columnGap: "16px",
+  gridTemplateColumns: "140px 1fr",
+  rowGap: "6px",
+  columnGap: "12px",
+};
+const replyStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "6px",
+  padding: "12px 14px",
+  borderRadius: "10px",
+  background: "rgba(46,72,137,0.12)",
+  borderLeft: "3px solid #4d6bd1",
 };

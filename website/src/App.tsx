@@ -40,6 +40,13 @@ import HomePage from "@/pages/HomePage";
 import SocialCallbackPage from "@/pages/SocialCallbackPage";
 import { IS_ACCOUNT_MANAGEMENT_READY } from "@/services/account/manageAccount";
 import { getSessionUser, useSessionUser } from "@/services/session";
+import { useMaintenanceRedirect } from "@/services/siteStatus";
+
+/** 관리자가 점검 모드를 켜면 사이트 화면을 점검 화면으로 보낸다(관리자 주소 · 게임은 예외). */
+function MaintenanceGate() {
+  useMaintenanceRedirect();
+  return null;
+}
 
 export default function App() {
   // 모바일 배치 — 머리띠 · 배경을 모바일판으로 바꾼다. 3D 배경은 휴대폰 GPU · 배터리 몫이라 정지 배경으로(계획서 5.3)
@@ -60,6 +67,7 @@ export default function App() {
       {/* 쪽 전환 바깥에 둬야 화면을 옮겨도 3D 배경이 다시 만들어지지 않는다. */}
       {isMobile ? <MobileBackdrop /> : <SiteBackdrop />}
       <ReadProgressBar />
+      <MaintenanceGate />
       {isMobile ? <MobileHeader /> : <HeaderLayer />}
       <VideoModal />
       <GameTransition />
