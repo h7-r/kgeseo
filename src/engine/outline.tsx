@@ -1,4 +1,4 @@
-import { useLayoutEffect } from "react";
+import { useEffect, useLayoutEffect, useMemo } from "react";
 import * as THREE from "three";
 import { toCreasedNormals } from "three-stdlib";
 import { useThree } from "@react-three/fiber";
@@ -127,6 +127,77 @@ function getCreaseMaterial(color: string): THREE.LineBasicMaterial {
     creaseMaterialCache.set(color, material);
   }
   return material;
+}
+
+/**
+ * 같은 모양을 여러 자리에 놓은 것(종이 더미의 낱장 등)의 외곽선 · 주름선을 한 덩어리로 굽는다 — 낱개로 그릴 때와 같은 그림이
+ * 드로우콜 둘로 나온다(성능 진단 11/13). 껍데기 셰이더는 법선을 모델 행렬 그대로(법선 행렬이 아니라) 돌리므로 여기서도 그렇게 굽는다.
+ */
+function bakeOutlineGeometries(geometry: THREE.BufferGeometry, matrices: THREE.Matrix4[], creaseAngle: number) {
+  const linear = new THREE.Matrix3();
+  const bake = (source: THREE.BufferGeometry, withNormal: boolean) => {
+    const position = source.attributes.position;
+    const normal = withNormal ? source.attributes.normal : null;
+    const positions = new Float32Array(position.count * 3 * matrices.length);
+    const normals = normal ? new Float32Array(positions.length) : null;
+    const v = new THREE.Vector3();
+    matrices.forEach((matrix, m) => {
+      linear.setFromMatrix4(matrix);
+      for (let i = 0; i < position.count; i++) {
+        const at = (m * position.count + i) * 3;
+        v.fromBufferAttribute(position, i).applyMatrix4(matrix).toArray(positions, at);
+        if (normal && normals) v.fromBufferAttribute(normal, i).applyMatrix3(linear).toArray(normals, at);
+      }
+    });
+    const baked = new THREE.BufferGeometry();
+    baked.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    if (normals) baked.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
+    return baked;
+  };
+  return { shell: bake(getShellGeometry(geometry), true), crease: bake(getCreaseGeometry(geometry, creaseAngle), false) };
+}
+
+interface BakedToonOutlineProps {
+  /** 낱개의 모양 */
+  geometry: THREE.BufferGeometry;
+  /** 낱개마다의 자리(부모 기준) — 바뀔 때만 새 배열을 넘긴다 */
+  matrices: THREE.Matrix4[];
+  outline?: OutlineValues | null;
+}
+
+/** 같은 모양 여럿의 외곽선 · 주름선을 한 덩어리로 — ToonOutline 을 낱개마다 단 것과 같은 재질 · 같은 그림 */
+export function BakedToonOutline({ geometry, matrices, outline }: BakedToonOutlineProps) {
+  const creaseAngle = outline?.creaseAngle ?? 40;
+  const baked = useMemo(
+    () => bakeOutlineGeometries(geometry, matrices, creaseAngle),
+    [geometry, matrices, creaseAngle],
+  );
+  useEffect(
+    () => () => {
+      baked.shell.dispose();
+      baked.crease.dispose();
+    },
+    [baked],
+  );
+  if (!outline) return null;
+  return (
+    <>
+      {outline.outline && (
+        <mesh
+          geometry={baked.shell}
+          material={getShellMaterial(outline.outlineColor, outline.outlineWidth)}
+          matrixAutoUpdate={false}
+        />
+      )}
+      {outline.crease && (
+        <lineSegments
+          geometry={baked.crease}
+          material={getCreaseMaterial(outline.creaseColor)}
+          matrixAutoUpdate={false}
+        />
+      )}
+    </>
+  );
 }
 
 function findGeometry(object: THREE.Object3D | null): THREE.BufferGeometry | undefined {

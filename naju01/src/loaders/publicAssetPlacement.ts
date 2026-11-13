@@ -402,16 +402,21 @@ export function buildSwap(
   ctx: BuildContext,
   previous: BuiltEntry | undefined,
   groundAt?: GroundAt,
+  /** 부르는 쪽이 이미 씬을 훑어 모아 둔 원본 무리(이름별) — 주면 씬을 다시 훑지 않는다 */
+  originalsByName?: Map<string, THREE.InstancedMesh[]>,
 ): BuiltEntry | "same" | null {
   if (!item.bundles.length) return null;
   const { scene, camera, parent, inverse } = ctx;
   // ★ 게임 쪽이 instanceMatrix·count 를 바꿔도(압축·원근 나눔) 서명이 흔들리지 않게 **원본 스냅샷**을 읽는다.
   //   비울 때도 그 배열이 아니라 count 로 비우므로 비운 자리는 서명에 안 드러난다 — 첫 서명을 지킨다.
-  const originals: THREE.InstancedMesh[] = [];
-  scene.traverse((o) => {
-    if (!(o as THREE.InstancedMesh).isInstancedMesh || o.name !== item.target || o.userData.publicAsset) return;
-    originals.push(o as THREE.InstancedMesh);
-  });
+  // 바꿔치기 항목마다 씬 전체를 훑으면 20 프레임마다 프레임이 튄다(성능 진단 11/13) — 모아 둔 것이 있으면 그것을 쓴다
+  let originals: THREE.InstancedMesh[] = [];
+  if (originalsByName) originals = originalsByName.get(item.target) ?? [];
+  else
+    scene.traverse((o) => {
+      if (!(o as THREE.InstancedMesh).isInstancedMesh || o.name !== item.target || o.userData.publicAsset) return;
+      originals.push(o as THREE.InstancedMesh);
+    });
   // ★ 서명에 **원본 배열의 정체**를 넣는다. 편집기로 옮기면 무리가 새 배열로 다시 서는데, 메시(uuid)와 개수는
   //   그대로라 예전 서명은 안 바뀌었다 → 교체본이 안 따라와 「선택·이동이 안 된다」(10/13).
   const signature = originals
