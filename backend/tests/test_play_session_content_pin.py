@@ -251,8 +251,10 @@ def test_new_revision_is_single_head_after_previous_head() -> None:
     # 7c3e5a9d1f42와 합친다. 그 위에 승인 기록 실행자 열(b3f7c2e9a4d1, PM v0.4.13)이 단일 head다.
     # 각 부모 관계는 그대로다.
     # 그 위의 계정 데이터(c1d2e3f4a5b6), 그 위의 게스트 세션 · Play Session 소유자(d8f2a6c4e1b9, 11/6 PM),
-    # 그 위의 베타 분석 기록(a3f9c2e7b1d4, 11/11 — 새 표만)이 지금 단일 head다.
-    assert script.get_heads() == ["a3f9c2e7b1d4"]
+    # 그 위의 베타 분석 기록(a3f9c2e7b1d4, 11/11 — 새 표만), 그 위의 테스트 계정 표시(f3c8a1d6e2b7, 11/13 —
+    # app_users.is_test 열 하나)가 지금 단일 head다.
+    assert script.get_heads() == ["f3c8a1d6e2b7"]
+    assert script.get_revision("f3c8a1d6e2b7").down_revision == "a3f9c2e7b1d4"
     assert script.get_revision("a3f9c2e7b1d4").down_revision == "d8f2a6c4e1b9"
     assert script.get_revision("d8f2a6c4e1b9").down_revision == "c1d2e3f4a5b6"
     assert script.get_revision("c1d2e3f4a5b6").down_revision == "b3f7c2e9a4d1"

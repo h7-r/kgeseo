@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import CHAR, VARCHAR, Index
+from sqlalchemy import CHAR, VARCHAR, Boolean, Index, false
 from sqlalchemy.dialects.mysql import DATETIME
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -59,6 +59,15 @@ class AppUser(Base):
         nullable=False,
         default="user",
         server_default="user",
+    )
+
+    # 팀 테스트 계정 표시(미르 11/13). 관리자 통계의 기본값(include_internal=false)에서 관리자와 함께 뺀다.
+    # 서버 명령(scripts/set_test_account.py)으로만 바꾼다 — 일반 API 는 없다.
+    is_test: Mapped[bool] = mapped_column(
+        Boolean(create_constraint=False),
+        nullable=False,
+        default=False,
+        server_default=false(),
     )
 
     created_at: Mapped[datetime] = mapped_column(

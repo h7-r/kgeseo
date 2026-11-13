@@ -41,7 +41,8 @@ class StatsRangeUtc(BaseModel):
 class StatsExcluded(BaseModel):
     # include_internal=false 일 때 뺀 관리자 수(조회 시점 role). true 면 0
     admins: int
-    # 테스트 계정 표시(is_test)가 아직 없어 빼지 못한다 — 늘 null(D7-a, 베타 이후)
+    # include_internal=false 일 때 뺀 테스트 계정(is_test, 조회 시점 값) 중 관리자가 아닌 수 — 관리자이면서 테스트 계정이면
+    # admins 에만 센다. true 면 0. 형식은 호환을 위해 int | None 그대로 두지만 이제 null 은 내지 않는다(미르 11/13)
     test_accounts: int | None = None
 
 
@@ -219,6 +220,8 @@ class AdminStatsGame(BaseModel):
     timezone: str
     date: date
     days: int
+    # false(기본)면 내부 계정(관리자 · 테스트 계정)에 이어진 기록을 뺀 값(미르 11/13)
+    include_internal: bool
     # 집계에 든 사람(회원 · 게스트 · 탭) 수
     people: int
     funnel: list[FunnelStep]

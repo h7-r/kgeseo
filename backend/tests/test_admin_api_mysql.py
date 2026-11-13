@@ -246,7 +246,7 @@ def test_stats_summary_counts_kst_day_dedupes_members_and_separates_guests():
         assert body["include_internal"] is False
         assert body["range_utc"]["day"] == [start.isoformat(), end.isoformat()]
         assert body["range_utc"]["last_30_days"][0] == (start - 29 * DAY).isoformat()
-        assert body["excluded"] == {"admins": 1, "test_accounts": None}
+        assert body["excluded"] == {"admins": 1, "test_accounts": 0}
         assert body["members"] == {
             "total": 8,
             "signups_on_date": 1,
@@ -274,7 +274,7 @@ def test_stats_summary_counts_kst_day_dedupes_members_and_separates_guests():
             include_internal="true",
         )
         assert inside["include_internal"] is True
-        assert inside["excluded"] == {"admins": 0, "test_accounts": None}
+        assert inside["excluded"] == {"admins": 0, "test_accounts": 0}
         assert inside["members"]["total"] == 9
         assert inside["members"]["signups_on_date"] == 2
         assert inside["activity"]["members_dau"] == 4
