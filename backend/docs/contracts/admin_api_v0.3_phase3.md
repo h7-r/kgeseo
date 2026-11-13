@@ -37,7 +37,8 @@
 | 열 | 형 | 뜻 |
 |---|---|---|
 | `id` | CHAR(36) PK | |
-| `number` | VARCHAR(20) UNIQUE | 접수 번호 `INQ-YYYYMMDD-NNNN`(KST 날짜 · 그날 순번). 사용자에게 보여 주는 값 |
+| `seq` | BIGINT AUTO_INCREMENT UNIQUE | 접수 번호의 순번 원천 — DB 가 매기므로 동시 요청에도 겹치지 않는다(세진 ①) |
+| `number` | VARCHAR(24) UNIQUE | 접수 번호 `INQ-YYYYMMDD-NNNNN`(KST 접수 날짜 + `seq` 다섯 자리, 넘치면 자릿수 늘어남). 삽입 → flush 로 `seq` 를 받아 같은 트랜잭션에서 채운다. 사용자에게 보여 주는 값 |
 | `app_user_id` | CHAR(36) NULL, FK app_users ON DELETE SET NULL | 접수 때 로그인돼 있었으면 |
 | `email` | VARCHAR(254) | 답변 받을 이메일(폼 입력값, 로그인 이메일과 다를 수 있음) |
 | `category` | VARCHAR(16) | `account` · `gameplay` · `payment` · `tech` · `other` (화면 표기 계정 · 게임플레이 · 결제 · 기술지원 · 기타 — 웹 폼의 목록 그대로) |
@@ -64,7 +65,7 @@
 응답 201 { "id": "…", "number": "INQ-20261113-0007", "created_at": "2026-11-13T05:10:00" }
 ```
 - 검증: category 는 다섯 값 중 하나 · title 1~100자 · body 1~4000자 · email 은 가입과 같은 EMAIL_PATTERN(254자). 실패 400 `{code: "invalid_inquiry", message}`. 제한 초과 429 + `Retry-After`.
-- 접수 번호 순번은 하루 단위 `MAX(number)` + 1 이 아니라 **재시도 안전하게**: 삽입 → 유일 제약 충돌이면 순번 +1 로 최대 3번(세진 확인 ①).
+- 접수 번호는 `seq`(AUTO_INCREMENT) 로 만든다 — 날짜별로 1부터 시작하지 않고 전체 순번이 이어진다(예: `INQ-20261113-00042`, 다음 날 `INQ-20261114-00043`). 날짜는 보기용, 유일성은 `seq` 가 보장. 재시도 · 잠금 없음(세진 ① 확정).
 
 `GET /api/v1/me/inquiries` — 로그인 필수. 내 `app_user_id` 로 접수한 문의 전부(최신순), 답변 포함.
 ```json
@@ -73,7 +74,7 @@
                "replies": [ { "body": "…", "created_at": "…" } ] } ] }
 ```
 - 답변에 관리자 이름 · id 는 싣지 않는다(「운영팀」으로 표시).
-- 비로그인으로 접수한 문의는 여기 안 나온다 — 접수 화면이 「로그인하고 접수하면 마이페이지에서 답변을 볼 수 있어요」라고 안내한다. 이메일로 답장을 보내는 수단은 서버에 없다(세진 확인 ② — 발송 넣을지는 뒤에).
+- **비회원 접수 안내(세진 ②):** 비로그인으로 접수한 문의는 `app_user_id` 가 없어 「내 문의」에 안 나오고, 서버에 이메일 자동 발송도 없다. 그래서 웹 폼은 접수 전에 이렇게 적는다 — 「로그인하고 접수하면 답변을 마이페이지 〉 내 문의에서 바로 볼 수 있어요. 로그인 없이 접수하면 답변은 운영팀이 입력하신 이메일로 따로 보내 드려요(자동 발송 아님).」 접수 완료 카드에도 접수 번호와 같은 문구를 다시 보여 준다. 관리자 상세에는 「비회원 — 메일로 답변」 표시를 둬 운영자가 메일을 따로 보내게 한다. 이메일 주소로 회원 문의와 묶는 것은 하지 않는다(가입 이메일 검증 여부와 무관하게 남의 문의가 보일 위험).
 
 ### 관리자 API
 `GET /api/v1/admin/inquiries` — Query `status`(`all`(기본) · `open` · `answered` · `closed`) · `priority`(`urgent` 만 거를 때) · `cursor` · `limit`(기본 50, 최대 100). **기록 `list_inquiries`.**
@@ -120,7 +121,7 @@
                 "rate_limit_window_sec": 60, "beta_events_enabled": true,
                 "user_session_days": 14, "guest_lifetime_hours": 24 } }
 ```
-- `readonly` 는 서버 config · 상수 값을 그대로 보여 준다(바꾸려면 배포). 비밀값(키 · 시크릿)은 싣지 않는다.
+- `readonly` 는 **실행 중인 서버의 실제 값**을 읽어 준다 — `app.core.config.settings` 의 `hint_initial_balance` · `hint_fun_minigames_per_session` · `hint_special_minigames_per_session` · `rate_limit_window_sec` · `beta_events_enabled` 와, 코드 상수 `USER_SESSION` 기간(`user_session.py`) · `GUEST_LIFETIME`(`guest_session.py`). 위 JSON 의 숫자는 **예시**일 뿐 화면에 박지 않는다(세진 지적). 비밀값(키 · 시크릿 · DB 주소)은 싣지 않는다. 바꾸려면 배포.
 
 `PUT /api/v1/admin/settings/maintenance_mode` — `{ "on": true, "message": "점검 중입니다 (~06:00)" }`(message 최대 200자). 응답 = 그 키의 `editable` 항목. **기록 `update_setting`**(어떤 키인지는 detail 에).
 
@@ -155,11 +156,15 @@ DB 변경 없음. 원천은 셋: 레거시 콘텐츠 폴더(`app/content/cases`,
 ## P3-4 구독 관리 — 메뉴에서 뺀다(미르 11/13). 화면 파일은 남기지 않고 지운다(결제 연동이 생기면 그때 다시).
 
 ## P3-5 IP — 감사 기록에 요청 IP
-- `admin_audit_logs.client_ip` VARCHAR(45) NULL 추가. `_audit()` 가 요청 IP(프록시 뒤면 `X-Forwarded-For` 첫 값 — 서버가 신뢰하는 헤더 규칙은 세진 확인 ⑤)를 넣는다.
+- `admin_audit_logs.client_ip` VARCHAR(45) NULL 추가. `_audit()` 와 문의 접수는 **서버가 확인한 클라이언트 IP**(`request.client.host`)만 쓴다 — 지금 `_throttle_keys` 와 같은 규칙. 프록시(CloudFront/ALB) 뒤에서 실제 IP 를 받으려면 uvicorn `--proxy-headers --forwarded-allow-ips` 설정이 필요하고 그건 **배포 구성(세진)** 에서 켠다. 앱 코드는 헤더를 직접 읽지 않는다(세진 ⑤).
+- **1년 보존 뒤 파기(세진 ⑤):** 행은 남기고 `client_ip` 만 NULL 로 바꾼다(`created_at < now − 365일`). 매일 한 번 도는 배치(관리 스크립트 `scripts/purge_client_ips.py` + 운영 cron)는 **세진 후속** — 이 PR 은 열과 규칙만 둔다.
 - `GET /admin/audit-logs` 응답에 `client_ip_display`(앞 두 자리) 추가. 활동 로그 화면에 열 하나.
 - 보안 화면 `hot_ips` · `admin_login_ip` 는 로그인 IP 가 쌓여야 열린다 → 그대로 `unavailable`, 까닭 문구를 「로그인 IP 기록은 베타 뒤」로 바꾼다.
 
 ---
+
+## 세진 1차 보완(11/13) 반영
+- ① 접수 번호 → `seq` AUTO_INCREMENT 로 확정(재시도 없음). ② 비회원 접수 안내 문구 · 관리자 표시 확정. ③ 점검은 웹만(게임 · API 안 막음) 유지. ④ fingerprint 저장값만. ⑤ IP 는 서버 확인 IP + 배포 구성의 proxy-headers, 1년 뒤 NULL 파기 배치(세진 후속). ⑥ 마이그레이션은 세진 공지 revision 뒤. ⑦ 빈도 제한 10분 5건 + 프록시 확인. 설정 읽기 전용 값은 실제 서버 값.
 
 ## 세진 확인 요청
 ① 접수 번호 순번 방식(유일 제약 충돌 재시도 3회) — 다른 방식이 좋으면 알려 줘(예: AUTO_INCREMENT 보조 열).
@@ -168,7 +173,7 @@ DB 변경 없음. 원천은 셋: 레거시 콘텐츠 폴더(`app/content/cases`,
 ④ 콘텐츠 fingerprint 는 저장값 표시만, 재계산 안 함 — 맞나. `session_content.get_pinned_content_store()` 는 있는데 케이스 **목록**을 주는 공개 함수는 못 찾았어 — `PinnedContentStore` 에 목록 메서드가 있는지, 없으면 `npc_content_versions` 표(case_id · content_version · fingerprint · registered_at)를 목록 원천으로 써도 되는지. 레거시는 `app/content/cases/case_001` 하나.
 ⑤ 요청 IP — 지금 `_throttle_keys` 는 `request.client.host` 만 본다(프록시 헤더 안 읽음). 같은 규칙으로 갈게. 운영이 프록시 뒤라 전부 같은 IP 로 보이면 `X-Forwarded-For` 를 신뢰할지는 네가 정해 줘(uvicorn `--proxy-headers` · `--forwarded-allow-ips`).
 ⑥ 마이그레이션 하나로 묶는 것 · `down_revision` 을 네 공지 revision 으로 거는 것.
-⑦ `rate_limit_inquiry_create` 기본값(IP 당 10분 5건).
+⑦ `rate_limit_inquiry_create` 기본값(IP 당 10분 5건) — 기존 `SlidingWindowLimiter`(`rate_limit_window_sec` 창)에 키 하나 더하는 식. 운영 서버가 프록시 뒤라 모든 요청이 같은 IP 로 보이면 제한이 전체에 걸리니, ⑤ 의 proxy-headers 설정과 함께 확인(세진 ⑦).
 
 ## 해랑 할 일(확인 뒤)
 백엔드: 모델 · 마이그레이션 1개 · 라우터(`inquiries.py` 공개 · `admin.py` 추가 · `site.py` 상태) · 스키마 · 감사 action · 격리 MySQL 검사(접수 → 목록 → 답변 → 내 문의, 설정 켜고 끄기, 콘텐츠 목록 정답 미포함 검사).
