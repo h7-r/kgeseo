@@ -8,7 +8,7 @@
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import Select, and_, exists, func, or_, select, union
+from sqlalchemy import Select, and_, exists, false, func, or_, select, true, union
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -342,10 +342,41 @@ async def export_beta_events(
 # --- 관리자 API v0.2 1단계(11/12): 통계 요약 · 감사 기록 조회 ---
 
 
-def _internal_excluded(include_internal: bool):
-    """회원 통계에서 뺄 내부 계정 조건(D7) — 지금은 관리자(조회 시점 role)만. 테스트 계정 표시는 베타 이후."""
+def _internal_account(account):
+    """내부 계정 = 관리자(role) 또는 팀 테스트 계정(is_test) — 미르 11/13 최종 정책. 둘 다 **조회 시점의 현재 값**이다.
+    `account` 는 AppUser 또는 그 별칭 — EXISTS 안에서 바깥 쿼리의 AppUser 와 섞이지 않게 별칭으로 넘긴다."""
 
-    return None if include_internal else AppUser.role != ADMIN_ROLE
+    return or_(account.role == ADMIN_ROLE, account.is_test.is_(true()))
+
+
+def _internal_excluded(include_internal: bool):
+    """회원 통계에서 뺄 내부 계정 조건(D7) — `_internal_account` 의 반대(관리자도 테스트 계정도 아닌 회원만 남긴다).
+    과거 날짜 통계도 지금 값으로 다시 센다(표시를 바꾸면 과거 숫자도 바뀐다)."""
+
+    if include_internal:
+        return None
+    return and_(AppUser.role != ADMIN_ROLE, AppUser.is_test.is_(false()))
+
+
+def _transferred_to_internal_account():
+    """이 플레이 세션의 익명 세션(게스트)이 내부 계정(관리자 · 테스트 계정)으로 승계됐다(미르 11/13 — 게스트 통계에서도 뺀다).
+
+    `_transferred_after_creation()`(생성 당시 소유자 판정 다섯 조건)과는 따로 둔다 — 그 판정은 그대로 두고, 게스트로 센 세션 중
+    승계 받은 계정이 지금 내부 계정인 것만 다시 뺀다. 게스트 하나는 한 번만 승계되므로(guest_session_id 유일, 게스트 1명 = 익명
+    세션 1개) 익명 세션 id 로 이으면 그 게스트의 승계 기록은 많아야 하나다. 승계되지 않은 게스트 · 일반 회원에게 승계된 게스트는 남는다."""
+
+    account = aliased(AppUser, name="transfer_account")
+    return exists().where(
+        GuestSessionTransfer.anonymous_session_id == PlaySession.anonymous_session_id,
+        GuestSessionTransfer.app_user_id == account.id,
+        _internal_account(account),
+    )
+
+
+def _guest_internal_excluded(include_internal: bool):
+    """게스트 통계에서 뺄 조건 — 내부 계정으로 승계된 게스트. include_internal=true 면 없음."""
+
+    return None if include_internal else ~_transferred_to_internal_account()
 
 
 async def _count(db: AsyncSession, query: Select) -> int:
@@ -433,18 +464,22 @@ async def _active_members(
     return await _count(db, query)
 
 
-async def _active_guests(db: AsyncSession, start: datetime, end: datetime) -> int:
+async def _active_guests(
+    db: AsyncSession, include_internal: bool, start: datetime, end: datetime
+) -> int:
     """기간 안에 「게스트로서」 플레이 세션을 만든 고유 익명 세션 수(브라우저 쿠키 단위, D8-a).
-    뒤에 로그인해 승계됐어도 그날은 게스트로 센다(생성 당시 소유자 기준, 미르 11/12)."""
+    뒤에 로그인해 승계됐어도 그날은 게스트로 센다(생성 당시 소유자 기준, 미르 11/12).
+    기본(include_internal=false)은 내부 계정(관리자 · 테스트 계정)으로 승계된 게스트를 뺀다(미르 11/13)."""
 
-    return await _count(
-        db,
-        select(func.count(func.distinct(PlaySession.anonymous_session_id))).where(
-            _guest_at_play_time(),
-            PlaySession.created_at >= start,
-            PlaySession.created_at < end,
-        ),
+    query = select(func.count(func.distinct(PlaySession.anonymous_session_id))).where(
+        _guest_at_play_time(),
+        PlaySession.created_at >= start,
+        PlaySession.created_at < end,
     )
+    condition = _guest_internal_excluded(include_internal)
+    if condition is not None:
+        query = query.where(condition)
+    return await _count(db, query)
 
 
 async def _play_sessions_by_member(
@@ -469,20 +504,24 @@ async def _play_sessions_by_member(
 
 
 async def _play_sessions_by_guest(
-    db: AsyncSession, start: datetime, end: datetime
+    db: AsyncSession, include_internal: bool, start: datetime, end: datetime
 ) -> int:
-    """회원으로서 만든 것이 아닌 세션 — 게스트 · 승계된 게스트 세션 · 소유자 없는 옛 세션."""
+    """회원으로서 만든 것이 아닌 세션 — 게스트 · 승계된 게스트 세션 · 소유자 없는 옛 세션.
+    기본(include_internal=false)은 내부 계정(관리자 · 테스트 계정)으로 승계된 게스트의 세션을 뺀다(미르 11/13)."""
 
-    return await _count(
-        db,
+    query = (
         select(func.count())
         .select_from(PlaySession)
         .where(
             or_(PlaySession.owner_user_id.is_(None), _transferred_after_creation()),
             PlaySession.created_at >= start,
             PlaySession.created_at < end,
-        ),
+        )
     )
+    condition = _guest_internal_excluded(include_internal)
+    if condition is not None:
+        query = query.where(condition)
+    return await _count(db, query)
 
 
 @router.get(
@@ -499,15 +538,17 @@ async def stats_summary(
     ),
     include_internal: str | None = Query(
         default=None,
-        description="`true` 면 관리자 계정도 회원 통계에 넣는다. 기본 `false`",
+        description="`true` 면 내부 계정(관리자 · 테스트 계정)도 통계에 넣는다. 기본 `false`",
     ),
     admin: AppUser = Depends(current_admin),
     db: AsyncSession = Depends(get_db),
 ) -> AdminStatsSummary:
     """대시보드 요약(§3.3) — 회원 수 · 가입 · DAU · MAU(D8) · 플레이 세션. 모든 날짜는 KST, 저장 시각은 UTC 로 비교한다.
 
-    내부 계정(관리자)은 기본으로 회원 통계 전체에서 같은 규칙으로 뺀다(D7). 테스트 계정 표시는 아직 없어
-    `excluded.test_accounts` 는 null 이다(D7-a). 통계 조회를 감사 기록에 남길지는 PM 미결(D5-b)이라 남기지 않는다.
+    내부 계정(관리자 · 테스트 계정 is_test)은 기본으로 회원 통계 전체에서 같은 규칙으로 뺀다(D7, 미르 11/13).
+    내부 계정으로 승계된 게스트는 게스트 통계에서도 뺀다. 모두 조회 시점의 현재 값 기준이다.
+    `excluded.admins` 는 뺀 관리자 수, `excluded.test_accounts` 는 관리자가 아닌 테스트 계정 수(겹치면 관리자 쪽에만 센다).
+    통계 조회를 감사 기록에 남길지는 PM 미결(D5-b)이라 남기지 않는다.
     """
     response.headers["Cache-Control"] = "no-store"
     today = kst_today()
@@ -523,20 +564,27 @@ async def stats_summary(
     last_30 = kst_range(day - timedelta(days=MAU_DAYS - 1), day)
 
     admins = 0
+    test_accounts = 0
     if not internal:
         admins = await _count(
             db,
             select(func.count()).select_from(AppUser).where(AppUser.role == ADMIN_ROLE),
         )
+        test_accounts = await _count(
+            db,
+            select(func.count())
+            .select_from(AppUser)
+            .where(AppUser.role != ADMIN_ROLE, AppUser.is_test.is_(true())),
+        )
     by_member = await _play_sessions_by_member(db, internal, *day_range)
-    by_guest = await _play_sessions_by_guest(db, *day_range)
+    by_guest = await _play_sessions_by_guest(db, internal, *day_range)
     return AdminStatsSummary(
         generated_at=utc_now(),
         timezone=KST_NAME,
         date=day,
         include_internal=internal,
         range_utc=StatsRangeUtc(day=day_range, month=month_range, last_30_days=last_30),
-        excluded=StatsExcluded(admins=admins, test_accounts=None),
+        excluded=StatsExcluded(admins=admins, test_accounts=test_accounts),
         members=StatsMembers(
             total=await _count_members(db, internal),
             signups_on_date=await _count_members(db, internal, *day_range),
@@ -545,8 +593,8 @@ async def stats_summary(
         activity=StatsActivity(
             members_dau=await _active_members(db, internal, *day_range),
             members_mau=await _active_members(db, internal, *last_30),
-            guests_dau=await _active_guests(db, *day_range),
-            guests_mau=await _active_guests(db, *last_30),
+            guests_dau=await _active_guests(db, internal, *day_range),
+            guests_mau=await _active_guests(db, internal, *last_30),
         ),
         play_sessions=StatsPlaySessions(
             created_on_date=by_member + by_guest,
@@ -703,6 +751,31 @@ async def _guest_transfers(
     return [(guest, user) for guest, user in result.all()]
 
 
+def _beta_event_internal_excluded():
+    """게임 집계에서 남길 beta_events 조건 — 내부 계정(관리자 · 테스트 계정)에 이어진 기록을 뺀다(미르 11/13 최종).
+    기록 자체는 고치거나 지우지 않는다(`/admin/beta-events` 내보내기는 원본 그대로).
+
+    - `app_user_id` 가 있으면 그 회원이 지금 내부 계정인지로 판단한다.
+    - `app_user_id` 가 없고 `guest_session_id` 가 있으면, 그 게스트가 내부 계정으로 승계됐을 때 뺀다(게스트 통계와 같은 기준 ·
+      게임 집계는 그 게스트를 승계 받은 회원으로 합쳐 세므로 `person_key` 와도 맞는다).
+    - 계정에 이어지지 않는 기록(참여 코드 · 탭만, 승계 안 된 게스트)은 내부 계정인지 정할 수 없다 — 추측해 빼지 않고 그대로 센다
+      (계약서 P2-3 한계)."""
+
+    member = aliased(AppUser, name="event_account")
+    linked = aliased(AppUser, name="linked_account")
+    return and_(
+        ~exists().where(member.id == BetaEvent.app_user_id, _internal_account(member)),
+        or_(
+            BetaEvent.app_user_id.is_not(None),
+            ~exists().where(
+                GuestSessionTransfer.guest_session_id == BetaEvent.guest_session_id,
+                GuestSessionTransfer.app_user_id == linked.id,
+                _internal_account(linked),
+            ),
+        ),
+    )
+
+
 def _stats_base(target_date: str | None) -> date:
     today = kst_today()
     day = parse_kst_date(target_date, "date") or today
@@ -727,7 +800,8 @@ async def stats_traffic(
         default=None, description=f"1~{TRAFFIC_MAX_DAYS}, 기본 {TRAFFIC_DEFAULT_DAYS}"
     ),
     include_internal: str | None = Query(
-        default=None, description="`true` 면 관리자 계정도 센다. 기본 `false`"
+        default=None,
+        description="`true` 면 내부 계정(관리자 · 테스트 계정)도 센다. 기본 `false`",
     ),
     admin: AppUser = Depends(current_admin),
     db: AsyncSession = Depends(get_db),
@@ -747,12 +821,12 @@ async def stats_traffic(
             TrafficDay(
                 date=day,
                 members_dau=await _active_members(db, internal, start, end),
-                guests_dau=await _active_guests(db, start, end),
+                guests_dau=await _active_guests(db, internal, start, end),
                 signups=await _count_members(db, internal, start, end),
                 play_sessions_created=await _play_sessions_by_member(
                     db, internal, start, end
                 )
-                + await _play_sessions_by_guest(db, start, end),
+                + await _play_sessions_by_guest(db, internal, start, end),
             )
         )
     since = utc_now() - timedelta(minutes=ACTIVE_WINDOW_MINUTES)
@@ -881,7 +955,8 @@ async def stats_members(
         description=f"1~{MEMBERS_MAX_MONTHS}, 기본 {MEMBERS_DEFAULT_MONTHS}",
     ),
     include_internal: str | None = Query(
-        default=None, description="`true` 면 관리자 계정도 센다. 기본 `false`"
+        default=None,
+        description="`true` 면 내부 계정(관리자 · 테스트 계정)도 센다. 기본 `false`",
     ),
     admin: AppUser = Depends(current_admin),
     db: AsyncSession = Depends(get_db),
@@ -979,36 +1054,39 @@ async def stats_game(
     days: str | None = Query(
         default=None, description=f"1~{GAME_MAX_DAYS}, 기본 {GAME_DEFAULT_DAYS}"
     ),
+    include_internal: str | None = Query(
+        default=None,
+        description="`true` 면 내부 계정(관리자 · 테스트 계정)의 기록도 센다. 기본 `false`",
+    ),
     admin: AppUser = Depends(current_admin),
     db: AsyncSession = Depends(get_db),
 ) -> AdminStatsGame:
-    """게임 진행 집계(§P2-3) — beta_events 를 사람 단위로. 깔때기 · 스테이지 진입/완료 · 퍼즐 시도/오답/힌트. 정답 값은 없다. 기록 안 남김."""
+    """게임 진행 집계(§P2-3) — beta_events 를 사람 단위로. 깔때기 · 스테이지 진입/완료 · 퍼즐 시도/오답/힌트. 정답 값은 없다. 기록 안 남김.
+    기본(include_internal=false)은 내부 계정에 이어진 기록을 뺀다(`_beta_event_internal_excluded`, 미르 11/13)."""
 
     response.headers["Cache-Control"] = "no-store"
     last = _stats_base(target_date)
     span = parse_int(days, "days", default=GAME_DEFAULT_DAYS, low=1, high=GAME_MAX_DAYS)
+    internal = parse_bool(include_internal, "include_internal", default=False)
     start, end = kst_range(last - timedelta(days=span - 1), last)
-    rows = (
-        (
-            await db.execute(
-                select(BetaEvent)
-                .where(
-                    BetaEvent.received_at >= start,
-                    BetaEvent.received_at < end,
-                    BetaEvent.event_type.in_(
-                        (
-                            "stage_reached",
-                            "objective_state",
-                            "puzzle_attempt",
-                            "help_event",
-                            "run_state",
-                        )
-                    ),
-                )
-                .order_by(BetaEvent.id)
-                .limit(GAME_EVENT_CAP)
+    query = select(BetaEvent).where(
+        BetaEvent.received_at >= start,
+        BetaEvent.received_at < end,
+        BetaEvent.event_type.in_(
+            (
+                "stage_reached",
+                "objective_state",
+                "puzzle_attempt",
+                "help_event",
+                "run_state",
             )
-        )
+        ),
+    )
+    if not internal:
+        # 상한(20만 행)보다 먼저 뺀다 — 내부 계정 기록이 상한 자리를 차지하지 않게
+        query = query.where(_beta_event_internal_excluded())
+    rows = (
+        (await db.execute(query.order_by(BetaEvent.id).limit(GAME_EVENT_CAP)))
         .scalars()
         .all()
     )
@@ -1038,6 +1116,7 @@ async def stats_game(
         timezone=KST_NAME,
         date=last,
         days=span,
+        include_internal=internal,
         people=aggregate.people,
         funnel=[
             FunnelStep(phase=phase, people=count) for phase, count in aggregate.funnel
