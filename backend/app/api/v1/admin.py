@@ -8,7 +8,7 @@
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import Select, and_, func, select, union
+from sqlalchemy import Select, and_, exists, func, or_, select, union
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -18,12 +18,14 @@ from app.db.session import get_db
 from app.models.account_data import (
     AdminAuditLog,
     GamePlaySave,
+    LoginThrottle,
     UserCharacter,
     UserSession,
 )
 from app.models.app_user import AppUser
 from app.models.auth_identity import AuthIdentity
 from app.models.beta_event import BetaEvent
+from app.models.guest_session import GuestSessionTransfer
 from app.models.play_session import PlaySession
 from app.schemas.account_data import (
     AdminUserDetail,
@@ -31,17 +33,34 @@ from app.schemas.account_data import (
     CharacterResponse,
 )
 from app.schemas.admin import (
+    ActiveSession,
+    ActiveSessionList,
+    AdminLoginEntry,
+    AdminSecuritySummary,
+    AdminStatsGame,
+    AdminStatsMembers,
     AdminStatsSummary,
+    AdminStatsTraffic,
     AdminUserListItem,
     AdminUserSearchList,
     AuditActor,
     AuditLogEntry,
     AuditLogList,
+    CountBucket,
+    FunnelStep,
+    LoginThrottleSummary,
+    MembersTotals,
+    MonthSignups,
+    PuzzleStats,
+    RecentSignup,
+    StageStats,
     StatsActivity,
     StatsExcluded,
     StatsMembers,
     StatsPlaySessions,
     StatsRangeUtc,
+    TrafficDay,
+    TrafficLive,
 )
 from app.schemas.beta_event import (
     PARTICIPANT_CODE_PATTERN,
@@ -60,8 +79,18 @@ from app.services.admin_query import (
     parse_user_search,
     parse_uuid,
 )
+from app.services.admin_stats import (
+    GameEvent,
+    aggregate_game,
+    guest_links,
+    kst_days,
+    month_firsts,
+    next_month_first,
+    person_key,
+    previous_month_first,
+)
 from app.services.local_auth import utc_now
-from app.services.user_session import current_admin
+from app.services.user_session import THROTTLE_WINDOW, current_admin
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -73,6 +102,19 @@ MAU_DAYS = 30
 # 감사 기록 조회 기간 — 기본 최근 30일, 최대 92일(양 끝 포함, §3.4)
 AUDIT_DEFAULT_DAYS = 30
 AUDIT_MAX_DAYS = 92
+# 2단계 — 접속 · 게임 통계 기간(일) · 회원 통계 달 수 · 활성 세션 창(분) · 보안 창
+TRAFFIC_DEFAULT_DAYS = 7
+TRAFFIC_MAX_DAYS = 92
+MEMBERS_DEFAULT_MONTHS = 6
+MEMBERS_MAX_MONTHS = 24
+GAME_DEFAULT_DAYS = 30
+GAME_MAX_DAYS = 92
+GAME_EVENT_CAP = 200_000
+ACTIVE_WINDOW_MINUTES = 5
+ACTIVE_LIST_LIMIT = 50
+RECENT_SIGNUPS_LIMIT = 20
+SIGNUPS_ON_DATE_LIMIT = 50
+ADMIN_LOGIN_DAYS = 7
 # 감사 기록에 남는 action 값(§3.4 + 베타 기록 내보내기 11/11). 필터에 모르는 값은 422
 AUDIT_ACTIONS = frozenset(
     {
@@ -81,6 +123,10 @@ AUDIT_ACTIONS = frozenset(
         "list_audit_logs",
         "view_stats_summary",
         "export_beta_events",
+        # 2단계(11/12) — 사람이 보이는 조회만 남긴다. 집계뿐인 traffic · game 은 남기지 않는다(summary 와 같게)
+        "view_member_stats",
+        "view_active_sessions",
+        "view_security_summary",
     }
 )
 
@@ -321,16 +367,59 @@ async def _count_members(
     return await _count(db, query)
 
 
+def _transferred_after_creation():
+    """이 플레이 세션이 게스트 때 만들어졌다가 뒤에 로그인으로 계정에 승계된 것 — `guest_session_transfers` 에
+    같은 익명 세션의 승계 기록이 있고, 세션 생성이 승계보다 앞선다. 게스트 세션은 본문 익명 id = 쿠키 익명 id 를 강제하므로
+    (`owner_for_new_play_session`) `play_sessions.anonymous_session_id` 로 이어도 된다.
+    로그인한 채로 게스트가 발급될 수 있다(게스트 발급 창구는 로그인 쿠키가 있어도 새 게스트를 내준다) — 그때 회원이 만든 세션은
+    소유자가 처음부터 계정이라 승계가 옮기지 않고(`play_session_count` 0), 다음 로그인의 승계 기록만 남는다. 그 기록으로 회원 세션을
+    게스트 것으로 읽지 않게 옮긴 세션이 하나라도 있는 승계만 본다(세진 11/13 M1).
+    승계(`_transfer`)는 옮긴 세션의 `owner_user_id` 를 승계 계정으로, `updated_at` 을 승계 시각(같은 `now`)으로 쓴다 — 그래서 옮겨진
+    세션은 반드시 소유자 = 승계 계정이고 `updated_at >= transferred_at` 이다(세진 G안). 이 둘을 더해 한 게스트에 회원 세션과 게스트 세션이
+    섞인 경우(로그인 → 게스트 발급 → 로그아웃 → 게스트로 플레이 → 로그인)도 승계 뒤 안 건드린 회원 세션은 회원으로 남는다.
+    남는 한계: 승계 뒤에 이어 한 회원 세션(`updated_at` 이 승계 뒤로 밀림)은 열만으로 못 가른다 — 미르 11/13 「이번 베타는 알려진 제한으로
+    수용, 베타 뒤 세진이 DB 보완」. 계약서 P2-1."""
+
+    return exists().where(
+        GuestSessionTransfer.anonymous_session_id == PlaySession.anonymous_session_id,
+        PlaySession.created_at < GuestSessionTransfer.transferred_at,
+        GuestSessionTransfer.play_session_count > 0,
+        PlaySession.owner_user_id == GuestSessionTransfer.app_user_id,
+        PlaySession.updated_at >= GuestSessionTransfer.transferred_at,
+    )
+
+
+def _guest_at_play_time():
+    """만든 순간 소유자가 게스트였던 세션(미르 11/12 — DAU 는 「세션을 만든 날 누구였나」로 센다, 승계로 소유자가 바뀌어도 과거 날짜는 안 움직인다.
+    플레이 중 모든 활동 시점이 아니라 생성 당시 소유자를 복원하는 것 — 세진 11/12):
+    지금도 게스트 소유이거나, 게스트 때 만들고 뒤에 승계된 것. 소유자가 아예 없는 옛 세션(11/6 전)은 전처럼 어디에도 안 든다."""
+
+    return or_(
+        and_(
+            PlaySession.owner_user_id.is_(None),
+            PlaySession.owner_anonymous_session_id.is_not(None),
+        ),
+        _transferred_after_creation(),
+    )
+
+
+def _member_at_play_time():
+    """만든 순간 소유자가 회원이었던 세션 — 회원 소유이고, 게스트 때 만들어 승계된 것이 아니다."""
+
+    return and_(PlaySession.owner_user_id.is_not(None), ~_transferred_after_creation())
+
+
 async def _active_members(
     db: AsyncSession, include_internal: bool, start: datetime, end: datetime
 ) -> int:
-    """기간 안에 로그인 세션 또는 플레이 세션을 만든 고유 회원 수(D8). 둘 다 있는 회원은 한 번."""
+    """기간 안에 로그인 세션을 만들었거나 「회원으로서」 플레이 세션을 만든 고유 회원 수(D8). 둘 다 있는 회원은 한 번.
+    게스트 때 만들고 뒤에 승계된 세션은 그날의 회원 활동이 아니다(생성 당시 소유자 기준, 미르 11/12)."""
 
     logins = select(UserSession.app_user_id.label("user_id")).where(
         UserSession.created_at >= start, UserSession.created_at < end
     )
     plays = select(PlaySession.owner_user_id.label("user_id")).where(
-        PlaySession.owner_user_id.is_not(None),
+        _member_at_play_time(),
         PlaySession.created_at >= start,
         PlaySession.created_at < end,
     )
@@ -345,13 +434,13 @@ async def _active_members(
 
 
 async def _active_guests(db: AsyncSession, start: datetime, end: datetime) -> int:
-    """기간 안에 플레이 세션을 만든 게스트 — 회원 소유가 아닌 세션의 고유 익명 세션 수(브라우저 쿠키 단위, D8-a 제안)."""
+    """기간 안에 「게스트로서」 플레이 세션을 만든 고유 익명 세션 수(브라우저 쿠키 단위, D8-a).
+    뒤에 로그인해 승계됐어도 그날은 게스트로 센다(생성 당시 소유자 기준, 미르 11/12)."""
 
     return await _count(
         db,
-        select(func.count(func.distinct(PlaySession.owner_anonymous_session_id))).where(
-            PlaySession.owner_user_id.is_(None),
-            PlaySession.owner_anonymous_session_id.is_not(None),
+        select(func.count(func.distinct(PlaySession.anonymous_session_id))).where(
+            _guest_at_play_time(),
             PlaySession.created_at >= start,
             PlaySession.created_at < end,
         ),
@@ -361,11 +450,17 @@ async def _active_guests(db: AsyncSession, start: datetime, end: datetime) -> in
 async def _play_sessions_by_member(
     db: AsyncSession, include_internal: bool, start: datetime, end: datetime
 ) -> int:
+    """회원으로서 만든 플레이 세션 수(승계된 게스트 세션은 게스트 쪽)."""
+
     query = (
         select(func.count())
         .select_from(PlaySession)
         .join(AppUser, AppUser.id == PlaySession.owner_user_id)
-        .where(PlaySession.created_at >= start, PlaySession.created_at < end)
+        .where(
+            _member_at_play_time(),
+            PlaySession.created_at >= start,
+            PlaySession.created_at < end,
+        )
     )
     condition = _internal_excluded(include_internal)
     if condition is not None:
@@ -376,14 +471,14 @@ async def _play_sessions_by_member(
 async def _play_sessions_by_guest(
     db: AsyncSession, start: datetime, end: datetime
 ) -> int:
-    """회원 소유가 아닌 세션(게스트 · 소유자 없는 옛 세션)."""
+    """회원으로서 만든 것이 아닌 세션 — 게스트 · 승계된 게스트 세션 · 소유자 없는 옛 세션."""
 
     return await _count(
         db,
         select(func.count())
         .select_from(PlaySession)
         .where(
-            PlaySession.owner_user_id.is_(None),
+            or_(PlaySession.owner_user_id.is_(None), _transferred_after_creation()),
             PlaySession.created_at >= start,
             PlaySession.created_at < end,
         ),
@@ -581,3 +676,469 @@ def _matches_own_record(
         and (admin_filter is None or admin_filter == admin_id)
         and last >= kst_today()
     )
+
+
+# --- 관리자 API v0.2 2단계(11/12 해랑): 접속 통계 · 회원 통계 · 게임 데이터 · 보안 집계 ---
+# 전부 기존 테이블 읽기만. 규칙은 1단계와 같다 — KST 날짜 · 관리자 제외 기본 · 422 invalid_query · 시각 UTC naive.
+
+
+async def _guest_transfers(
+    db: AsyncSession, rows: list[BetaEvent]
+) -> list[tuple[str, str]]:
+    """읽은 기록에 보이는 게스트(회원 id 없는 줄) 중 로그인으로 계정에 옮겨진 것 — `guest_session_transfers` 에서.
+    기록 20만 행 상한과 무관하게 표 전체에서 찾으므로, 전환 자체가 있었으면 연결은 빠지지 않는다."""
+
+    guests = {
+        row.guest_session_id
+        for row in rows
+        if row.app_user_id is None and row.guest_session_id
+    }
+    if not guests:
+        return []
+    result = await db.execute(
+        select(
+            GuestSessionTransfer.guest_session_id, GuestSessionTransfer.app_user_id
+        ).where(GuestSessionTransfer.guest_session_id.in_(sorted(guests)))
+    )
+    return [(guest, user) for guest, user in result.all()]
+
+
+def _stats_base(target_date: str | None) -> date:
+    today = kst_today()
+    day = parse_kst_date(target_date, "date") or today
+    if day > today:
+        raise invalid_query("date must not be in the future.")
+    if (today - day).days > STATS_MAX_DAYS_BACK:
+        raise invalid_query(f"date must be within {STATS_MAX_DAYS_BACK} days.")
+    return day
+
+
+@router.get(
+    "/stats/traffic",
+    response_model=AdminStatsTraffic,
+    responses=error_responses.ADMIN_QUERY,
+)
+async def stats_traffic(
+    response: Response,
+    target_date: str | None = Query(
+        default=None, alias="date", description="끝 날짜(KST), 기본 오늘"
+    ),
+    days: str | None = Query(
+        default=None, description=f"1~{TRAFFIC_MAX_DAYS}, 기본 {TRAFFIC_DEFAULT_DAYS}"
+    ),
+    include_internal: str | None = Query(
+        default=None, description="`true` 면 관리자 계정도 센다. 기본 `false`"
+    ),
+    admin: AppUser = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminStatsTraffic:
+    """날짜별 접속 집계(§P2-1). 하루마다 DAU(회원 · 게스트) · 가입 · 플레이 세션 수. 사람은 안 보이므로 감사 기록은 남기지 않는다."""
+
+    response.headers["Cache-Control"] = "no-store"
+    last = _stats_base(target_date)
+    span = parse_int(
+        days, "days", default=TRAFFIC_DEFAULT_DAYS, low=1, high=TRAFFIC_MAX_DAYS
+    )
+    internal = parse_bool(include_internal, "include_internal", default=False)
+    daily: list[TrafficDay] = []
+    for day in kst_days(last, span):
+        start, end = kst_range(day, day)
+        daily.append(
+            TrafficDay(
+                date=day,
+                members_dau=await _active_members(db, internal, start, end),
+                guests_dau=await _active_guests(db, start, end),
+                signups=await _count_members(db, internal, start, end),
+                play_sessions_created=await _play_sessions_by_member(
+                    db, internal, start, end
+                )
+                + await _play_sessions_by_guest(db, start, end),
+            )
+        )
+    since = utc_now() - timedelta(minutes=ACTIVE_WINDOW_MINUTES)
+    active = await _count(
+        db,
+        select(func.count())
+        .select_from(PlaySession)
+        .where(PlaySession.updated_at >= since),
+    )
+    return AdminStatsTraffic(
+        generated_at=utc_now(),
+        timezone=KST_NAME,
+        date=last,
+        days=span,
+        include_internal=internal,
+        daily=daily,
+        live=TrafficLive(active_play_sessions_5m=active),
+        unavailable={
+            "lobby_concurrent": "lobby_metrics_not_connected",
+            "peak_concurrent": "lobby_metrics_not_connected",
+            "per_minute": "no_time_series_source",
+        },
+    )
+
+
+@router.get(
+    "/stats/active-sessions",
+    response_model=ActiveSessionList,
+    responses=error_responses.ADMIN_LIST,
+)
+async def active_sessions(
+    response: Response,
+    admin: AppUser = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> ActiveSessionList:
+    """최근 5분 안에 갱신된 플레이 세션(§P2-1). 닉네임이 보이므로 `view_active_sessions` 로 기록한다. IP · 세션 id 는 없다."""
+
+    response.headers["Cache-Control"] = "no-store"
+    since = utc_now() - timedelta(minutes=ACTIVE_WINDOW_MINUTES)
+    rows = (
+        await db.execute(
+            select(PlaySession, AppUser.nickname)
+            .outerjoin(AppUser, AppUser.id == PlaySession.owner_user_id)
+            .where(PlaySession.updated_at >= since)
+            .order_by(PlaySession.updated_at.desc())
+            .limit(ACTIVE_LIST_LIMIT)
+        )
+    ).all()
+    sessions = [
+        ActiveSession(
+            nickname=nickname,
+            user_id=session.owner_user_id,
+            case_id=session.case_id,
+            started_at=session.created_at,
+            last_seen_at=session.updated_at,
+        )
+        for session, nickname in rows
+    ]
+    await _audit(db, admin, "view_active_sessions", None)
+    return ActiveSessionList(
+        generated_at=utc_now(), window_minutes=ACTIVE_WINDOW_MINUTES, sessions=sessions
+    )
+
+
+def _signup_row(user: AppUser, stage: str | None) -> RecentSignup:
+    return RecentSignup(
+        user_id=user.id,
+        nickname=user.nickname,
+        email=user.email,
+        region=user.region,
+        created_at=user.created_at,
+        stage=stage,
+    )
+
+
+async def _signups_between(
+    db: AsyncSession,
+    include_internal: bool,
+    start: datetime | None,
+    end: datetime | None,
+    limit: int,
+) -> list[RecentSignup]:
+    """가입 최신순 회원과 저장 단계(slot 0). 이메일 가림은 화면 몫(§2.5)."""
+
+    query = (
+        select(AppUser, GamePlaySave.stage)
+        .outerjoin(
+            GamePlaySave,
+            and_(GamePlaySave.app_user_id == AppUser.id, GamePlaySave.slot == 0),
+        )
+        .order_by(AppUser.created_at.desc())
+        .limit(limit)
+    )
+    condition = _internal_excluded(include_internal)
+    if condition is not None:
+        query = query.where(condition)
+    if start is not None and end is not None:
+        query = query.where(AppUser.created_at >= start, AppUser.created_at < end)
+    rows = (await db.execute(query)).all()
+    return [_signup_row(user, stage) for user, stage in rows]
+
+
+async def _buckets(
+    db: AsyncSession, query: Select, empty_label: str
+) -> list[CountBucket]:
+    rows = (await db.execute(query)).all()
+    buckets = [
+        CountBucket(label=label or empty_label, count=int(count))
+        for label, count in rows
+    ]
+    return sorted(buckets, key=lambda b: (-b.count, b.label))
+
+
+@router.get(
+    "/stats/members",
+    response_model=AdminStatsMembers,
+    responses=error_responses.ADMIN_QUERY,
+)
+async def stats_members(
+    response: Response,
+    target_date: str | None = Query(
+        default=None, alias="date", description="기준 날짜(KST), 기본 오늘"
+    ),
+    months: str | None = Query(
+        default=None,
+        description=f"1~{MEMBERS_MAX_MONTHS}, 기본 {MEMBERS_DEFAULT_MONTHS}",
+    ),
+    include_internal: str | None = Query(
+        default=None, description="`true` 면 관리자 계정도 센다. 기본 `false`"
+    ),
+    admin: AppUser = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminStatsMembers:
+    """회원 통계(§P2-2) — 누적 · 달별 가입 · 지역 · 로그인 수단 · 최근 가입자. 가입자 목록이 보이므로 `view_member_stats` 로 기록한다."""
+
+    response.headers["Cache-Control"] = "no-store"
+    day = _stats_base(target_date)
+    span = parse_int(
+        months, "months", default=MEMBERS_DEFAULT_MONTHS, low=1, high=MEMBERS_MAX_MONTHS
+    )
+    internal = parse_bool(include_internal, "include_internal", default=False)
+    condition = _internal_excluded(internal)
+
+    this_month = kst_range(day.replace(day=1), day)
+    prev_first = previous_month_first(day)
+    prev_month = kst_range(prev_first, day.replace(day=1) - timedelta(days=1))
+    last_30 = kst_range(day - timedelta(days=MAU_DAYS - 1), day)
+    prev_30 = kst_range(
+        day - timedelta(days=MAU_DAYS * 2 - 1), day - timedelta(days=MAU_DAYS)
+    )
+    month_end_cut = kst_range(day.replace(day=1), day.replace(day=1))[0]
+
+    total_query = select(func.count()).select_from(AppUser)
+    if condition is not None:
+        total_query = total_query.where(condition)
+    totals = MembersTotals(
+        total=await _count_members(db, internal),
+        total_at_prev_month_end=await _count(
+            db, total_query.where(AppUser.created_at < month_end_cut)
+        ),
+        signups_this_month=await _count_members(db, internal, *this_month),
+        signups_prev_month=await _count_members(db, internal, *prev_month),
+        mau=await _active_members(db, internal, *last_30),
+        mau_prev_30_days=await _active_members(db, internal, *prev_30),
+    )
+    monthly: list[MonthSignups] = []
+    for first in month_firsts(day, span):
+        last_day = min(day, next_month_first(first) - timedelta(days=1))
+        monthly.append(
+            MonthSignups(
+                month=first.strftime("%Y-%m"),
+                signups=await _count_members(db, internal, *kst_range(first, last_day)),
+            )
+        )
+
+    region_query = select(AppUser.region, func.count()).group_by(AppUser.region)
+    provider_query = (
+        select(
+            AuthIdentity.provider, func.count(func.distinct(AuthIdentity.app_user_id))
+        )
+        .join(AppUser, AppUser.id == AuthIdentity.app_user_id)
+        .group_by(AuthIdentity.provider)
+    )
+    if condition is not None:
+        region_query = region_query.where(condition)
+        provider_query = provider_query.where(condition)
+
+    result = AdminStatsMembers(
+        generated_at=utc_now(),
+        timezone=KST_NAME,
+        date=day,
+        include_internal=internal,
+        months=span,
+        totals=totals,
+        monthly_signups=monthly,
+        by_region=await _buckets(db, region_query, "(미입력)"),
+        by_provider=await _buckets(db, provider_query, "(없음)"),
+        signups_on_date=await _signups_between(
+            db, internal, *kst_range(day, day), SIGNUPS_ON_DATE_LIMIT
+        ),
+        recent_signups=await _signups_between(
+            db, internal, None, None, RECENT_SIGNUPS_LIMIT
+        ),
+        unavailable={
+            "withdrawals": "withdrawal_not_implemented",
+            "churn_rate": "withdrawal_not_implemented",
+            "suspended": "suspension_not_implemented",
+        },
+    )
+    await _audit(db, admin, "view_member_stats", None)
+    return result
+
+
+@router.get(
+    "/stats/game",
+    response_model=AdminStatsGame,
+    responses=error_responses.ADMIN_QUERY,
+)
+async def stats_game(
+    response: Response,
+    target_date: str | None = Query(
+        default=None, alias="date", description="끝 날짜(KST), 기본 오늘"
+    ),
+    days: str | None = Query(
+        default=None, description=f"1~{GAME_MAX_DAYS}, 기본 {GAME_DEFAULT_DAYS}"
+    ),
+    admin: AppUser = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminStatsGame:
+    """게임 진행 집계(§P2-3) — beta_events 를 사람 단위로. 깔때기 · 스테이지 진입/완료 · 퍼즐 시도/오답/힌트. 정답 값은 없다. 기록 안 남김."""
+
+    response.headers["Cache-Control"] = "no-store"
+    last = _stats_base(target_date)
+    span = parse_int(days, "days", default=GAME_DEFAULT_DAYS, low=1, high=GAME_MAX_DAYS)
+    start, end = kst_range(last - timedelta(days=span - 1), last)
+    rows = (
+        (
+            await db.execute(
+                select(BetaEvent)
+                .where(
+                    BetaEvent.received_at >= start,
+                    BetaEvent.received_at < end,
+                    BetaEvent.event_type.in_(
+                        (
+                            "stage_reached",
+                            "objective_state",
+                            "puzzle_attempt",
+                            "help_event",
+                            "run_state",
+                        )
+                    ),
+                )
+                .order_by(BetaEvent.id)
+                .limit(GAME_EVENT_CAP)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    links = guest_links(await _guest_transfers(db, rows))
+    aggregate = aggregate_game(
+        GameEvent(
+            event_type=row.event_type,
+            phase=row.phase,
+            objective_id=row.objective_id,
+            person=person_key(row.app_user_id, row.guest_session_id, row.tab_id, links),
+            run_id=row.run_id,
+            at=row.client_ts or row.received_at,
+            data=row.data if isinstance(row.data, dict) else {},
+        )
+        for row in rows
+    )
+    unavailable = (
+        {"avg_completion_minutes": "no_completed_run"}
+        if aggregate.avg_completion_minutes is None
+        else {}
+    )
+    if len(rows) >= GAME_EVENT_CAP:
+        # id 오름차순으로 앞 20만 건만 읽었으니 기간 뒤쪽(최근)이 빠진다 — 깔때기 · 스테이지 · 퍼즐 · 평균 시간 전부
+        unavailable["truncated"] = f"first_{GAME_EVENT_CAP}_events_only"
+    return AdminStatsGame(
+        generated_at=utc_now(),
+        timezone=KST_NAME,
+        date=last,
+        days=span,
+        people=aggregate.people,
+        funnel=[
+            FunnelStep(phase=phase, people=count) for phase, count in aggregate.funnel
+        ],
+        stages=[
+            StageStats(stage=s, entered=e, completed=c) for s, e, c in aggregate.stages
+        ],
+        puzzles=[PuzzleStats(**puzzle) for puzzle in aggregate.puzzles],
+        avg_completion_minutes=aggregate.avg_completion_minutes,
+        completed_runs=aggregate.completed_runs,
+        unavailable=unavailable,
+    )
+
+
+@router.get(
+    "/security/summary",
+    response_model=AdminSecuritySummary,
+    responses=error_responses.ADMIN_LIST,
+)
+async def security_summary(
+    response: Response,
+    admin: AppUser = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminSecuritySummary:
+    """보안 집계(§P2-4) — 로그인 잠김 창 · 관리자 로그인 7일 · 관리자 기록 24시간. 키 해시 · IP 는 없다. 관리자 이름이 보이므로 기록한다."""
+
+    response.headers["Cache-Control"] = "no-store"
+    now = utc_now()
+    locked = await _count(
+        db,
+        select(func.count())
+        .select_from(LoginThrottle)
+        .where(LoginThrottle.locked_until > now),
+    )
+    # 현재 창에 든 줄만 센다(세진 11/13) — record_login_failure 는 window_started_at 이 THROTTLE_WINDOW(15분)보다 오래된 줄을
+    # 다음 실패 때 새 창으로 바꾼다(옛 실패 수는 버린다). 그 규칙 그대로 창이 지난 줄은 빼고, 아직 잠긴 줄은 창이 지났어도 센다
+    # (잠김이 유효한 동안은 그 실패 수가 살아 있다 — 잠긴 키가 keys_with_failures 에서 빠지면 안 맞는다).
+    in_window = or_(
+        LoginThrottle.window_started_at >= now - THROTTLE_WINDOW,
+        LoginThrottle.locked_until > now,
+    )
+    keys_with_failures = await _count(
+        db,
+        select(func.count())
+        .select_from(LoginThrottle)
+        .where(LoginThrottle.failed_count > 0, in_window),
+    )
+    failures_in_window = int(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(LoginThrottle.failed_count), 0)).where(
+                    in_window
+                )
+            )
+        ).scalar_one()
+    )
+    login_rows = (
+        await db.execute(
+            select(UserSession.app_user_id, AppUser.nickname, UserSession.created_at)
+            .join(AppUser, AppUser.id == UserSession.app_user_id)
+            .where(
+                AppUser.role == ADMIN_ROLE,
+                UserSession.created_at >= now - timedelta(days=ADMIN_LOGIN_DAYS),
+            )
+            .order_by(UserSession.created_at.desc())
+            .limit(ACTIVE_LIST_LIMIT)
+        )
+    ).all()
+    action_rows = (
+        await db.execute(
+            select(AdminAuditLog.action, func.count())
+            .where(AdminAuditLog.created_at >= now - timedelta(hours=24))
+            .group_by(AdminAuditLog.action)
+        )
+    ).all()
+    result = AdminSecuritySummary(
+        generated_at=now,
+        timezone=KST_NAME,
+        login_throttle=LoginThrottleSummary(
+            locked_now=locked,
+            keys_with_failures=keys_with_failures,
+            failures_in_window=failures_in_window,
+        ),
+        admin_logins_7d=[
+            AdminLoginEntry(user_id=uid, nickname=nick, at=at)
+            for uid, nick, at in login_rows
+        ],
+        audit_actions_24h=sorted(
+            (
+                CountBucket(label=action, count=int(count))
+                for action, count in action_rows
+            ),
+            key=lambda b: (-b.count, b.label),
+        ),
+        unavailable={
+            "rate_limited_429": "memory_only",
+            "request_errors": "not_stored",
+            "chat_rejections": "not_stored",
+            "hot_ips": "ip_not_stored",
+            "admin_login_ip": "ip_not_stored",
+        },
+    )
+    await _audit(db, admin, "view_security_summary", None)
+    return result

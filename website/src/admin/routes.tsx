@@ -4,7 +4,7 @@ import ActivityLogPage from "./pages/ActivityLogPage";
 import BetaLogPage from "./pages/BetaLogPage";
 import ContentsPage from "./pages/ContentsPage";
 import DashboardPage, { StatsScopeTabs } from "./pages/DashboardPage";
-import GameDataPage, { GameDataVersion } from "./pages/GameDataPage";
+import GameDataPage, { GameDataRangeTabs } from "./pages/GameDataPage";
 import NoticesPage, { NoticeWriteButton } from "./pages/NoticesPage";
 import SecurityPage from "./pages/SecurityPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -13,7 +13,7 @@ import SupportPage from "./pages/SupportPage";
 import TrafficPage, { TrafficRangeTabs } from "./pages/TrafficPage";
 import UserDetailPage from "./pages/UserDetailPage";
 import UsersPage from "./pages/UsersPage";
-import UserStatsPage from "./pages/UserStatsPage";
+import UserStatsPage, { MemberStatsRangeTabs } from "./pages/UserStatsPage";
 import ScreenRoute, { type ScreenView } from "./screen/ScreenRoute";
 import { ADMIN_SCREENS, type ScreenId } from "./screens";
 
@@ -24,8 +24,8 @@ const SCREEN_VIEWS: Record<ScreenId, ScreenView> = {
   traffic: { Component: TrafficPage, HeaderActions: TrafficRangeTabs },
   users: { Component: UsersPage },
   userDetail: { Component: UserDetailPage },
-  userStats: { Component: UserStatsPage },
-  gameData: { Component: GameDataPage, HeaderActions: GameDataVersion },
+  userStats: { Component: UserStatsPage, HeaderActions: MemberStatsRangeTabs },
+  gameData: { Component: GameDataPage, HeaderActions: GameDataRangeTabs },
   activity: { Component: ActivityLogPage },
   security: { Component: SecurityPage },
   notices: { Component: NoticesPage, HeaderActions: NoticeWriteButton },

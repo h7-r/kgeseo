@@ -78,3 +78,6 @@ export function formatDelta(percent: number, higherIsBetter: boolean): { text: s
   const text = `${rising ? "▲ +" : "▼ −"}${Math.abs(percent).toFixed(1)}%`;
   return { text, tone: rising === higherIsBetter ? "good" : "bad" };
 }
+
+/** 전체 대비 백분율(소수 한 자리). 전체가 0 이면 0 */
+export const percent = (part: number, whole: number): number => (whole ? Math.round((part / whole) * 1000) / 10 : 0);
