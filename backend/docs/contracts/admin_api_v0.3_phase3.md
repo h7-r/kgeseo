@@ -36,8 +36,9 @@
 `inquiries`
 | 열 | 형 | 뜻 |
 |---|---|---|
-| `id` | CHAR(36) PK | |
-| `seq` | BIGINT AUTO_INCREMENT UNIQUE | 접수 번호의 순번 원천 — DB 가 매기므로 동시 요청에도 겹치지 않는다(세진 ①) |
+| `seq` | BIGINT AUTO_INCREMENT **PK** | 구현에서 기본 키(SQLAlchemy 가 비기본 키 AUTO_INCREMENT 를 안 만든다). 밖으로 보이는 식별자는 `id` |
+| `id` | CHAR(36) UNIQUE NOT NULL | 답변 표가 가리킨다 |
+| ~~`seq`~~ | — | 접수 번호의 순번 원천 — DB 가 매기므로 동시 요청에도 겹치지 않는다(세진 ①) |
 | `number` | VARCHAR(24) UNIQUE | 접수 번호 `INQ-YYYYMMDD-NNNNN`(KST 접수 날짜 + `seq` 다섯 자리, 넘치면 자릿수 늘어남). 삽입 → flush 로 `seq` 를 받아 같은 트랜잭션에서 채운다. 사용자에게 보여 주는 값 |
 | `app_user_id` | CHAR(36) NULL, FK app_users ON DELETE SET NULL | 접수 때 로그인돼 있었으면 |
 | `email` | VARCHAR(254) | 답변 받을 이메일(폼 입력값, 로그인 이메일과 다를 수 있음) |
@@ -64,7 +65,7 @@
 요청 { "category": "gameplay", "title": "…", "body": "…", "email": "me@example.com" }
 응답 201 { "id": "…", "number": "INQ-20261113-0007", "created_at": "2026-11-13T05:10:00" }
 ```
-- 검증: category 는 다섯 값 중 하나 · title 1~100자 · body 1~4000자 · email 은 가입과 같은 EMAIL_PATTERN(254자). 실패 400 `{code: "invalid_inquiry", message}`. 제한 초과 429 + `Retry-After`.
+- 검증: category 는 다섯 값 중 하나 · title 1~100자 · body 1~4000자(공백만은 안 됨) → FastAPI 422. email 은 가입과 같은 EMAIL_PATTERN(254자) → 422 `{code: "invalid_email", message}`(구현: 400 은 쓰지 않는다). 제한 초과 429 `rate_limited` + `Retry-After`. 본문은 글자 그대로 저장(HTML 해석 없음).
 - 접수 번호는 `seq`(AUTO_INCREMENT) 로 만든다 — 날짜별로 1부터 시작하지 않고 전체 순번이 이어진다(예: `INQ-20261113-00042`, 다음 날 `INQ-20261114-00043`). 날짜는 보기용, 유일성은 `seq` 가 보장. 재시도 · 잠금 없음(세진 ① 확정).
 
 `GET /api/v1/me/inquiries` — 로그인 필수. 내 `app_user_id` 로 접수한 문의 전부(최신순), 답변 포함.
@@ -77,13 +78,13 @@
 - **비회원 접수 안내(세진 ②):** 비로그인으로 접수한 문의는 `app_user_id` 가 없어 「내 문의」에 안 나오고, 서버에 이메일 자동 발송도 없다. 그래서 웹 폼은 접수 전에 이렇게 적는다 — 「로그인하고 접수하면 답변을 마이페이지 〉 내 문의에서 바로 볼 수 있어요. 로그인 없이 접수하면 답변은 운영팀이 입력하신 이메일로 따로 보내 드려요(자동 발송 아님).」 접수 완료 카드에도 접수 번호와 같은 문구를 다시 보여 준다. 관리자 상세에는 「비회원 — 메일로 답변」 표시를 둬 운영자가 메일을 따로 보내게 한다. 이메일 주소로 회원 문의와 묶는 것은 하지 않는다(가입 이메일 검증 여부와 무관하게 남의 문의가 보일 위험).
 
 ### 관리자 API
-`GET /api/v1/admin/inquiries` — Query `status`(`all`(기본) · `open` · `answered` · `closed`) · `priority`(`urgent` 만 거를 때) · `cursor` · `limit`(기본 50, 최대 100). **기록 `list_inquiries`.**
+`GET /api/v1/admin/inquiries` — Query `status`(`all`(기본) · `open` · `answered` · `closed`) · `priority`(`urgent` 만 거를 때) · `offset` · `limit`(기본 50, 최대 50 — 1단계 회원 목록과 같은 `next_offset` 방식, 구현에서 cursor 대신). **기록 `list_inquiries`.**
 ```json
 { "stats": { "total": 120, "open": 7, "today": 3, "avg_first_reply_hours": 5.4 },
   "items": [ { "id": "…", "number": "INQ-…", "title": "…", "category": "gameplay", "status": "open", "priority": "normal",
                "email": "m***@example.com", "nickname": "닉네임" , "user_id": "…" ,
                "created_at": "…", "answered_at": null, "reply_count": 0 } ],
-  "next_cursor": "…" }
+  "next_offset": 50 }
 ```
 - `stats.today` 는 KST 오늘 0시부터. `avg_first_reply_hours` = 답변이 있는 문의의 (첫 답변 − 접수) 평균(시간, 소수 1자리), 없으면 null.
 - `nickname` · `user_id` 는 접수 때 로그인했을 때만, 아니면 null. 이메일은 가림.
@@ -138,12 +139,12 @@ DB 변경 없음. 원천은 셋: 레거시 콘텐츠 폴더(`app/content/cases`,
 `GET /api/v1/admin/contents` — 기록 없음.
 ```json
 { "cases": [ { "case_id": "naju-angam-01", "source": "published", "title": "앙암바위의 전설",
-               "counts": { "zones": 5, "objects": 42, "interactions": 61, "npcs": 3 },
+               "counts": { "zones": 5, "objects": 42, "interactions": 61 },
                "versions": [ { "content_version": 3, "content_fingerprint": "sha256:…", "publication_status": "published",
                                "registered_at": "…", "state_updated_at": "…" } ],
                "legacy": false } ] }
 ```
-- `counts` 는 **client 콘텐츠**(공개 번들과 같은 원천)에서만 센다. server runtime(판정 · 정답) · npc 대사 원문은 읽지 않는다.
+- `counts` 는 **client 콘텐츠**(공개 번들과 같은 원천)에서만 센다 — 존 · 오브젝트 · 상호작용(`interaction` 이 있는 오브젝트). NPC 수는 client 콘텐츠에 없어 싣지 않는다(npc 파일은 안 읽는다). server runtime(판정 · 정답) · npc 대사 원문은 읽지 않는다. 그 판이 게시 저장소(메모리)에 없으면 `counts: null`(세진 기준 — 추측하지 않음).
 - `publication_status` 는 `npc_publication_states.status` 그대로(없으면 null). 레거시 케이스(`case_001` 등)는 `legacy: true`, 버전 없음.
 - fingerprint 는 저장된 값(`npc_content_versions.content_fingerprint`)을 보여 줄 뿐 다시 계산하지 않는다(세진 확인 ④ — 계산기 v0.1 은 「연결하지 않음」 상태).
 
@@ -168,6 +169,11 @@ DB 변경 없음. 원천은 셋: 레거시 콘텐츠 폴더(`app/content/cases`,
 
 ## 세진 1차 보완(11/13) 반영
 - ① 접수 번호 → `seq` AUTO_INCREMENT 로 확정(재시도 없음). ② 비회원 접수 안내 문구 · 관리자 표시 확정. ③ 점검은 웹만(게임 · API 안 막음) 유지. ④ fingerprint 저장값만. ⑤ IP 는 서버 확인 IP + 배포 구성의 proxy-headers, 1년 뒤 NULL 파기 배치(세진 후속). ⑥ 마이그레이션은 세진 공지 revision 뒤. ⑦ 빈도 제한 10분 5건 + 프록시 확인. 설정 읽기 전용 값은 실제 서버 값.
+
+## 구현 기록(11/13 해랑)
+- 백엔드 d6aaf5e · 웹 674c78c(+ 후속) — #154. 격리 MySQL 검사 5개(접수 → 목록 → 답변 → 내 문의 · 동시 접수 20건 번호 유일 · 실패 롤백 · 빈도 제한 · 설정 · 콘텐츠) 포함 전체 2836 통과, 운영 빌드 + 로컬 백엔드 라이브 확인 28/28(비회원 · 회원 접수, 내 문의 답변, CS 관리 · 설정 점검 모드 · 관리자 목록 · 콘텐츠 · 활동 로그).
+- 마이그레이션 `e7a1b2c3d4f5` 의 `down_revision` 은 임시(a3f9c2e7b1d4). 세진 revision(is_test → 감사 로그 확장 → 공지) 뒤로 옮긴 뒤 Ready.
+- 감사 기록의 대상 표기(`target_type/id`)는 세진 열이 들어온 뒤 후속 커밋.
 
 ## 세진 확인 요청
 ① 접수 번호 순번 방식(유일 제약 충돌 재시도 3회) — 다른 방식이 좋으면 알려 줘(예: AUTO_INCREMENT 보조 열).

@@ -3,7 +3,14 @@ import { useState, type ReactNode } from "react";
 import { API_ORIGIN } from "@/config/env";
 
 import { toAdminError } from "../api/client";
-import { READONLY_LABEL, fetchAdmins, fetchSettings, updateMaintenanceMode, type AdminSettings } from "../api/settings";
+import {
+  READONLY_LABEL,
+  fetchAdmins,
+  fetchSettings,
+  updateMaintenanceMode,
+  type AdminSettings,
+  type MaintenanceMode,
+} from "../api/settings";
 import { useAdminResource } from "../api/useAdminResource";
 import { useAdminMe } from "../auth/adminSession";
 import ResourceView from "../auth/ResourceView";
@@ -48,8 +55,7 @@ export default function SettingsPage() {
 }
 
 function GeneralSettings() {
-  const [version, setVersion] = useState(0);
-  const [resource, retry] = useAdminResource(`settings:${version}`, fetchSettings);
+  const [resource, retry] = useAdminResource("settings", fetchSettings);
   return (
     <ResourceView resource={resource} retry={retry} loadingText="설정을 불러오는 중…">
       {(settings: AdminSettings) => (
@@ -75,20 +81,17 @@ function GeneralSettings() {
             </dl>
             <p className="adm-muted">바꾸려면 서버 환경 값을 고쳐 배포합니다.</p>
           </Panel>
-          <MaintenancePanel
-            key={settings.editable.maintenance_mode.updated_at ?? "none"}
-            settings={settings}
-            onSaved={() => setVersion((count) => count + 1)}
-          />
+          {/* 저장 뒤 설정 전체를 다시 받지 않는다 — 다시 받으면 로딩 화면이 되며 안내 문구가 사라진다. 패널이 PUT 응답으로 제 상태만 바꾼다 */}
+          <MaintenancePanel initial={settings.editable.maintenance_mode} />
         </div>
       )}
     </ResourceView>
   );
 }
 
-function MaintenancePanel({ settings, onSaved }: { settings: AdminSettings; onSaved: () => void }) {
-  const current = settings.editable.maintenance_mode;
-  const [message, setMessage] = useState(current.message);
+function MaintenancePanel({ initial }: { initial: MaintenanceMode }) {
+  const [current, setCurrent] = useState(initial);
+  const [message, setMessage] = useState(initial.message);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
 
@@ -96,9 +99,8 @@ function MaintenancePanel({ settings, onSaved }: { settings: AdminSettings; onSa
     setBusy(true);
     setNotice("");
     try {
-      await updateMaintenanceMode(on, message.trim());
+      setCurrent(await updateMaintenanceMode(on, message.trim()));
       setNotice(on ? "점검 모드를 켰습니다. 웹사이트는 점검 화면으로 바뀝니다." : "점검 모드를 껐습니다.");
-      onSaved();
     } catch (error) {
       setNotice(
         toAdminError(error).kind === "invalidQuery"
