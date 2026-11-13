@@ -33,7 +33,7 @@ Query: `date`(끝 날짜, 기본 오늘) · `days`(1~92, 기본 7) · `include_i
 ```
 
 - `members_dau` · `guests_dau` · `signups` · `play_sessions_created` 는 §3.3 정의 그대로(날짜마다 같은 쿼리) — 단 **게스트 · 회원 구분은 「세션 생성 당시 소유자」 기준**으로 바뀐다(아래, 1단계 `stats/summary` 도 같은 함수라 함께 바뀜).
-- **세션 생성 당시 소유자 기준(미르 11/12 결정, 표현은 세진 11/12):** 복원하는 것은 플레이 중 모든 활동 시점의 신분이 아니라 **Play Session 을 만든 순간의 소유자**다. 게스트로 만든 세션이 뒤에 로그인으로 계정에 승계되어도 그날 숫자는 게스트에 남는다(과거 날짜가 안 움직인다). 승계 뒤 그 세션을 이어 해도 새 세션이 아니라 DAU 에 새로 들지 않는다(DAU 는 세션 「생성」만 본다, §3.3 D8 그대로). 판정: `guest_session_transfers` 에 같은 익명 세션(`play_sessions.anonymous_session_id`)의 승계 기록이 있고 세션 `created_at < transferred_at` 이면 「게스트 때 만든 세션」. 게스트는 본문 익명 id = 쿠키 익명 id 가 강제되므로(`owner_for_new_play_session`) 이 연결은 정확하고, 회원이 만든 세션은 승계 뒤에 생기니 걸리지 않는다. 적용 칸: `members_dau` · `guests_dau`(+ summary 의 MAU) · `created_on_date_by_member/by_guest`. 소유자 없는 옛 세션(11/6 전)은 전처럼 DAU 어디에도 안 든다. 마이그레이션 없음. 게임 집계의 「같은 사람 합치기」(P2-3)와는 기준이 다르다 — 그쪽은 사람을 합치고, 여기는 그날 누구였나를 본다. `days` 만큼 하루씩 센다 — 하루에 **5쿼리**(회원 DAU · 게스트 DAU · 가입 · 회원 플레이 세션 · 게스트 플레이 세션) + `live` 1회 → **최대 92일 × 5 + 1 = 461회**(세진 11/13 지적으로 368 → 461 로 바로잡음), 모두 인덱스 있는 `created_at` 범위 COUNT 라 베타 규모(회원 수백 명)에선 한 요청 수백 ms 안.
+- **세션 생성 당시 소유자 기준(미르 11/12 결정, 표현은 세진 11/12):** 복원하는 것은 플레이 중 모든 활동 시점의 신분이 아니라 **Play Session 을 만든 순간의 소유자**다. 게스트로 만든 세션이 뒤에 로그인으로 계정에 승계되어도 그날 숫자는 게스트에 남는다(과거 날짜가 안 움직인다). 승계 뒤 그 세션을 이어 해도 새 세션이 아니라 DAU 에 새로 들지 않는다(DAU 는 세션 「생성」만 본다, §3.3 D8 그대로). 판정: `guest_session_transfers` 에 같은 익명 세션(`play_sessions.anonymous_session_id`)의 승계 기록이 있고 세션 `created_at < transferred_at` 이고 **그 승계가 세션을 하나라도 옮겼으면(`play_session_count > 0`)** 「게스트 때 만든 세션」. 게스트는 본문 익명 id = 쿠키 익명 id 가 강제되므로(`owner_for_new_play_session`) 이 연결은 정확하다. **옮긴 세션 조건(세진 6차 M1, 11/13):** 게스트 발급 창구는 로그인 쿠키가 있어도 새 게스트를 내주므로, 로그인한 채 발급된 게스트의 익명 id 로 회원이 만든 세션(소유자는 처음부터 계정)이 있을 수 있다. 그 게스트는 다음 로그인 때 옮길 세션 없이(`play_session_count` 0) 승계 기록만 남기므로, 그 기록으로 회원 세션을 게스트 것으로 읽지 않게 옮긴 세션이 있는 승계만 본다(격리 MySQL 검사 ⑤). **남는 한계(열만으로 못 가름):** 로그인 → 로그인한 채 게스트 발급 → 로그아웃 → 같은 쿠키로 게스트 플레이 → 로그인(옮긴 세션 > 0)처럼 한 게스트에 회원 세션과 게스트 세션이 섞이면 로그인 중에 만든 회원 세션도 게스트로 센다. 완전히 가르려면 승계 때 `play_sessions` 에 옮긴 표시(예: `transferred_at`)를 남기는 DB 변경이 필요하다 — 세진 몫, 베타 뒤 결정. 적용 칸: `members_dau` · `guests_dau`(+ summary 의 MAU) · `created_on_date_by_member/by_guest`. 소유자 없는 옛 세션(11/6 전)은 전처럼 DAU 어디에도 안 든다. 마이그레이션 없음. 게임 집계의 「같은 사람 합치기」(P2-3)와는 기준이 다르다 — 그쪽은 사람을 합치고, 여기는 그날 누구였나를 본다. `days` 만큼 하루씩 센다 — 하루에 **5쿼리**(회원 DAU · 게스트 DAU · 가입 · 회원 플레이 세션 · 게스트 플레이 세션) + `live` 1회 → **최대 92일 × 5 + 1 = 461회**(세진 11/13 지적으로 368 → 461 로 바로잡음), **`created_at` 에는 인덱스가 없다**(세진 11/13 정정 — 실제 인덱스: `play_sessions` 는 `anonymous_session_id` · `owner_user_id` · `owner_anonymous_session_id`, `user_sessions` 는 `app_user_id`, `app_users` 는 `email` · `nickname`(유일), `guest_session_transfers` 는 `app_user_id` · `guest_session_id`(유일)). 날짜 범위 COUNT 는 표를 훑는다 — 베타 규모(회원 수백 명 · 세션 수천 줄)에선 한 요청 수백 ms 안이지만, 커지면 `created_at` 인덱스(DB 변경, 세진)나 GROUP BY 집계로 바꾼다(아래).
   - **GROUP BY 전환 기준(세진 11/12, 잠정 — 아직 측정값 없음):** 회원 수가 아니라 **응답 시간**으로 본다. 이 API 의 p95 응답이 **1초**를 넘으면 최적화를 검토하고, **2초**를 넘으면 우선 개선한다. 92일 조회는 베타 뒤 따로 재고, 필요하면 날짜별 반복 쿼리를 `GROUP BY DATE(CONVERT_TZ(created_at, …))` 집계로 바꾼다(응답 모양은 그대로).
 - `live.active_play_sessions_5m` = `play_sessions.updated_at >= now − 5분` 인 세션 수. **근사 지표**다 — `updated_at` 은 실제 접속이 아니라 세션 줄이 마지막으로 갱신된 시각(저장 · 진행 기록)이라, 조용히 보고만 있는 플레이어는 빠지고 갱신 직후 나간 플레이어는 든다. 화면도 「저장 갱신 기준 근사치」라고 적는다(세진 11/12). 로비 동시접속이 아니다.
 - 분 단위 · 최대 동시접속은 원천이 없다 → `unavailable`.
@@ -109,7 +109,7 @@ Query 없음.
   "unavailable": { "rate_limited_429": "memory_only", "request_errors": "not_stored", "chat_rejections": "not_stored", "hot_ips": "ip_not_stored", "admin_login_ip": "ip_not_stored" }
 }
 ```
-- `login_throttles` 는 현재 창의 값뿐(이력 없음). 키 해시는 싣지 않는다. 429 횟수는 서버 메모리뿐이라 `unavailable`(미르 11/12 — 쌓을지는 그때 정한다).
+- `login_throttles` 는 현재 창의 값뿐(이력 없음). 키 해시는 싣지 않는다. **`failures_in_window` 는 실제 로그인 실패 요청 수가 아니라 제한 키(이메일 키 · IP 키)별 `failed_count` 의 합**이다 — 한 번의 실패가 이메일 키와 IP 키에 각각 더해지므로 요청 수보다 크다(세진 6차). `keys_with_failures` 는 그 키 수. 화면도 「로그인 실패 횟수 합(제한 키별)」로 적는다. 429 횟수는 서버 메모리뿐이라 `unavailable`(미르 11/12 — 쌓을지는 그때 정한다).
 - **창 기준(세진 11/13 지적 반영):** `record_login_failure` 는 `window_started_at` 이 15분(`THROTTLE_WINDOW`)보다 오래된 줄을 다음 실패 때 새 창으로 바꾼다(옛 실패 수는 버린다). `keys_with_failures` · `failures_in_window` 는 그 규칙과 같게 **`window_started_at ≥ now − 15분` 인 줄만** 센다. 단 **아직 잠긴 줄(`locked_until > now`)은 창이 지났어도 센다** — 잠김이 유효한 동안 그 실패 수가 살아 있고, 잠긴 키가 실패 키 수에서 빠지면 안 맞는다. `locked_now` 는 전처럼 `locked_until > now`. 창이 지나고 잠김도 풀린 줄은 어디에도 안 든다(표에는 남아 있다 — 삭제는 로그인 성공 때만).
 - `admin_logins_7d` = role admin 회원의 `user_sessions.created_at`(로그인 · 가입 때 생기는 세션) 최근 7일, 최대 50. IP 는 없다(D15 뒤).
 - **기록: `view_security_summary`**.
@@ -123,6 +123,12 @@ Query 없음.
 - 20만 행 상한 때 불완전해지는 범위 → P2-3 에 적음. 게스트 → 회원 중복 → `guest_session_transfers` 로 묶음(위 · 세진 2차 확인 반영: 확보 범위 · 예외 규칙 · 로그인 뒤 guest id 없음 확인).
 - 조회 비용(92일 × 5쿼리 + 1 = 461회, 세진 11/13 정정) · GROUP BY 전환 기준 → P2-1 에 p95 1초 검토 · 2초 우선 개선(잠정)으로 적음.
 - 이메일 전체 반환의 가림 전환 시점 → P2-2 에 적음.
+
+## 세진 6차 확인(11/13) 반영
+- `failures_in_window` 는 제한 키별 실패 횟수 합(요청 수 아님)임을 P2-4 와 화면에 명시.
+- 461회는 집계 SQL 만 센 것(인증 조회 1회를 더하면 462).
+- M1(로그인한 채 발급된 게스트 → 회원 세션 오분류): 승계 조인에 `play_session_count > 0` 조건을 더하고 격리 MySQL 검사 ⑤ 추가. 열만으로 못 가르는 섞인 경우는 P2-1 에 한계로 적음(완전한 해결은 DB 변경).
+- P2-1 「인덱스 있는 created_at」 문구 정정 — created_at 인덱스는 없다, 실제 인덱스 목록으로 바꿈.
 
 ## 세진 5차 확인(11/13) 반영
 - `security/summary` 의 `keys_with_failures` · `failures_in_window` 에 기간 조건이 없었다 → 현재 창(15분) + 잠긴 줄만 세게 고침(P2-4). 격리 MySQL 검사 추가.

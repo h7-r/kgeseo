@@ -42,10 +42,10 @@ function SecurityView({ summary }: { summary: SecuritySummary }) {
           isAlert={throttle.locked_now > 0}
         />
         <StatCard
-          label="로그인 실패 누적"
+          label="로그인 실패 횟수 합(제한 키별)"
           value={formatNumber(throttle.failures_in_window)}
           unit="회"
-          caption={`현재 창 · 키 ${formatNumber(throttle.keys_with_failures)}개`}
+          caption={`현재 15분 창 · 잠긴 키 포함 · 이메일 · IP 제한 키 ${formatNumber(throttle.keys_with_failures)}개 — 요청 수가 아니라 키별 실패 횟수의 합`}
           isAlert={throttle.keys_with_failures > 0}
         />
         <StatCard

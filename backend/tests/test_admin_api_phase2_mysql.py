@@ -6,6 +6,7 @@
   ② 회원 로그인 뒤 신규 세션 — 회원 쪽
   ③ 승계 없는 게스트 — 게스트 쪽 그대로
   ④ 날짜 경계 — KST 자정 앞에 만들고 자정 뒤에 승계: 만든 날은 게스트, 승계 뒤 같은 쿠키로 만든 새 세션은 회원
+  ⑤ (세진 M1) 로그인한 채로 발급된 게스트 — 회원이 그 익명 id 로 만든 세션은 승계(옮긴 세션 0)가 뒤에 와도 회원 쪽
 """
 
 import hashlib
@@ -38,7 +39,7 @@ class Seed2(Seed):
         super().__init__(db)
         self.groups.append([])
 
-    def transfer(self, guest: str, user: AppUser, at) -> None:
+    def transfer(self, guest: str, user: AppUser, at, *, moved: int = 1) -> None:
         guest_session = GuestSession(
             id=str(uuid4()),
             anonymous_session_id=guest,
@@ -53,7 +54,7 @@ class Seed2(Seed):
                 guest_session_id=guest_session.id,
                 anonymous_session_id=guest,
                 app_user_id=user.id,
-                play_session_count=1,
+                play_session_count=moved,
                 transferred_at=at,
             )
         )
@@ -146,15 +147,25 @@ def test_dau_counts_session_owner_at_creation_time_across_transfer_and_midnight(
             )
             seed.transfer(edge_guest, edge_user, end + 30 * MINUTE)
             seed.member_play(end + HOUR, user=edge_user, cookie=edge_guest)
+            # ⑤ 로그인(06:00) → 로그인한 채 게스트 발급 → 06:20 회원 세션(익명 id 는 그 게스트) → 08:00 다시 로그인하며 승계(옮긴 세션 0)
+            issued_user = seed.user("로그인중게스트발급", start - 10 * DAY)
+            seed.login(issued_user, start + 6 * HOUR)
+            issued_guest = seed.guest()
+            seed.member_play(
+                start + 6 * HOUR + 20 * MINUTE, user=issued_user, cookie=issued_guest
+            )
+            seed.transfer(issued_guest, issued_user, start + 8 * HOUR, moved=0)
             await seed.save()
         sign_in(admin)
 
         summary = await get_json("/api/v1/admin/stats/summary", date=target.isoformat())
-        assert summary["activity"]["members_dau"] == 1  # ② 만
-        assert summary["activity"]["guests_dau"] == 3  # ① · ③ · ④
+        assert summary["activity"]["members_dau"] == 2  # ② · ⑤
+        assert (
+            summary["activity"]["guests_dau"] == 3
+        )  # ① · ③ · ④ (⑤ 는 게스트가 아니다)
         assert summary["play_sessions"] == {
-            "created_on_date": 4,
-            "created_on_date_by_member": 1,
+            "created_on_date": 5,
+            "created_on_date_by_member": 2,
             "created_on_date_by_guest": 3,
         }
 
@@ -166,7 +177,7 @@ def test_dau_counts_session_owner_at_creation_time_across_transfer_and_midnight(
             today["members_dau"],
             today["guests_dau"],
             today["play_sessions_created"],
-        ) == (1, 3, 4)
+        ) == (2, 3, 5)
         # 다음 날 — ④ 의 승계 자체는 세션이 아니고, 승계 뒤 같은 쿠키로 만든 새 세션만 회원으로 든다
         after = _day(traffic["daily"], target + DAY)
         assert (
