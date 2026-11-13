@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 
 import { LandscapeGuard } from "@/engine/input";
 import { initGameSave } from "@/save/gameSave";
+import SaveLoadFailedNotice from "@/save/SaveLoadFailedNotice";
 
 import { registerNajuSave } from "./save/najuSaveData";
 import { initNajuBeta } from "./beta/najuBeta";
@@ -13,6 +14,7 @@ import App from "./app/App";
 import LoadingVideoOverlay from "./transition/LoadingVideoOverlay";
 // 검수 작업대(review/, 5180)가 삽입해 열 때 — 실행 키·대상이 맞을 때만 게임을 띄운다
 import { IS_REVIEW_REQUESTED, IS_REVIEW_RUNNABLE, ReviewErrorBoundary, ReviewHud } from "./review/ReviewBridge";
+import { GraphicsErrorBoundary } from "./app/GraphicsErrorBoundary";
 import "./index.css";
 
 const container = document.getElementById("root");
@@ -31,8 +33,13 @@ void (IS_REVIEW_REQUESTED ? Promise.resolve() : initGameSave()).finally(() => {
       <ReviewErrorBoundary>{IS_REVIEW_RUNNABLE ? <App /> : <ReviewHud />}</ReviewErrorBoundary>
     ) : (
       <>
-        <App />
+        {/* 그리다 죽으면 빈 화면 대신 안내(그래픽 끊김 뒤 후처리가 죽는 경우 등) */}
+        <GraphicsErrorBoundary>
+          <App />
+        </GraphicsErrorBoundary>
         <LoadingVideoOverlay />
+        {/* 저장 불러오기가 실패했을 때만 — 본편과 같은 안내(저장은 멈춘 그대로) */}
+        <SaveLoadFailedNotice />
         {/* 휴대폰 세로면 무엇보다 위에서 「가로로 돌려 주세요」(본편 main 과 같다) */}
         <LandscapeGuard />
       </>

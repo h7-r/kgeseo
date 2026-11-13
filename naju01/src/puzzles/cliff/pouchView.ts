@@ -4,6 +4,7 @@
  * 화면 밖 그림판에 한 번 그려 읽기 화면(LetterReadHud)에 넘긴다. 좌표는 미터.
  */
 import { assetUrl } from "@/config/env";
+import { IS_LOW_QUALITY } from "@/engine/quality";
 import * as THREE from "three";
 
 import { POUCH_MODEL, RING_MODEL } from "../itemLooks";
@@ -165,7 +166,8 @@ export async function renderPouchView(gl: THREE.WebGLRenderer) {
   camera.lookAt(0.0, 0, 0.085);
 
   // 화면 밖 그림판에 그려 픽셀을 읽는다 — 판은 선형 색이라 화면색(sRGB)으로 바꿔 옮긴다
-  const target = new THREE.WebGLRenderTarget(VIEW.width, VIEW.height, { samples: 4 });
+  // 저사양 모드는 계단 제거 없이 — 4배 버퍼가 48MB 다
+  const target = new THREE.WebGLRenderTarget(VIEW.width, VIEW.height, { samples: IS_LOW_QUALITY ? 0 : 4 });
   const previous = gl.getRenderTarget();
   const wasShadowOn = gl.shadowMap.enabled;
   gl.shadowMap.enabled = true;

@@ -77,6 +77,8 @@ export interface AvatarLink extends PlayerMotionState {
   armLength?: number;
   /** 아바타가 잰 가슴 반두께(세계 배율). 못 쟀으면 null — 한 번 재면 다시 안 잰다 */
   torsoHalfDepth?: number | null;
+  /** torsoHalfDepth 를 잴 때의 체형 모프 서명 — 바뀌면 다시 잰다 */
+  torsoShape?: string;
 
   // 아래는 게임(손붙이기)이 적는다
   /** 오른팔 IK 세기 0~1 */

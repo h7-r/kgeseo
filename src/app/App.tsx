@@ -61,6 +61,7 @@ import {
   markEnteredHeadquarters,
   onEnteredHeadquarters,
   sealHeadquartersDoor,
+  useHasEnteredHeadquarters,
   useIsCutscenePlaying,
 } from "@/props/vendingPushState";
 import SettingsPanel from "@/settings/SettingsPanel";
@@ -133,6 +134,9 @@ const CAMERA = {
 
 // dpr 2 면 그릴 픽셀이 4배다 — 내장 GPU 가 검게 죽는 원인 1순위.
 // 「자동」은 저사양 1 · 아니면 1~1.5. 기기 픽셀보다 높게는 안 쓴다.
+/** 역이 선 뒤 기차 안을 미리 짓기까지(ms) — 첫 화면의 셰이더 굽기(400 ms · 3 초)와 겹치지 않게 그 뒤로 */
+const TRAIN_PREMOUNT_MS = 6000;
+
 function canvasDpr({ resolution }: Settings): number | [number, number] {
   if (resolution !== "auto" && RESOLUTION_DPR[resolution]) {
     return Math.min(RESOLUTION_DPR[resolution], window.devicePixelRatio || 1);
@@ -198,6 +202,13 @@ export default function App() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 커밋을 나눠야 위 안개 문제가 없다
     if (isTrain) setIsTrainMounted(true);
   }, [isTrain]);
+  // 첫 탑승 때 기차 안을 그 자리에서 짓느라 화면이 멎었다(베타 11/13 「기차 탈 때 렉」) — 역이 선 뒤 한가할 때 미리 지어 둔다.
+  // 지어 두기만 하고 보이지 않는다(탔다 내린 뒤와 같은 상태). 저사양은 메모리를 아끼려 예전대로 탈 때 짓는다
+  useEffect(() => {
+    if (IS_LOW_QUALITY || IS_MOBILE_QUALITY) return;
+    const timer = window.setTimeout(() => setIsTrainMounted(true), TRAIN_PREMOUNT_MS);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   // 다시 접속 · 나주에서 「로비로 나가기」면 로비(본부실) 자리에서, 아니면 나갔던 자리에서 시작한다. Canvas 는 처음 한 번만 읽는다.
   // 로비 표시(?entry=lobby)는 저장 단계가 본부실 뒤일 때만 받는다 — 튜토리얼 중인 사람에게 주소만으로 본부실을 열지 않게
@@ -254,7 +265,15 @@ export default function App() {
   useEffect(() => {
     const handleEnter = () => setIsEnteringNaju(true);
     window.addEventListener(NAJU_ENTER_EVENT, handleEnter);
-    return () => window.removeEventListener(NAJU_ENTER_EVENT, handleEnter);
+    // 나주에서 「뒤로」 로 돌아오면(bfcache) 멈춰 둔 렌더를 다시 돌린다 — 안 풀면 화면이 굳은 채 남는다(Codex 11/12)
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) setIsEnteringNaju(false);
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => {
+      window.removeEventListener(NAJU_ENTER_EVENT, handleEnter);
+      window.removeEventListener("pageshow", handlePageShow);
+    };
   }, []);
 
   const [isThirdPerson, setIsThirdPerson] = useState(true);
@@ -338,11 +357,14 @@ export default function App() {
   // 게임 밖(잠금 풀림)이면 [T] 안내 — ESC 두 번 · 다시 잠그기 거절 뒤(12회차). 창 · 자물쇠 · 연출 · 입력칸 · 긴급 호출 카드 · 장면 전환
   // · 나주 진입 중에는 그쪽이 화면을 쓰고 잠금이 일부러 풀려 있으니 띄우지 않는다. 터치는 가상 잠금이라 해당 없음
   const isTyping = useIsTypingFocused();
-  const isDispatchAlert = useDispatchState().phase === "alert";
+  // 긴급 호출 카드는 기차 안에서는 그리지 않는다(DispatchCard) — 기차에서는 안내를 가리지 않게
+  const isDispatchAlert = useDispatchState().phase === "alert" && !isTrain;
+  // 본부실 뒤(다시 접속 · 나주에서 로비로 · 기차로 들어옴 · 새로고침)는 튜토리얼 안내가 숨어 [T] 를 알려 줄 곳이 없다 — 처음 [T] 전이면
+  // 「[T] 로 조작 시작」을 띄운다(미르 11/12, 2026-11-12 Codex 확인). 본부실 전(처음 · 튜토리얼 다시)은 튜토리얼 첫 단계가 알려 준다
+  const hasEnteredHeadquartersNow = useHasEnteredHeadquarters();
   const canShowReturnPrompt =
     !isTouch &&
     !IS_INPUT_ALWAYS_ON &&
-    hasLockedOnce &&
     !isPointerLocked &&
     !openLayer &&
     !lockControl &&
@@ -351,14 +373,19 @@ export default function App() {
     !isDispatchAlert &&
     !isEnteringNaju &&
     fade === 0;
-  // 밖이면 「[T] 로 돌아간다」, 돌아가려는데 브라우저가 저절로는 못 잠그면 「클릭하거나 아무 키나」. 잠시 기다리는 동안(pending)은 아무것도
+  // 밖이면 「[T] 로 돌아간다」, 돌아가려는데 브라우저가 저절로는 못 잠그면 「클릭하거나 아무 키나」. 잠시 기다리는 동안(pending)은 아무것도.
+  // 처음 [T] 전에는 멈춤 메뉴(out)가 아니라 「[T] 로 조작 시작」(start) — 게임을 세우지 않는다. 첫 [T] 가 거절돼도 「클릭하거나 아무 키나」
   const returnPromptMode = !canShowReturnPrompt
     ? null
-    : resumeState === "idle"
-      ? "out"
-      : resumeState === "waiting"
-        ? "waiting"
-        : null;
+    : resumeState === "waiting"
+      ? "waiting"
+      : resumeState !== "idle"
+        ? null
+        : hasLockedOnce
+          ? "out"
+          : hasEnteredHeadquartersNow
+            ? "start"
+            : null;
   // PC 일시정지 — 쉬는 창(설정 · 소지품 · 힌트함 · 수첩)이 열렸거나 게임 밖([T] 안내)이면 게임 시간 · 렌더 · 소리를 세운다
   // (미르 11/10, 터치의 「전부 멈춤」과 같다). 자물쇠 · 돌아가기 기다림(키로는 걷는다) · 컷신은 게임 안이라 세우지 않는다.
   // 기차의 목적지 창과 기차 안의 「게임 밖」은 세우지 않는다 — 기차는 마우스를 풀어 홀로그램을 겨눠 누르고(겨냥은 매 프레임 판정),

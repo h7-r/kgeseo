@@ -6,6 +6,7 @@ import { claimCamera, releaseCamera } from "@/engine/camera";
 import { smoothstep, smoothstepRange } from "@/engine/math";
 import { handOverView } from "@/engine/playerView";
 import { endCutscene, startCutscene } from "@/props/vendingPushState";
+import { isMotionReduced } from "@/settings/settings";
 
 import { peekFlowFocusRequest, takeFlowFocusRequest, type FlowFocusRequest } from "./flowFocus";
 
@@ -136,11 +137,12 @@ export default function FlowFocusCamera() {
       focus.look.slerp(lookQuaternion, 1 - Math.exp(-dt * (isOnPath ? FOLLOW_RATE : SETTLE_RATE)));
     }
     // 끝자리에서만 당긴다. 쥔 동안은 이 층만 시야각을 쓴다(이동 훅은 카메라 주인이 있으면 손대지 않는다)
-    if (!isOnPath && request.fovScale !== undefined && request.fovScale !== 1) {
+    const isReduced = isMotionReduced(); // 설정 「화면 흔들림 줄이기」 — 당김 · 떨림 없이 시선만 따라간다
+    if (!isReduced && !isOnPath && request.fovScale !== undefined && request.fovScale !== 1) {
       const zoomed = smoothstepRange(0, ZOOM_SECONDS, sinceArrived);
       setFov(camera, THREE.MathUtils.lerp(focus.homeFov, focus.homeFov * request.fovScale, zoomed));
     }
-    const shake = (request.shake?.() ?? 0) * SHAKE_ANGLE;
+    const shake = isReduced ? 0 : (request.shake?.() ?? 0) * SHAKE_ANGLE;
     shakeEuler.set((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
     camera.quaternion.copy(focus.look).multiply(shakeQuaternion.setFromEuler(shakeEuler));
     if (!isOnPath && now >= request.holdUntil() && sinceArrived >= (request.minHoldSeconds ?? 0)) {

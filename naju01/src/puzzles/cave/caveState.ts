@@ -65,7 +65,7 @@ export const TOUCH_UNDERWATER_SPEED = (() => {
 })();
 
 /** 숨(초) */
-export const BREATH_SECONDS = 70;
+export const BREATH_SECONDS = 90;
 /** 공기 기둥 안에서 숨이 차는 빠르기(초/초) */
 const BREATH_REFILL = 28;
 
@@ -272,9 +272,12 @@ export function guardBreathFor(label: string, seconds: number): () => void {
 /** 지금 숨을 지키는 중인가 — 장면 · 화면 고정 */
 export const isBreathGuarded = () => breathGuards.size > 0 || isCameraFocused();
 
+let wasBreathGuarded = false;
 /** 숨 — 매 프레임. 물속이 아니거나 공기 기둥 안이면 찬다. 다하면 true 를 돌려주고 숨을 채운다. 지키는 장면 동안은 줄지 않는다 */
 export function tickBreath(dt: number, x: number, z: number) {
   if (isBreathHeld) return false;
+  const breathBefore = breath;
+  const blackoutBefore = blackout;
   const inAir = !isUnderwater || isInAir(x, z);
   if (inAir) {
     if (isInAir(x, z)) rememberAirSpot(x, z);
@@ -284,7 +287,12 @@ export function tickBreath(dt: number, x: number, z: number) {
   if (drowned) breath = BREATH_SECONDS;
   // 까매짐은 숨이 다하면 1 로 튀고 2초쯤에 걸쳐 걷힌다
   blackout = drowned ? 1 : Math.max(0, blackout - dt * 0.5);
-  publish();
+  // 숨이 가득 찬 채 물 밖에 있으면 값이 그대로다 — 그대로면 알리지 않는다(매 프레임 HUD 가 다시 그려졌다, 성능 진단 11/13).
+  // 숨 보호가 걸리거나 풀리는 순간은 값이 멈춰도 알린다 — HUD 가 그때 경고 깜빡임을 멈추고 되살린다(Codex 리뷰)
+  const isGuarded = isBreathGuarded();
+  const hasGuardChanged = isGuarded !== wasBreathGuarded;
+  wasBreathGuarded = isGuarded;
+  if (drowned || hasGuardChanged || breath !== breathBefore || blackout !== blackoutBefore) publish();
   return drowned;
 }
 export const getLastAirSpot = () => lastAirSpot;

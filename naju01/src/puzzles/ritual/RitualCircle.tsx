@@ -10,6 +10,7 @@ import { RAIN_REASON } from "../../story/storyVariants";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
+import { assetUrl } from "@/config/env";
 import { exposeDevHook } from "@/debug/devHooks";
 
 import { recall, remember, track } from "../../save/puzzleMemory";
@@ -157,7 +158,7 @@ export default function RitualCircle() {
     OFFERINGS.forEach((kind, i) => {
       const model = looks[kind].model;
       if (!model) return;
-      void loadModel(model.url, model.size).then((source) => {
+      void loadModel(assetUrl(model.url), model.size).then((source) => {
         if (!isAlive || !source) return;
         const copy = source.clone(true);
         copy.traverse((node) => (node.castShadow = true));

@@ -79,6 +79,9 @@ type CarrierState =
   | "fallingTied"
   | "dropped";
 
+/** 밧줄 끝이 이만큼(2 mm) 움직이기 전에는 다시 짓지 않는다 */
+const ROPE_REDRAW_UNITS = 0.002 * M;
+
 interface Carrier {
   group: THREE.Group;
   rope: THREE.Mesh;
@@ -205,6 +208,8 @@ export default function TetheredCarriers() {
   /** 화면에서 빌려 온 지게 메시 — 전부 숨긴다 */
   const borrowedRef = useRef<THREE.Mesh[]>([]);
   const lastSearchRef = useRef(-99);
+  /** 지게마다 마지막으로 밧줄을 지은 양 끝 · 늘어짐 */
+  const ropeDrawnRef = useRef(new WeakMap<Carrier, { start: THREE.Vector3; end: THREE.Vector3; slack: number }>());
   /** 어느 모양을 빌렸나 — 교체본(공개 에셋)이 서면 그것으로 갈아 끼운다 */
   const lookSourceRef = useRef<"aihub" | "original" | null>(null);
   const poleRef = useRef<{ wraps: THREE.Group; radius: number } | null>(null);
@@ -601,6 +606,7 @@ export default function TetheredCarriers() {
   };
 
   /** 밧줄 — 땅에 늘어진 줄 · 팽팽한 줄 · 매인 채 떨어진 줄 · 풀린 뒤에는 없다. 다리에 감은 매듭에서 기둥에 감은 바퀴까지 잇는다 */
+  const ropeDrawn = ropeDrawnRef.current;
   const drawRope = (carrier: Carrier, time: number) => {
     carrier.group.updateMatrixWorld(true);
     carrier.end.copy(carrier.legTie).applyMatrix4(carrier.group.matrixWorld);
@@ -622,6 +628,23 @@ export default function TetheredCarriers() {
       const toward = new THREE.Vector3(carrier.end.x - knot.x, 0, carrier.end.z - knot.z).normalize();
       start.addScaledVector(toward, (poleRef.current.radius + ROPE_RADIUS) * M);
     }
+    // 밧줄 모양은 양 끝 · 늘어짐이 바뀔 때만 다시 짓는다 — 땅에 놓인 지게는 그대로인데 매 프레임 새 지오메트리를
+    // 만들어 올렸다(맵 어디에 있든, 성능 진단 11/13)
+    const drawn = ropeDrawn.get(carrier) ?? {
+      start: new THREE.Vector3(Infinity, 0, 0),
+      end: new THREE.Vector3(),
+      slack: -1,
+    };
+    ropeDrawn.set(carrier, drawn);
+    if (
+      drawn.slack === slack &&
+      drawn.start.distanceToSquared(start) < ROPE_REDRAW_UNITS ** 2 &&
+      drawn.end.distanceToSquared(carrier.end) < ROPE_REDRAW_UNITS ** 2
+    )
+      return;
+    drawn.start.copy(start);
+    drawn.end.copy(carrier.end);
+    drawn.slack = slack;
     const curve = buildRopeCurve(start, carrier.end, slack);
     carrier.rope.geometry.dispose();
     carrier.rope.geometry = new THREE.TubeGeometry(curve, 28, ROPE_RADIUS * M, 5, false);

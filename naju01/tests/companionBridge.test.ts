@@ -1056,6 +1056,7 @@ test("CDN 에셋이면 세션을 최대 2.5초 기다리고, 로컬 에셋이거
 test("정식 힌트 2단계(정답)가 처음 오면 onAnswerSeen(도움 별 「정답 확인」) — 1단계 · 다시 보기는 아니다", () => {
   let state: DialogState = {
     isEnabled: true,
+    isNpcEnabled: true,
     waiting: null,
     line: null,
     offer: null,
@@ -1100,6 +1101,7 @@ test("정식 힌트 2단계(정답)가 처음 오면 onAnswerSeen(도움 별 「
 test("[F] 로 청한 정식 힌트는 글이 실제로 왔을 때만 onRequestedHint — 실패 문구 · 다시 보기 · 서버가 권한 힌트는 아니다", async () => {
   let state: DialogState = {
     isEnabled: true,
+    isNpcEnabled: true,
     waiting: null,
     line: null,
     offer: null,

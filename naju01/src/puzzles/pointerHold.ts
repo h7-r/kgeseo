@@ -16,6 +16,7 @@ import type { PointerLockControls } from "three-stdlib";
 
 import { exposeDevHook } from "@/debug/devHooks";
 import { createChangeSignal } from "@/lib/changeSignal";
+import { requestGameLock } from "@/engine/input/lookGuard";
 import { isTouchMode } from "@/engine/input/touchMode";
 import { isPointerActive } from "@/engine/input/virtualLock";
 
@@ -118,12 +119,7 @@ function releaseLock() {
 function requestLock() {
   const element = (getControls() as unknown as { domElement?: HTMLElement } | null)?.domElement;
   if (typeof element?.requestPointerLock !== "function") return;
-  try {
-    const result = element.requestPointerLock() as unknown;
-    if (result instanceof Promise) result.catch(() => {});
-  } catch {
-    // 잠금이 없는 브라우저 — 기다림으로 넘어간다
-  }
+  requestGameLock(element);
 }
 
 /**

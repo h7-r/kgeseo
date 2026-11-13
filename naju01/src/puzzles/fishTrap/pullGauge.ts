@@ -13,7 +13,7 @@ import { createChangeSignal } from "@/lib/changeSignal";
 
 import { setKeyInterceptor } from "../interaction";
 import { beginHold, endHold, isWindowHeld } from "../pointerHold";
-import { continuedStart, cursorAt, pickZone, type ZoneChoice } from "./gaugeMath";
+import { continuedStart, cursorAt, isGaugeHit, pickZone, type ZoneChoice } from "./gaugeMath";
 
 export const GAUGE_HITS = 3;
 
@@ -27,24 +27,26 @@ interface GaugeRound {
 /**
  * 둘째 · 셋째 판 — 칸 너비 · 오가는 초 · 칸 가운데 후보(왼쪽 절반, 오른쪽은 1 − 값).
  * 11/11 「너무 쉽다」로 칸 안 머묾을 둘째 0.20 · 셋째 0.12 초로 줄였고, 11/12 「속도가 전체적으로 좀 더」 → 해 보고 「조금 더 빠르게」로
- * 세 판 다 빠르게(1.8 · 1.35 · 1.1 → 1.5 · 1.15 · 0.95 → 1.3 · 1.0 · 0.85 초, 처음보다 막대 빠르기 +38 · +35 · +29%).
- * 셋째는 머묾이 0.10 초 아래(처음 하는 사람에게 반사 신경 싸움)로 내려가지 않게 칸을 0.11 → 0.13 으로 넓혀 0.11 초(나주통발 02회차 Codex).
- * 셋째 칸은 가장자리로 몰지 않는다(0.24~0.3)
+ * 세 판 다 빠르게(1.8 · 1.35 · 1.1 → 1.5 · 1.15 · 0.95 → 1.3 · 1.0 · 0.85 초).
+ * 11/12 다시 「전체 좀만 더 · 2 · 3회차 증가폭을 더, 너무 쉽다」 → 1.15 · 0.78 · 0.60 초 — 앞 판 대비 빠르기 +30 · +18% 를 +47 · +30% 로
+ * (나주통발 05회차 Codex: 셋째 0.56 은 이걸 해 보고도 쉬울 때 쓸 여유). 머묾 0.10 초 하한은 이때 깼다 — 놓쳐도 벌이 없고 막대가 일정해 미리 맞춰 누른다.
+ * 셋째 칸은 0.13 → 0.14 로 조금 넓혀 0.084 초. 셋째 칸은 가장자리로 몰지 않는다(0.24~0.3)
  */
-const ROUND_2 = { zone: 0.15, sweep: 1.0, centers: [0.3, 0.36] } as const;
-const ROUND_3 = { zone: 0.13, sweep: 0.85, centers: [0.24, 0.3] } as const;
+const ROUND_2 = { zone: 0.15, sweep: 0.78, centers: [0.3, 0.36] } as const;
+const ROUND_3 = { zone: 0.14, sweep: 0.6, centers: [0.24, 0.3] } as const;
 /**
  * 판이 바뀌면 막대는 이어서 움직인다 — 새 칸은 막대가 닿기까지 이만큼(초) 넘게 남는 자리로(옮겨 간 칸을 볼 틈, 예전엔 왼쪽 끝에서 0.35 초 섰다).
- * 못 채우면 가장 먼 자리(0.2 초 남짓) — 셋째는 둘째의 반대편으로 묶여 있고, 둘째도 첫 칸 가장자리에서 맞히면 빠듯하다
+ * 못 채우면 가장 먼 자리 — 셋째는 둘째의 반대편으로 묶여 있어 셋째 쪽으로 가는 중에 맞히면 늘 그렇다(0.15 초 남짓, 첫 통과를 보내도
+ * 칸이 끝 가까이라 끝 찍고 곧 다시 온다. 놓쳐도 벌은 없다 — 05회차 Codex 「받아도 된다」). 둘째도 첫 칸 가장자리에서 맞히면 빠듯하다
  */
 const MIN_REACH_SECONDS = 0.3;
 
 /**
  * 판마다. 첫째는 가운데 넓은 칸, 둘째 · 셋째는 좁고 빠르게, 칸이 판마다 옮겨 간다.
- * 칸 안에 막대가 머무는 시간 = 너비 × 오가는 초 — 첫째 0.39 · 둘째 0.15 · 셋째 0.11 초
+ * 칸 안에 막대가 머무는 시간 = 너비 × 오가는 초 — 첫째 0.345 · 둘째 0.117 · 셋째 0.084 초
  */
 const ROUNDS: GaugeRound[] = [
-  { zone: 0.3, sweep: 1.3, centers: [0.5] },
+  { zone: 0.3, sweep: 1.15, centers: [0.5] },
   { zone: ROUND_2.zone, sweep: ROUND_2.sweep, centers: ROUND_2.centers },
   { zone: ROUND_3.zone, sweep: ROUND_3.sweep, centers: ROUND_3.centers },
 ];
@@ -120,15 +122,23 @@ function nextRound(hits: number, now: number): Pick<GaugeState, "zone" | "center
 /** 막대 자리 0~1 — 왼쪽 끝에서 출발해 오간다 */
 export const gaugeCursor = (now: number) => cursorAt(now - state.startedAt, state.sweep).position;
 
-const isInZone = (cursor: number) => Math.abs(cursor - state.center) <= state.zone / 2;
+let shown: { position: number; at: number } | null = null;
+/** HUD 가 막대를 그릴 때마다 알린다 — 화면이 느린 기기에서는 「보이는 자리」와 「지금 시각의 자리」가 벌어진다 */
+export function noteGaugeShown(position: number, at: number) {
+  shown = { position, at };
+}
+
 
 function handleKey() {
   if (!state.active) return false;
   // 터치 멈춤(창 · 메뉴) 동안은 막대도 서 있다 — 그 사이 누른 것은 판정하지 않는다(02회차 Codex)
   if (isGameFrozen()) return false;
   const now = performance.now();
-  if (isInZone(gaugeCursor(now))) {
+  // 지금 시각의 자리 또는 방금 화면에 그려진 자리로 판정한다(gaugeMath.isGaugeHit)
+  if (isGaugeHit({ cursor: gaugeCursor(now), shown, now, center: state.center, zone: state.zone })) {
     const hits = state.hits + 1;
+    // 판이 바뀐다 — 앞 판에서 그려진 자리로 새 칸까지 맞지 않게 버린다(Codex 리뷰)
+    shown = null;
     const isLast = hits >= GAUGE_HITS;
     // 마지막이면 다음 판을 만들지 않고 끝낸다
     update({ hits, flash: "hit", flashKey: state.flashKey + 1, ...(isLast ? {} : nextRound(hits, now)) });
@@ -146,6 +156,7 @@ export function startGauge(label: string, next: GaugeHandlers) {
   handlers = next;
   setKeyInterceptor(handleKey);
   beginHold("gauge", "interaction");
+  shown = null;
   update({ active: true, label, hits: 0, flash: null, ...firstRound(performance.now()) });
 }
 
@@ -176,5 +187,7 @@ export const useGauge = () => useSyncExternalStore(signal.subscribe, () => state
 
 exposeDevHook("najuGauge", {
   state: () => state,
-  isOnZone: () => state.active && isInZone(gaugeCursor(performance.now())),
+  isOnZone: () =>
+    state.active &&
+    isGaugeHit({ cursor: gaugeCursor(performance.now()), shown: null, now: 0, center: state.center, zone: state.zone }),
 });

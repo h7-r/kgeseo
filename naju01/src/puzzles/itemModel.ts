@@ -5,6 +5,8 @@
 import { useEffect, useState } from "react";
 import * as THREE from "three";
 
+import { assetUrl } from "@/config/env";
+
 import { createCompressedGltfLoader } from "../loaders/compressedGlb";
 
 const cache = new Map<string, Promise<THREE.Object3D | null>>();
@@ -48,7 +50,8 @@ export function useItemModel(model: { url: string; size: number } | undefined, r
   useEffect(() => {
     if (!model) return undefined;
     let isAlive = true;
-    void loadModel(model.url, model.size).then((source) => {
+    // 케이스 에셋 주소로 바꿔 읽는다 — 그대로 부르면 운영(CDN)에서 모형 대신 웹 페이지가 돌아온다(11/12 베타 보고)
+    void loadModel(assetUrl(model.url), model.size).then((source) => {
       if (!isAlive || !source) return;
       const copy = source.clone(true);
       copy.traverse((o) => {

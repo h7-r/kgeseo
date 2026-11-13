@@ -10,14 +10,23 @@ import { betaLog } from "./betaLog";
 
 export type SurveyKind = "pre" | "post" | "exit";
 
+/**
+ * 11/12 팀 폼 하나 — 끝난 뒤 · 중단이 같은 폼이다(시작 전 설문 없음 · A/B 판 없음).
+ * 「참가 번호」(응답자 정보 맨 위 단답, 11/12 팀이 더함)에 참가 번호를 채우고, 6번(어디까지 하셨나요)을 미리 고른다:
+ * 끝난 뒤는 「엔딩까지」, 중단(나주 멈춤 메뉴에만 있다)은 「나주 도중」. 참가자는 아무것도 적지 않는다.
+ */
+const TEAM_FORM =
+  "https://docs.google.com/forms/d/e/1FAIpQLSd1DHDW1uBNLtLHIC4niLO9-erjkGhVQSJ8d37ssUIkknC8kw/viewform?usp=pp_url&entry.228975187={key}";
+const PLAYED_TO = "entry.2031914977";
+
 /** 폼 주소 — 미르 · 설문 담당이 채운다(빌드 변수가 우선) */
 export const BETA_FORMS = {
   pre: "",
   /** D3(코스튬) → D4(할인권) */
-  postA: "",
+  postA: `${TEAM_FORM}&${PLAYED_TO}=${encodeURIComponent("엔딩까지")}`,
   /** D4(할인권) → D3(코스튬) */
   postB: "",
-  exit: "",
+  exit: `${TEAM_FORM}&${PLAYED_TO}=${encodeURIComponent("나주 도중")}`,
 };
 
 function envForm(name: string): string {
@@ -59,12 +68,14 @@ export function surveyLink(kind: SurveyKind): { url: string; variant: string | n
   };
 }
 
-/** 이 설문을 이미 처리했나(엶 · 「이미 했어요」) — 끝난 뒤 · 중단 설문은 회차마다 */
+/**
+ * 이 설문을 이미 처리했나(엶 · 「이미 했어요」) — 사람마다(한 PC 를 여러 참가자가 쓰면 각자 묻는다).
+ * 끝난 뒤 · 중단은 같은 폼이고 폼이 「한 번만 응답해 주세요」라 한 자리로 센다 — 중단 설문을 연 사람에게 엔딩에서,
+ * 다시 시작한 회차에서 또 묻지 않는다.
+ */
 const doneKey = (kind: SurveyKind) => {
-  // 시작 전은 사람마다(한 PC 를 여러 참가자가 쓰면 각자 묻는다), 끝난 뒤 · 중단은 회차마다
-  if (kind === "pre") return `waegok.beta.survey.pre.${betaLog.participantKey() ?? ""}`;
-  const run = betaLog.run();
-  return `waegok.beta.survey.${kind}${run ? `.${run.id}` : ""}`;
+  const person = betaLog.participantKey() ?? "";
+  return kind === "pre" ? `waegok.beta.survey.pre.${person}` : `waegok.beta.survey.final.${person}`;
 };
 
 export function isSurveyHandled(kind: SurveyKind): boolean {

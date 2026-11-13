@@ -1,12 +1,24 @@
-/** 저사양 모드(?q=low). 텍스처 해상도를 절반으로 떨어뜨려 내장 GPU 의 메모리를 아낀다. */
-export const IS_LOW_QUALITY = (() => {
-  try {
-    return new URLSearchParams(location.search).get("q") === "low";
-  } catch {
-    // 브라우저가 아닌 환경(빌드 중 등)에서는 일반 모드
-    return false;
-  }
-})();
+/**
+ * 그래픽 품질 — 기본 · 저사양(미르 11/12 「품질 저하를 감수하며 다 낮출 바에 저사양 모드를 따로」).
+ * 기본 모드의 화질은 건드리지 않고, 화질을 낮추는 것은 저사양 모드에만 넣는다.
+ * 정하는 순서: 주소(?q=low · ?q=standard) → 설정 창에서 고른 값(저장) → 기기를 보고 자동.
+ * 자동은 저장하지 않는다 — 열 때마다 다시 본다. 페이지를 열 때 한 번 정한다(그림자 · 후처리는 도중에 못 바꾼다).
+ * 로비 ↔ 나주는 같은 출처라 같은 저장값 · 같은 판정을 쓴다 — 넘어가도 유지된다.
+ */
+import { resolveQuality } from "../../shared/qualityChoice";
+
+export {
+  readQualityChoice,
+  saveQualityChoice,
+  type QualityChoice,
+  type QualityMode,
+} from "../../shared/qualityChoice";
+
+/** 이 페이지에 적용된 품질과 그렇게 정한 까닭 */
+export const QUALITY = resolveQuality();
+
+/** 저사양 모드. 텍스처 해상도를 절반으로 떨어뜨려 내장 GPU 의 메모리를 아낀다. */
+export const IS_LOW_QUALITY = QUALITY.mode === "low";
 
 export const TEXTURE_SCALE = IS_LOW_QUALITY ? 0.5 : 1;
 

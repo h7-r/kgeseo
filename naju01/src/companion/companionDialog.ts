@@ -44,8 +44,13 @@ export type DialogLine =
 export type HintOffer = { via: "ref"; hintRef: string; level: 1 } | { via: "puzzle"; puzzleId: string; level: 1 | 2 };
 
 export interface DialogState {
-  /** 세션이 준비돼 말을 걸 수 있는가 */
+  /** 공용 세션이 준비됐는가 — 정식 힌트(Hint API)는 이것만 본다 */
   isEnabled: boolean;
+  /**
+   * 동행(서버 NPC 턴)에 말을 걸 수 있는가 — 세션이 준비됐고, NPC 쪽 오류(500 등)로 동행만 끄지 않았다.
+   * 꺼지면 이 탭에서는 다시 켜지 않는다(새로고침 전까지). 공용 세션 · 퍼즐 제출 · 진행 저장 · 정식 힌트는 그대로다.
+   */
+  isNpcEnabled: boolean;
   waiting: "npc" | "hint" | null;
   line: DialogLine | null;
   offer: HintOffer | null;
@@ -126,6 +131,7 @@ export function createCompanionDialog(options: {
 
   let state: DialogState = {
     isEnabled: readySession() !== null,
+    isNpcEnabled: readySession() !== null,
     waiting: null,
     line: null,
     offer: null,
@@ -138,7 +144,8 @@ export function createCompanionDialog(options: {
   let pendingId: string | null = null;
   let lineTimer: number | null = null;
   let lastAutoAt = -Infinity;
-  let reportedContentError = false;
+  /** NPC 쪽 오류로 동행 대화만 껐다 — 공용 세션(session.disable)은 건드리지 않는다 */
+  let isNpcOff = false;
 
   const emit = () => {
     for (const listener of listeners) listener();
@@ -154,7 +161,13 @@ export function createCompanionDialog(options: {
     if (isEnabled !== state.isEnabled) {
       // 세션이 바뀌면 그 전 세션의 제안 · 대기는 쓸모없다
       pendingId = null;
-      patch({ isEnabled, waiting: null, offer: null, hintLevels: { ...(ready?.hintLevels ?? {}) } });
+      patch({
+        isEnabled,
+        isNpcEnabled: isEnabled && !isNpcOff,
+        waiting: null,
+        offer: null,
+        hintLevels: { ...(ready?.hintLevels ?? {}) },
+      });
     }
   });
 
@@ -213,6 +226,20 @@ export function createCompanionDialog(options: {
   // ── NPC 턴 ──
 
   /**
+   * NPC 쪽 오류(500 등 서버 오류)면 동행 대화만 끈다. 공용 세션은 그대로 둬서 퍼즐 제출(progressSync) · 진행 저장 · 정식 힌트는 계속 간다
+   * (세션을 끄면 progressSync 가 session-not-ready 로 퍼즐 서버 판정을 못 보낸다). 꺼지면 폴링도 멈춘다(isNpcEnabled).
+   * 안내는 꺼지는 이 순간 한 번만 — 플레이어가 하지 않은 자동 턴(폴링)에서 꺼져도 띄운다.
+   */
+  function turnOffNpc(error: unknown) {
+    if (isNpcOff) return;
+    isNpcOff = true;
+    const status = error instanceof CompanionApiError ? error.status : null;
+    log("error", `NPC ${status ?? "?"} — 동행 대화만 끈다(공용 세션은 그대로)`, error);
+    patch({ isNpcEnabled: false, waiting: null });
+    show({ kind: "notice", text: DIALOG_TEXT.unavailable });
+  }
+
+  /**
    * quiet — 플레이어가 하지 않은 뒤쪽 요청(퍼즐 자동 개입 폴링)이라 실패해도 안내를 띄우지 않는다(로그 · 세션 처리는 그대로).
    * 1분마다 도는 요청이 「연결이 불안정해요 · 한 번 더 말을 걸어 주세요」를 되풀이하지 않게.
    */
@@ -224,7 +251,7 @@ export function createCompanionDialog(options: {
     { quiet = false }: { quiet?: boolean } = {},
   ) {
     const ready = readySession();
-    if (!ready || state.waiting) return false;
+    if (!ready || isNpcOff || state.waiting) return false;
     const request: NpcTurnBody = { client_event_id: newEventId(), client_timestamp: clientTimestamp(), ...body };
     // 멈춘 시간은 본문을 만들 때 한 번 정한다 — 재전송은 같은 본문이어야 한다(다르면 409)
     if (body.trigger === "auto" && isPausedFieldAccepted) {
@@ -253,13 +280,9 @@ export function createCompanionDialog(options: {
       if (common) {
         patch({ waiting: null });
         if (common.text && !quiet) show({ kind: "notice", text: common.text });
-      } else if (error instanceof CompanionApiError && error.status === 500) {
-        // NPC 콘텐츠 검증 실패 등 — 비활성 + 보고(한 번)
-        if (!reportedContentError) log("error", "NPC 500 — 동행 NPC 를 끈다", error);
-        reportedContentError = true;
-        session.disable("case-content-unavailable");
-        patch({ waiting: null });
-        if (!quiet) show({ kind: "notice", text: DIALOG_TEXT.unavailable });
+      } else if (error instanceof CompanionApiError && error.status !== null && error.status >= 500) {
+        // NPC 콘텐츠 검증 실패 등 서버 오류 — 동행만 끈다(재시도하는 연결 오류 502~504 는 위 공통에서 끝났다)
+        turnOffNpc(error);
       } else {
         log("error", "NPC 턴 실패", error);
         patch({ waiting: null });
@@ -375,7 +398,7 @@ export function createCompanionDialog(options: {
      */
     autoTurn(situation?: NpcSituation, focusObjectId?: string, options: { quiet?: boolean } = {}) {
       if (!situation && !focusObjectId && now() - lastAutoAt < timing.autoMinIntervalMs) return Promise.resolve(false);
-      if (!readySession() || state.waiting) return Promise.resolve(false);
+      if (!readySession() || isNpcOff || state.waiting) return Promise.resolve(false);
       if (!situation && !focusObjectId) {
         lastAutoAt = now();
         return sendTurn({ trigger: "auto" });

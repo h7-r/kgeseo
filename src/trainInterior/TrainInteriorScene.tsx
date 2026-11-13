@@ -4,6 +4,7 @@ import { Html, Outlines } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 
 import { savedTrainPose } from "@/save/mainGameSave";
+import SceneAtmosphere from "@/engine/SceneAtmosphere";
 import { scaleColor } from "@/engine/color";
 import { pickOutlineValues } from "@/engine/leva/savedControls";
 import { PLAYER_RADIUS } from "@/engine/movement/constants";
@@ -251,10 +252,14 @@ export default function TrainInteriorScene({ active, enabled = true, onNear }: T
 
   return (
     <>
-      {/* 배경·안개는 켜진 씬만 낸다(나중에 그린 쪽이 이긴다). 반드시 <group> 바깥 —
-          attach 는 바로 위 부모에 꽂히고, 렌더러는 scene.background/fog 만 읽는다. */}
-      {enabled && <color attach="background" args={["#0e1116"]} />}
-      {enabled && <fog attach="fog" args={[controls.fogColor, controls.fogNear, controls.fogFar]} />}
+      {/* 배경·안개는 켜진 씬만 건다(SceneAtmosphere — attach 로 붙였다 떼면 두 번째 탑승부터 사라졌다) */}
+      <SceneAtmosphere
+        enabled={enabled}
+        background="#0e1116"
+        fogColor={controls.fogColor}
+        fogNear={controls.fogNear}
+        fogFar={controls.fogFar}
+      />
 
       {/* 이름은 만화 팔레트가 구역을 찾는 표식(engine/manga) */}
       <group visible={enabled} name="trainInterior">

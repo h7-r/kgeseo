@@ -37,6 +37,7 @@ import {
   WALK_SPEED,
 } from "./constants";
 import { clearPush, PUSH_COMBINED_SPEED_LIMIT, stopPushAxis, takePushStep } from "./push";
+import { DEFAULT_SETTINGS, settingsStore } from "@/settings/settings";
 
 /** 아바타가 읽는 몸 상태. useMovement 가 매 프레임 적는다. */
 export interface PlayerMotionState {
@@ -52,6 +53,11 @@ export interface PlayerMotionState {
   grounded: boolean;
   jumping: boolean;
   verticalVelocity: number;
+  /**
+   * 이 시각(performance.now(), ms)까지 걷기 입력을 받지 않는다 — 주먹처럼 제자리에서 하는 동작(src/app/punchPress, 11/12).
+   * 몸 방향도 그대로 둔다. 점프 · 앉기 · 시점은 막지 않는다
+   */
+  holdStillUntil?: number;
 }
 
 export interface MovementOptions {
@@ -203,7 +209,8 @@ export function useMovement(
   /** 시야각을 목표로 부드럽게 옮긴다. null 이면 이 씬의 원래 값으로. */
   const easeFov = (target: number | null, dt: number, speed = 4) => {
     // camera.fov 를 읽지 않는다 — 다른 씬이 넓혀 둔 값을 원래 값으로 오해한다.
-    if (baseFov.current == null) baseFov.current = fov;
+    // 설정의 시야각(기본 60°)을 이 씬이 선언한 값에 더한다 — 씬마다 다르게 잡은 차이는 지킨다
+    baseFov.current = fov + (settingsStore.get().fov - DEFAULT_SETTINGS.fov);
     const goal = target ?? baseFov.current;
     const diff = goal - camera.fov;
     if (Math.abs(diff) < 0.02) {
@@ -572,6 +579,8 @@ export function useMovement(
         isTouchRunning.current = touch.isRunning;
       }
     }
+    // 주먹 같은 제자리 동작 중 — 그 자리에 선다. 걷던 중에 낸 주먹도 미끄러지지 않는다(키는 누른 채라 끝나면 바로 다시 걷는다)
+    if ((playerRef?.current?.holdStillUntil ?? 0) > performance.now()) wish.set(0, 0, 0);
     if (wish.lengthSq() > 0) wish.normalize();
     if (wish.lengthSq() > 0.00001) bodyYaw.current = Math.atan2(wish.x, wish.z);
     const isCrouching = k.crouchToggle;

@@ -76,6 +76,8 @@ const LOD_BOUNDARY_FOCUSED_M = 10;
 const SINK_SECONDS = 2.4;
 /** 눈이 이만큼(유닛) 넘게 옮겨 가면 구역 초점 거르기를 바로 다시 한다 — 걸어서는 2초 넘게 걸리는 거리 */
 const FOCUS_JUMP_UNITS = 8 * U;
+/** 눈이 이만큼 움직이기 전에는 원근 나눔을 다시 하지 않는다(경계 22 m 에 견줘 반 미터는 눈에 안 띈다) */
+const LOD_REFILL_UNITS = 0.5 * U;
 
 // ── 「놓기」 다시 읽기 (10/15) — 통합 편집 모드(E)가 manifest 「놓기」를 쓴 뒤(놓기·고치기·지우기) 새로고침 없이 보이게 ──
 const reloadHandlers = new Set<() => Promise<boolean>>();
@@ -162,6 +164,10 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
   const focusTick = useRef(0);
   /** 구역 초점으로 마지막에 걸러 낸 때의 눈 자리(유닛) */
   const filteredAt = useRef(new THREE.Vector3(Infinity, Infinity, Infinity));
+  const lodAt = useRef<{ eye: THREE.Vector3; radius: number | null }>({
+    eye: new THREE.Vector3(Infinity, Infinity, Infinity),
+    radius: null,
+  });
   const clearedRef = useRef(clearedBlockers);
   const groundAtRef = useRef(groundAt);
   // 렌더 중 ref 쓰기 금지(react-hooks) — 효과에서 최신 값을 넣는다
@@ -307,19 +313,24 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
     let changed = false;
 
     // ── ① 원본 무리 압축 — 등록부가 맡는 자리를 원본에서 뺀다(새로 담긴 무리만) ──
+    // 씬은 여기서 한 번만 훑는다 — 아래 바꿔치기가 항목마다 다시 훑으면 20 프레임마다 프레임이 튄다(성능 진단 11/13)
+    const originalsByName = new Map<string, THREE.InstancedMesh[]>();
     scene.traverse((o) => {
       if (!(o as THREE.InstancedMesh).isInstancedMesh || o.userData.publicAsset) return;
       compactOriginal(o as THREE.InstancedMesh);
       // 남은 원본도 비탈에서 뜨지 않게
       const groundAt = groundAtRef.current;
       if (groundAt) settleOriginal(o as THREE.InstancedMesh, groundAt);
+      const list = originalsByName.get(o.name);
+      if (list) list.push(o as THREE.InstancedMesh);
+      else originalsByName.set(o.name, [o as THREE.InstancedMesh]);
     });
 
     // ── ② 바꿔치기 ──
     table.swaps.forEach((item, index) => {
       if (IS_EMPTY_BASE) return; // 빈 지형 — 교체본(사람 배치 무리의 겉모습)도 그리지 않는다
       const key = `바꿔:${index}:${item.target}`;
-      const result = buildSwap(item, ctx, built.current.get(key), groundAtRef.current);
+      const result = buildSwap(item, ctx, built.current.get(key), groundAtRef.current, originalsByName);
       if (result === "same" || result === null) return;
       built.current.set(key, result);
       changed = true;
@@ -407,7 +418,14 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
     const radius2 = radius ? radius * radius : Infinity;
     const boundary2 = ((radius ? LOD_BOUNDARY_FOCUSED_M : LOD_BOUNDARY_M) * U) ** 2;
     const eye = camera.position;
-    for (const v of built.current.values())
+    // 원근 나눔은 눈이 움직였거나 세운 것 · 반경이 바뀌었을 때만 — 서 있는 동안 같은 답을 다시 채워 올리지 않는다(성능 진단 11/13)
+    const isLodStale =
+      changed || radius !== lodAt.current.radius || eye.distanceToSquared(lodAt.current.eye) > LOD_REFILL_UNITS ** 2;
+    if (isLodStale) {
+      lodAt.current.eye.copy(eye);
+      lodAt.current.radius = radius;
+    }
+    for (const v of isLodStale ? built.current.values() : [])
       for (const { nearMeshes, farMeshes, nearMatrices, farMatrices, positions, idTable, placeSpots } of v.lodPairs ||
         []) {
         let a = 0;

@@ -33,6 +33,16 @@ export function prewarmShaders(
       if (!object) continue;
       const wasVisible = object.visible;
       object.visible = true;
+      // 숨겨 둔 물체 속 점조명이 같이 보이면 조명 수가 하나 늘어난 판으로 구워져 헛돈다 — 굽는 동안만 감춘다.
+      // 실제로 켜질 때는 LightBudget 이 수를 맞춘다
+      const lights: THREE.Object3D[] = [];
+      if (!wasVisible)
+        object.traverse((node) => {
+          if ((node as THREE.Light).isLight && node.visible) {
+            lights.push(node);
+            node.visible = false;
+          }
+        });
       try {
         void gl.compileAsync(object, camera, scene).catch(() => {});
         // 큰 그림판 텍스처는 처음 그릴 때 올리느라 멈춘다 — 지금 올려 둔다
@@ -46,6 +56,7 @@ export function prewarmShaders(
       } catch {
         // WebGL 이 끊긴 뒤 등 — 미리 굽기는 실패해도 그만
       }
+      for (const light of lights) light.visible = true;
       object.visible = wasVisible;
     }
   } finally {

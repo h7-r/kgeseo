@@ -4,6 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useLaterSurvey } from "@/beta/laterSurvey";
 import { isGamePausedFlag } from "@/engine/input/gamePause";
 import type { LeaveResult, LeaveToLobbyAction } from "@/game/LeaveToLobby";
 import { isGameSaveEnabled } from "@/save/gameSave";
@@ -27,6 +28,7 @@ import {
 } from "./endingScript";
 import "./ending.css";
 import { BetaPostSurveyGate } from "@/beta/BetaSurveyCard";
+import { noteStory } from "../beta/najuBeta";
 
 interface EndingLayerProps {
   /** 본편과 한 출처일 때만 — 로비 · 기차로 나간다 */
@@ -86,10 +88,42 @@ function EndingFilm() {
   const films = useRef<Films | null>(null);
   const filmHost = useRef<HTMLDivElement>(null);
 
+  // 베타 기록 — 끝까지 봤나 · 몇 번째 장에서 건너뛰었나 · 직접 넘긴 횟수(미르 11/12). 다시 보기(멈춤 메뉴)는 rewatch 로 가른다
+  const filmLog = useRef({ openedAt: 0, taps: 0, isRewatch: false, isNoted: false, index: 0 });
+  useEffect(() => {
+    filmLog.current.openedAt = performance.now();
+    filmLog.current.isRewatch = ending.isSeen();
+  }, []);
+  useEffect(() => {
+    filmLog.current.index = index;
+  }, [index]);
+  const noteFilm = useCallback(
+    (phase: "skipped" | "completed") => {
+      const log = filmLog.current;
+      if (log.isNoted) return;
+      log.isNoted = true;
+      noteStory("ending_film", phase, {
+        shot: log.index + 1,
+        shots: shots.length,
+        taps: log.taps,
+        watched_sec: Math.round((performance.now() - log.openedAt) / 100) / 10,
+        rewatch: log.isRewatch,
+      });
+    },
+    [shots.length],
+  );
+
   const next = useCallback(() => {
-    if (isLast) ending.finishFilm();
-    else setIndex((current) => Math.min(current + 1, shots.length - 1));
-  }, [isLast, shots.length]);
+    if (isLast) {
+      noteFilm("completed");
+      ending.finishFilm();
+    } else setIndex((current) => Math.min(current + 1, shots.length - 1));
+  }, [isLast, shots.length, noteFilm]);
+  /** 클릭 · 짧은 키로 직접 넘김 */
+  const tapNext = useCallback(() => {
+    filmLog.current.taps += 1;
+    next();
+  }, [next]);
 
   // 장 시계 — 화면이 그려질 때만 흐른다(탭을 숨기거나 앱을 바꾸면 필름도 선다. 세계가 멈춘 것과는 따로, Codex).
   // 장 길이가 차면 다음으로. 게임 속 영상(함의 그림자극 · 선바위 영상)은 그 대목만 같은 시계로 다시 튼다 — 플레이어가 본 그 장면
@@ -138,7 +172,7 @@ function EndingFilm() {
   );
 
   useEndingMusic();
-  const hold = useHoldToSkip(setHoldLevel);
+  const hold = useHoldToSkip(setHoldLevel, () => noteFilm("skipped"));
 
   // 클릭 · Space · Enter 짧게 = 다음 장, 길게(키 · 단추) = 건너뛰기. 엔딩 동안 다른 단축키(소지품 · 설정 · 상호작용)는 막는다
   const keyDownAt = useRef(0);
@@ -161,7 +195,7 @@ function EndingFilm() {
       const heldFor = performance.now() - keyDownAt.current;
       keyDownAt.current = 0;
       hold.cancel();
-      if (heldFor < TAP_MS) next();
+      if (heldFor < TAP_MS) tapNext();
     };
     // 키를 쥔 채 창을 벗어나면 그 놓음이 안 온다 — 돌아왔을 때 다 찬 것으로 건너뛰지 않게 거둔다(Codex 리뷰)
     const onLeave = () => {
@@ -181,10 +215,10 @@ function EndingFilm() {
       window.removeEventListener("blur", onLeave);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [next, hold]);
+  }, [tapNext, hold]);
 
   return (
-    <div className="naju-ending-film" data-hud="엔딩 필름" onClick={next}>
+    <div className="naju-ending-film" data-hud="엔딩 필름" onClick={tapNext}>
       {shots.map((each, k) =>
         each.kind === "image" ? (
           <img
@@ -252,9 +286,14 @@ function FilmCaption({ shot }: { shot: FilmShot }) {
 }
 
 /** 길게 누르기 — 다 차면 필름을 끝낸다(다 본 것으로 친다) */
-function useHoldToSkip(setLevel: (level: number) => void) {
+function useHoldToSkip(setLevel: (level: number) => void, onSkip: () => void) {
   const frame = useRef(0);
   const startedAt = useRef(0);
+  // 건너뛸 때 부르는 쪽(베타 기록) — 최신 것을 쓴다(누르기 도중 장이 바뀌어도 그때의 장을 적게)
+  const onSkipRef = useRef(onSkip);
+  useEffect(() => {
+    onSkipRef.current = onSkip;
+  });
   // 필름이 먼저 닫히면(마지막 장이 끝남) 남은 누르기를 거둔다 — 남으면 클리어 화면의 클릭을 삼키거나 화면을 다시 연다(Codex 리뷰)
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
   return useMemo(() => {
@@ -274,6 +313,7 @@ function useHoldToSkip(setLevel: (level: number) => void) {
           if (ending.phase() !== "film") return;
           // 손을 떼며 생기는 클릭이 바로 뜬 클리어 화면의 단추를 누르지 않게(Codex)
           swallowNextClick();
+          onSkipRef.current();
           ending.finishFilm();
           return;
         }
@@ -364,6 +404,8 @@ function ClearScreen({ leaveAction }: EndingLayerProps) {
   const [isConfirmingRestart, setIsConfirmingRestart] = useState(false);
   const isSaving = isGameSaveEnabled();
   const playTime = formatPlayTime(playClock.elapsed());
+  // 베타 — 설문을 「나중에」로 미뤘으면 결과 바로 아래 눈에 띄게 다시 권한다(누르면 사라진다)
+  const openLaterSurvey = useLaterSurvey();
 
   // 기차 · 로비로 간 뒤 브라우저 「뒤로」로 이 페이지가 캐시에서 되살아나면 단추를 다시 쓸 수 있게(PauseMenu 와 같게, Codex 리뷰)
   useEffect(() => {
@@ -418,6 +460,22 @@ function ClearScreen({ leaveAction }: EndingLayerProps) {
             <span>조사 시간</span>
             <b>{playTime}</b>
           </div>
+          {openLaterSurvey && (
+            <div className="naju-ending-survey" role="group" aria-label="베타 설문">
+              <div className="naju-ending-survey__text">
+                <b>베타 설문에 참여해 주세요</b>
+                <span>3~5분 · 남겨 주신 의견으로 게임을 고칩니다</span>
+              </div>
+              <button
+                type="button"
+                className="naju-ending-survey__open"
+                disabled={busy !== null}
+                onClick={openLaterSurvey}
+              >
+                설문 열기
+              </button>
+            </div>
+          )}
           <div className="naju-ending-clear__actions">
             {leaveAction && (
               <>

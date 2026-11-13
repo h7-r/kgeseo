@@ -189,6 +189,35 @@ test("목표별 · 별 · 설화 · 동행 · 오류 · 로딩 · 환경 · 설�
   assert.deepEqual([post.shown, post.opened, exit.opened], [1, 1, 1]);
 });
 
+test("영상 — 오프닝 SKIP · 엔딩 필름 건너뛰기, 사람마다 첫 기록 · 다시 보기 제외", () => {
+  const story = (user, obj, phase, data, atMin = 0) =>
+    ev({ user, type: "story_exposure", phase, obj, page: obj === "opening" ? "main" : "naju", atMin, data });
+  const report = buildBetaReport(
+    [
+      ev({ user: "v-1", type: "beta_entry", phase: "open", page: "main" }),
+      ev({ user: "v-2", type: "beta_entry", phase: "open", page: "main" }),
+      ev({ user: "v-3", type: "beta_entry", phase: "open", page: "main" }),
+      story("v-1", "opening", "skipped", { at_sec: 12.3, duration_sec: 95, from_sec: 4 }),
+      story("v-2", "opening", "completed", { at_sec: 94.8, duration_sec: 95, from_sec: 0 }),
+      // 두 번째 기록은 세지 않는다
+      story("v-2", "opening", "skipped", { at_sec: 3, duration_sec: 95 }, 5),
+      story("v-1", "ending_film", "skipped", { shot: 3, shots: 9, taps: 1, watched_sec: 20.5, rewatch: false }, 30),
+      story("v-2", "ending_film", "completed", { shot: 9, shots: 9, taps: 0, watched_sec: 70, rewatch: false }, 30),
+      // 다시 보기는 빼고 센다
+      story("v-3", "ending_film", "skipped", { shot: 1, shots: 9, taps: 0, watched_sec: 2, rewatch: true }, 30),
+    ],
+    { now: NOW },
+  );
+  const { opening, endingFilm } = report.videos;
+  assert.deepEqual([opening.people, opening.skipped, opening.completed], [2, 1, 1]);
+  assert.deepEqual(opening.skipAtMs, [12300]);
+  assert.deepEqual(opening.lengthMs, [95000, 95000]);
+  assert.deepEqual([endingFilm.people, endingFilm.skipped, endingFilm.completed], [2, 1, 1]);
+  assert.deepEqual(endingFilm.skipShot, [3]);
+  assert.deepEqual(endingFilm.skipAtMs, [20500]);
+  assert.match(summaryMarkdown(report), /오프닝: 2명 중 1명 · —\(10명 미만\)이 SKIP · 누른 때 가운데 12\.3초/);
+});
+
 test("내려받기 파일 — 엑셀용 BOM, 사람 · 목표 · 원시 · 요약", () => {
   const report = buildBetaReport(rows, { now: NOW, exclude: new Set(["admin-1"]) });
   const people = peopleCsv(report);

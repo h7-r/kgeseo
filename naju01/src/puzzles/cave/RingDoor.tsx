@@ -214,6 +214,12 @@ export default function RingDoor() {
     floatsRef.current = floats;
     gearsRef.current = gears;
   }, [floats, gears]);
+  // 안내판 그림 — 프레임마다 새로 만들면 안내판이 같은 내용인지 못 가려 매 프레임 다시 그린다(성능 진단 11/13)
+  const diagram = useMemo(() => <RingDiagram angles={shownAngles} engaged={gears} />, [shownAngles, gears]);
+  const diagramRef = useRef(diagram);
+  useLayoutEffect(() => {
+    diagramRef.current = diagram;
+  }, [diagram]);
   /** 끼울 수 있게 열린 톱니돌 홈 수 — 위 홈은 늘 열려 있고, 끼운 홈 아래는 물레를 한 번 돌리면 열린다 */
   const openGearSlots = useRef(recall("door.openGearSlots", 1));
   const angles = useRef(shownAngles);
@@ -624,7 +630,7 @@ export default function RingDoor() {
         distance,
         title: "물레 고리문",
         rule: "여는 법은 큰 비석에 수수께끼로 새겨져 있다. 검게 지워진 말은 왼쪽 작은 비석의 초성과 뜻풀이로 채운다.\n뜬 돌은 물레를 겨눠 [E] 로 끼운다(한 번 끼우면 안 빠진다). 물레는 겨눠 [E] 를 꾹.\n톱니돌은 위 홈부터 — 하나 끼우고 물레를 돌려야 다음 홈이 열린다. 빈손 [E] 로 도로 뺀다.\n돌바퀴는 겨눠 [E] 로 민다.",
-        diagram: <RingDiagram angles={shownAngles} engaged={gearsRef.current} />,
+        diagram: diagramRef.current,
         rows: [
           { label: "물레", value: `뜬 돌 ${filled}/${FLOAT_SLOTS}`, ok: filled === FLOAT_SLOTS },
           // 고리마다 지금 눈금(바퀴 숫자 그대로)과 톱니돌 물림만 — 맞았는지는 서버만 안다

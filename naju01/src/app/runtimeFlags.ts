@@ -12,7 +12,9 @@ const QUERY = typeof location !== "undefined" ? new URLSearchParams(location.sea
 export const IS_POSTFX_DISABLED = QUERY.get("fx") === "off";
 // 후처리 효과를 하나씩 끄고 견주는 스위치
 // 모바일 품질은 블룸을 끈다(계획서 8.2 보수적 시작값)
-export const IS_BLOOM_DISABLED = QUERY.get("bloom") === "off" || (IS_MOBILE_QUALITY && QUERY.get("bloom") !== "on");
+// 저사양 모드도 블룸을 끈다 — 먹선 · 색 보정은 남긴다(미르 11/12)
+export const IS_BLOOM_DISABLED =
+  QUERY.get("bloom") === "off" || ((IS_MOBILE_QUALITY || IS_LOW_QUALITY) && QUERY.get("bloom") !== "on");
 export const IS_VIGNETTE_DISABLED = QUERY.get("vig") === "off";
 export const IS_TONE_MAPPING_ENABLED = QUERY.get("tm") === "on";
 /** ?fb=half — 후처리 버퍼를 HalfFloat 로 쓴다. 이 버퍼에서 3D 가 까맣게 나오는 증상을 재현할 때 */
@@ -42,18 +44,42 @@ export const PRESENTATION_MOOD: PresentationMood | null =
 // minimal 은 light 위에 더 끈다 — 해상도·MSAA 를 줄이는 쪽은 둘이 같다
 export const IS_LIGHT_PRESENTATION = PRESENTATION_MODE === "light" || PRESENTATION_MODE === "minimal";
 /** 후처리 MSAA — 가벼운 발표 프리셋에서 4 → 2 */
-export const MSAA_SAMPLES = IS_MOBILE_QUALITY ? 0 : IS_LIGHT_PRESENTATION ? 2 : 4;
+const MSAA_PARAM = QUERY.get("msaa");
+export const MSAA_SAMPLES =
+  MSAA_PARAM !== null && [0, 2, 4, 8].includes(+MSAA_PARAM)
+    ? +MSAA_PARAM
+    : IS_MOBILE_QUALITY || IS_LOW_QUALITY
+      ? 0
+      : IS_LIGHT_PRESENTATION
+        ? 2
+        : 4;
+/**
+ * 그림자 — 기본은 2048, 저사양 · 모바일은 끈다(그림자는 장면을 한 번 더 그린다). ?shadow=off · half · full 로 견준다.
+ */
+const SHADOW_PARAM = QUERY.get("shadow");
+export const SHADOW_QUALITY: "off" | "half" | "full" =
+  SHADOW_PARAM === "off" || SHADOW_PARAM === "half" || SHADOW_PARAM === "full"
+    ? SHADOW_PARAM
+    : IS_MOBILE_QUALITY
+      ? "off"
+      : IS_LOW_QUALITY
+        ? "off"
+        : "full";
+export const SHADOW_MAP_SIZE = SHADOW_QUALITY === "half" ? 1024 : 2048;
 
 // 이 씬은 픽셀에 걸려 있다(땅이 픽셀마다 삼면 노이즈를 돈다). 1.75 는 레티나에서 글자·외곽선이 안 무너지는 가장 낮은 값.
 // 가벼운 발표 프리셋은 느린 노트북용이라 1.5(픽셀 27 % 감소)까지 내린다.
 // ?dpr=1.5 처럼 숫자를 주면 그 값에 못 박고 자동 조절을 끈다(A/B 비교용).
 const DPR_PARAM = QUERY.get("dpr");
 // 모바일은 기기 배율 3 이라 상한을 따로 둔다 — 픽셀은 배율의 제곱으로 는다
-const DEFAULT_MAX_DPR = IS_MOBILE_QUALITY ? MOBILE_MAX_DPR : IS_LIGHT_PRESENTATION ? 1.5 : 1.75;
+// 저사양 모드는 1 을 넘기지 않고, 느리면 0.65 까지 내린다 — 글 · 단추는 DOM 이라 흐려지지 않는다(미르 11/12)
+const DEFAULT_MAX_DPR = IS_LOW_QUALITY ? 1 : IS_MOBILE_QUALITY ? MOBILE_MAX_DPR : IS_LIGHT_PRESENTATION ? 1.5 : 1.75;
 export const MAX_DPR = Math.min(3, Math.max(1, +(DPR_PARAM || DEFAULT_MAX_DPR) || DEFAULT_MAX_DPR));
 /** 자동 조절 하한 — 이보다 내리면 너무 뿌예진다 */
-export const MIN_DPR = 1;
-export const IS_DPR_AUTO = !DPR_PARAM && !IS_LOW_QUALITY;
+export const MIN_DPR = IS_LOW_QUALITY ? 0.65 : 1;
+export const IS_DPR_AUTO = !DPR_PARAM;
+/** 자동 조절이 시작하는 값 */
+export const START_DPR = IS_LOW_QUALITY ? 0.85 : 1.25;
 
 // 발표 프리셋(?present)이면 작업 화면 UI 를 숨긴다
 const IS_PRESENTING = PRESENTATION_MODE !== null;

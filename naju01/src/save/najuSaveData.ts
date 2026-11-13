@@ -8,6 +8,7 @@ import { jarPuzzle } from "../puzzles/jars/jarState";
 import { makgeolliBottle } from "../puzzles/makgeolli/makgeolliState";
 import { ridge, ridgeCarry, ridgeQuest } from "../puzzles/ridge/ridgeState";
 import { ritual, type RitualStage } from "../puzzles/ritual/ritualState";
+import { ATTEMPT_SECTION, attemptCount } from "../progress/attemptCount";
 import { helpLog } from "../progress/helpLog";
 import { playClock } from "../progress/playClock";
 import { registerPuzzleMemory } from "./puzzleMemory";
@@ -79,6 +80,11 @@ export function registerNajuSave(): void {
   registerSaveSection("naju.helpLog", {
     read: () => helpLog.read(),
     apply: (value) => helpLog.restore(value),
+  });
+  // 처음부터 다시 한 횟수 — naju.* 가 아니라 처음부터 다시에도 남는다(베타 첫 플레이 판정, progress/attemptCount)
+  registerSaveSection(ATTEMPT_SECTION, {
+    read: () => attemptCount.read(),
+    apply: (value) => attemptCount.restore(value),
   });
   registerSaveSection("naju.inventory", {
     read: () => inventory.snapshot(),

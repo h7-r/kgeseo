@@ -8,6 +8,8 @@
 import * as THREE from "three";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import { setLookBlocker } from "@/engine/input/lookGuard";
+import { isMotionReduced } from "@/settings/settings";
 
 export interface CameraFocusRequest {
   /** 같은 이름이 걸려 있으면 다시 걸지 않는다 */
@@ -60,6 +62,18 @@ interface ActiveFocus extends Required<Omit<CameraFocusRequest, "replace" | "the
 /** 한 프레임에 흘려보낼 최대 시간(초) — 멈췄다 돌아온 프레임이 연출을 건너뛰지 않게 */
 const MAX_FRAME_SECONDS = 1 / 30;
 
+/** 설정의 시야각이 반영된 평소 시야각 — 고정이 끝나면 여기로 돌아간다(고정 중에 설정을 바꿔도 따라가게) */
+let baseFov = 60;
+let baseFovAtFocus = 60;
+export function setBaseFov(fov: number) {
+  baseFov = fov;
+}
+/** 고정을 건 뒤 설정이 바뀐 만큼을 돌아갈 시야각에 더한다 */
+const homeFovOf = (focus: { homeFov: number }) => focus.homeFov + (baseFov - baseFovAtFocus);
+
+/** 당겨 보는 시야 배율의 하한 */
+const MIN_FOCUS_ZOOM = 0.75;
+
 const settings = { enabled: true };
 let active: ActiveFocus | null = null;
 const lookMatrix = new THREE.Matrix4();
@@ -67,6 +81,9 @@ const lookQuaternion = new THREE.Quaternion();
 const UP = new THREE.Vector3(0, 1, 0);
 
 export const isCameraFocused = () => active !== null;
+// 고정이 걸린 동안은 마우스 회전을 받지 않는다 — 안 막으면 머무는 동안 마우스와 고정이 같은 카메라를 번갈아 돌려
+// 시점이 제멋대로 당겨지는 느낌이 난다(베타 11/13). 터치는 TouchLook 의 canLook 이 이미 막는다
+setLookBlocker(isCameraFocused);
 /** 지금 걸린 고정의 이름(없으면 null) — 고정을 건 쪽이 제 고정인지 알아본다 */
 export const cameraFocusId = () => active?.id ?? null;
 /** 그 이름의 고정이 다 돌아봤다(머무는 중) — 연출이 돌아보기를 마친 뒤 시작하게 */
@@ -79,13 +96,15 @@ export function focusCamera(request: CameraFocusRequest) {
   const camera = currentCamera;
   if (!camera) return false;
   const homeFov = active ? active.homeFov : camera.fov;
+  if (!active) baseFovAtFocus = baseFov;
   active = {
     id: request.id,
     target: request.target,
     hold: request.hold,
     turnIn: request.turnIn ?? 0.8,
     turnOut: request.turnOut ?? 0.7,
-    zoom: request.zoom ?? 1,
+    // 당겨 보기는 0.75 배까지만(틈 진입의 0.55 배 = 33° 는 화면이 확 좁아져 멀미가 났다), 「화면 흔들림 줄이기」면 안 당긴다(베타 11/13)
+    zoom: isMotionReduced() ? 1 : Math.max(MIN_FOCUS_ZOOM, request.zoom ?? 1),
     elapsed: 0,
     then: request.then ?? null,
     returnHome: request.returnHome ?? false,
@@ -112,7 +131,7 @@ export function endCameraFocus(id: string) {
 /** 걸린 고정을 바로 푼다 — 시선은 그 자리에 둔다(자리는 안 옮긴다) */
 export function cancelCameraFocus() {
   if (!active) return;
-  if (currentCamera) setFov(currentCamera, active.homeFov);
+  if (currentCamera) setFov(currentCamera, homeFovOf(active));
   active = null;
 }
 
@@ -162,7 +181,7 @@ export function applyCameraFocus(camera: THREE.Camera, dt: number) {
     if (!focus.outFrom) focus.outFrom = camera.quaternion.clone();
     camera.quaternion.slerpQuaternions(focus.outFrom, focus.home, THREE.MathUtils.smootherstep(s, 0, 1));
   }
-  setFov(currentCamera, THREE.MathUtils.lerp(zoomed, focus.homeFov, THREE.MathUtils.smootherstep(s, 0, 1)));
+  setFov(currentCamera, THREE.MathUtils.lerp(zoomed, homeFovOf(focus), THREE.MathUtils.smootherstep(s, 0, 1)));
   if (s >= 1) {
     active = null;
     focus.onComplete();
@@ -170,6 +189,7 @@ export function applyCameraFocus(camera: THREE.Camera, dt: number) {
 }
 
 exposeDevHook("najuCameraFocus", {
+  focus: focusCamera,
   isActive: isCameraFocused,
   current: () => active && { id: active.id, since: +active.elapsed.toFixed(2) },
   cancel: cancelCameraFocus,

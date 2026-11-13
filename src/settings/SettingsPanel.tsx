@@ -8,6 +8,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
 import { useTouchMode } from "@/engine/input";
+import { QUALITY, readQualityChoice, saveQualityChoice, type QualityChoice } from "@/engine/quality";
 import { CloseIcon } from "@/game/gameIcons";
 import LeaveToLobby, { type LeaveToLobbyAction } from "@/game/LeaveToLobby";
 import { isPauseMenuOpen } from "@/game/pauseMenuState";
@@ -17,6 +18,7 @@ import "@/game/gameUi.css";
 
 import {
   DEFAULT_SETTINGS,
+  FOV_RANGE,
   RESOLUTION_LABELS,
   RESOLUTION_OPTIONS,
   resetSettings,
@@ -24,6 +26,19 @@ import {
   useSettings,
   type Settings,
 } from "./settings";
+
+/** 고른 품질로 다시 연다 — 주소의 ?q= 는 저장값보다 먼저라 떼고 연다(안 떼면 고른 값이 안 먹는다, Codex 리뷰 10) */
+function reopenWithChosenQuality() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("q");
+  url.searchParams.delete("quality");
+  window.location.replace(url.toString());
+}
+
+const QUALITY_CHOICES: readonly QualityChoice[] = ["auto", "standard", "low"];
+const QUALITY_LABELS: Record<QualityChoice, string> = { auto: "자동", standard: "보통", low: "저사양" };
+/** 페이지를 열 때 저장돼 있던 값 — 지금 고른 값이 이것과 다르면 다시 열어야 적용된다 */
+const QUALITY_CHOICE_AT_LOAD = readQualityChoice();
 
 interface SliderRowProps {
   id: string;
@@ -82,6 +97,10 @@ export default function SettingsPanel(props: SettingsPanelProps) {
 
 function SettingsDialog({ onClose, leaveToLobby, onShowGuide, guideLabel }: SettingsPanelProps) {
   const settings = useSettings();
+  const [qualityChoice, setQualityChoice] = useState<QualityChoice>(readQualityChoice);
+  // 고른 값이 달라졌거나, 고른 값과 지금 적용된 값이 다르면(주소 ?q= 로 열었을 때) 다시 열어야 한다
+  const isQualityPending =
+    qualityChoice !== QUALITY_CHOICE_AT_LOAD || (qualityChoice !== "auto" && qualityChoice !== QUALITY.mode);
   // 멈춤 메뉴에서 열었나 — 열리는 그 그리기에서 한 번 읽는다(메뉴는 이 커밋 뒤에 내려가 그때는 이미 거짓이다, 16회차 Codex)
   const [isFromMenu] = useState(isPauseMenuOpen);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -201,17 +220,79 @@ function SettingsDialog({ onClose, leaveToLobby, onShowGuide, guideLabel }: Sett
           </div>
         </div>
 
+        <div style={rowStyle}>
+          <span style={labelStyle}>
+            그래픽 품질
+            <span style={descriptionStyle}>
+              {/* 이 페이지에 실제로 적용된 값 — 고른 값은 다시 열어야 바뀐다 */}
+              지금: {QUALITY.mode === "low" ? "저사양" : "보통"}
+              {QUALITY.source === "자동" ? "(자동)" : ""}
+            </span>
+          </span>
+          <div style={choicesStyle} role="radiogroup" aria-label="그래픽 품질">
+            {QUALITY_CHOICES.map((choice) => (
+              <button
+                key={choice}
+                type="button"
+                role="radio"
+                aria-checked={qualityChoice === choice}
+                onClick={() => {
+                  if (saveQualityChoice(choice)) setQualityChoice(choice);
+                }}
+                style={qualityChoice === choice ? choiceActiveStyle : choiceStyle}
+              >
+                {QUALITY_LABELS[choice]}
+              </button>
+            ))}
+            {isQualityPending && (
+              <button type="button" style={choiceStyle} onClick={reopenWithChosenQuality}>
+                다시 열어 적용
+              </button>
+            )}
+          </div>
+        </div>
+
         <div style={groupTitleStyle}>조작</div>
         <SliderRow
           id="settings-sensitivity"
           label={isTouch ? "시점 감도" : "마우스 감도"}
           value={settings.sensitivity}
-          min={0.4}
+          min={0.2}
           max={2}
           step={0.05}
           format={formatMultiplier}
           onChange={(value) => updateSettings({ sensitivity: value })}
         />
+        <SliderRow
+          id="settings-fov"
+          label="시야각"
+          value={settings.fov}
+          min={FOV_RANGE.min}
+          max={FOV_RANGE.max}
+          step={1}
+          format={(value) => `${Math.round(value)}°`}
+          onChange={(value) => updateSettings({ fov: value })}
+        />
+        <div style={rowStyle}>
+          <span style={labelStyle}>
+            흔들림 줄이기
+            <span style={descriptionStyle}>멀미가 나면 켜세요</span>
+          </span>
+          <div style={choicesStyle} role="radiogroup" aria-label="화면 흔들림 줄이기">
+            {[false, true].map((value) => (
+              <button
+                key={String(value)}
+                type="button"
+                role="radio"
+                aria-checked={settings.reduceMotion === value}
+                onClick={() => updateSettings({ reduceMotion: value })}
+                style={settings.reduceMotion === value ? choiceActiveStyle : choiceStyle}
+              >
+                {value ? "켬" : "끔"}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {hasGameGroup && (
           <>

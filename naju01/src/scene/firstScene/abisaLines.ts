@@ -33,7 +33,7 @@ export const REQUEST_LINES: AbisaLine[] = [
   { text: "화톳불이 꺼지고, 불씨가 강으로 흩어졌어요. 저기 물고기처럼 헤엄치는 불빛이 보여요?", lookAt: "river" },
   // 줄 수는 여섯 그대로 — 저장(firstScene.requestLine)이 줄 번호라 늘리면 옛 저장의 「다 들음」이 어긋난다(Codex 리뷰)
   {
-    text: "그이가 돌아올 길을 다시 밝혀 두고 싶어요. 불씨를 건져 주시겠어요? 미끼로 쓸 조개는 배 옆 호미로 캐요.",
+    text: "그이가 돌아올 길을 다시 밝혀 두고 싶어요. **불씨를 건져** 주시겠어요? 미끼로 쓸 조개는 배 옆 호미로 캐요.",
     lookAt: "hoe",
   },
 ];
@@ -61,14 +61,14 @@ export const ECHO_LINE: AbisaLine = { text: "…이상하죠. 저 구렁이를 �
 export function stageLine(clam: ClamStage, trap: FishTrapStage): AbisaLine {
   if (trap === "told") return { text: "연기가 우리가 만나던 바위 쪽으로 가네요. 저는 여기서 불을 지킬게요." };
   if (trap === "lit") return { text: "불이 살았어요… 이제 그이도 길을 찾을 수 있겠죠.", lookAt: "hearth" };
-  if (trap === "pulled") return { text: "올라온 통발의 불씨를 화톳불에 쏟아 주세요.", lookAt: "hearth" };
-  if (trap === "full") return { text: "줄 하나가 떨려요! 그 줄 말뚝에서 당겨 보세요." };
+  if (trap === "pulled") return { text: "올라온 통발의 **불씨를 화톳불에 쏟아** 주세요.", lookAt: "hearth" };
+  if (trap === "full") return { text: "줄 하나가 떨려요! **그 줄 말뚝에서 당겨** 보세요." };
   if (clam === "baiting" || clam === "baited")
-    return { text: "물고기가 들 때까지 기다려 봐요. 줄이 떨리면 그 통발이에요." };
-  if (clam === "held") return { text: "조개를 통발에 넣어 물에 굴려 넣어 보세요." };
+    return { text: "물고기가 들 때까지 기다려 봐요. **줄이 떨리면** 그 통발이에요." };
+  if (clam === "held") return { text: "**조개를 통발에 넣어** 물에 굴려 넣어 보세요." };
   if (clam === "dug") return { text: "조개가 다 나왔어요. 한데 모아 주워 가세요." };
-  if (clam === "hoe") return { text: "숨구멍마다 물이 솟는 게 달라요. 자루에 새긴 글을 떠올리며 파 보세요." };
-  return { text: "미끼로 쓸 조개는 저기 배 옆 호미로 캐요.", lookAt: "hoe" };
+  if (clam === "hoe") return { text: "숨구멍마다 물이 솟는 게 달라요. **자루에 새긴 글**을 떠올리며 파 보세요." };
+  return { text: "미끼로 쓸 조개는 저기 **배 옆 호미**로 캐요.", lookAt: "hoe" };
 }
 
 /** 구렁이 — 처음 가까이 갔을 때(조사관의 판단) · 겨눔 안내 · 쫓아낼 때 */

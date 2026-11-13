@@ -7,6 +7,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { test } from "node:test";
 
 import { createDialogueStore, pageDurationMs } from "../src/dialogue/dialogueStore.ts";
+import { stripEmphasis } from "../src/dialogue/emphasis.ts";
 import { HINT_UNAVAILABLE, SENT_BACK_KEY, createDirector } from "../src/dialogue/director.ts";
 import { hasCompanionVoice, inCompanionVoice } from "../src/dialogue/gameVoice.ts";
 import { GAME_VOICE } from "../src/dialogue/gameVoiceLines.ts";
@@ -1263,7 +1264,8 @@ test("안내판 설명은 모두 동행 말투 표에 있다(4 · 5스테이지 
 
 test("옮긴 말은 「~다.」「~까?」로 끝나는 딱딱한 말투를 쓰지 않고, 키 표시와 바뀌는 자리를 빠뜨리지 않는다", () => {
   for (const [source, polite, casual] of GAME_VOICE) {
-    for (const line of [polite, casual]) {
+    // 굵게 표시(**)를 빼고 본다 — 끝에 붙은 표시가 말끝 검사를 비껴가지 않게
+    for (const line of [polite, casual].map(stripEmphasis)) {
       assert.ok(
         !/(습니다|입니다|한다|이다|있다|없다|었다|았다|ㄴ다|는다|니까)[.!?…]*$/.test(line.trim()),
         `${source.slice(0, 20)} → ${line}`,

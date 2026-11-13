@@ -502,8 +502,19 @@ const offerSecondaryStyle: CSSProperties = {
 /**
  * 게임 밖(마우스 잠금 풀림)이면 [T] 로 돌아온다는 걸 알린다 — ESC 를 두 번 눌러(또는 다시 잠그기를 브라우저가 거절해)
  * 커서가 밖으로 나왔을 때 무엇을 해야 할지 몰랐다(미르 11/9, 튜토피드백 12회차). 띄울지는 App 이 정한다. 누르는 것은 없다.
+ * start — 본부실 뒤로 새로 들어와(다시 접속 · 나주에서 로비로 · 기차) 아직 [T] 를 누르지 않았다. 튜토리얼 안내가 숨어 있어
+ * 무엇을 눌러야 움직이는지 몰랐다(미르 11/12). 마우스 잠금은 이 페이지에서 키 · 클릭이 있어야 걸려 저절로 켤 수 없다
  */
-export function ReturnPrompt({ mode }: { mode: "out" | "waiting" }) {
+export function ReturnPrompt({ mode }: { mode: "out" | "waiting" | "start" }) {
+  if (mode === "start")
+    return (
+      <div role="status" aria-live="polite" data-hud="조작 시작 안내" style={returnStyle}>
+        <div style={startTitleStyle}>
+          <kbd style={keyCapStyle}>T</kbd> 를 눌러 조작을 시작하세요
+        </div>
+        <div style={returnTextStyle}>마우스가 화면에 잠기고 움직일 수 있어요</div>
+      </div>
+    );
   // waiting — 자물쇠 · 창에서 돌아오려는데 브라우저가 저절로는 잠가 주지 않았다. 다음 클릭 · 키가 잠근다(pointerResume)
   if (mode === "waiting")
     return (
@@ -541,6 +552,14 @@ const returnStyle: CSSProperties = {
   userSelect: "none",
 };
 const returnTitleStyle: CSSProperties = { font: `700 16px/1.3 ${UI_FONT.title}`, marginBottom: 8 };
+/** start 제목 — 키 모양(T)을 글 사이에 넣는다 */
+const startTitleStyle: CSSProperties = {
+  ...returnTitleStyle,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 6,
+};
 const returnTextStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",

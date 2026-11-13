@@ -10,9 +10,11 @@
  * 채움 조명으로 채운다. 화면의 점조명은 언제나 BUDGET 개라 셰이더는 한 벌로 끝난다.
  * 퍼즐 쪽은 고칠 것이 없다 — 전처럼 세기만 올리고 내리면 된다. 점조명의 visible 은 여기서만 만진다.
  */
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
+
+import { lightBudgetEnforcers as enforcers } from "./lightBudgetEnforce";
 
 /** 한 화면에 살려 두는 점조명 수 — 한자리에서 동시에 켜지는 불은 많아야 서넛이다 */
 const BUDGET = 4;
@@ -44,32 +46,51 @@ export default function LightBudget() {
     };
   }, [scene, fillers]);
 
-  useFrame(({ camera }) => {
-    if (frame.current++ % RESCAN_FRAMES === 0) {
-      const found: THREE.PointLight[] = [];
-      scene.traverse((node) => {
-        const light = node as THREE.PointLight;
-        if (light.isPointLight && !fillers.includes(light)) found.push(light);
-      });
-      lights.current = found;
-    }
+  const camera = useThree((state) => state.camera);
+  const apply = useCallback(
+    (camera: THREE.Camera, isForced: boolean) => {
+      if (isForced || frame.current++ % RESCAN_FRAMES === 0) {
+        const found: THREE.PointLight[] = [];
+        scene.traverse((node) => {
+          const light = node as THREE.PointLight;
+          if (light.isPointLight && !fillers.includes(light)) found.push(light);
+        });
+        lights.current = found;
+      }
 
-    // 켜진 조명마다 눈에 닿는 크기 — 셀수록, 가까울수록 크다
-    const lit = ranked.current;
-    lit.length = 0;
-    for (const light of lights.current) {
-      light.visible = false;
-      if (light.intensity < LIT_FROM || isBehindHidden(light)) continue;
-      const at = light.matrixWorld.elements;
-      const away = Math.hypot(at[12] - camera.position.x, at[13] - camera.position.y, at[14] - camera.position.z);
-      const reach = light.distance || DEFAULT_REACH;
-      lit.push({ light, score: light.intensity / (1 + (away / reach) ** 2) });
-    }
-    lit.sort((a, b) => b.score - a.score);
-    const kept = Math.min(lit.length, BUDGET);
-    for (let k = 0; k < kept; k++) lit[k].light.visible = true;
-    fillers.forEach((filler, k) => (filler.visible = k < BUDGET - kept));
-  });
+      // 켜진 조명마다 눈에 닿는 크기 — 셀수록, 가까울수록 크다
+      const lit = ranked.current;
+      lit.length = 0;
+      for (const light of lights.current) {
+        light.visible = false;
+        if (light.intensity < LIT_FROM || isBehindHidden(light)) continue;
+        const at = light.matrixWorld.elements;
+        const away = Math.hypot(at[12] - camera.position.x, at[13] - camera.position.y, at[14] - camera.position.z);
+        const reach = light.distance || DEFAULT_REACH;
+        lit.push({ light, score: light.intensity / (1 + (away / reach) ** 2) });
+      }
+      lit.sort((a, b) => b.score - a.score);
+      const kept = Math.min(lit.length, BUDGET);
+      for (let k = 0; k < kept; k++) lit[k].light.visible = true;
+      fillers.forEach((filler, k) => (filler.visible = k < BUDGET - kept));
+    },
+    [scene, fillers],
+  );
+
+  useFrame(({ camera: frameCamera }) => apply(frameCamera, false));
+
+  // 화면이 멈춰 있는 동안(시작 카드 · 로딩)에도 지킨다 — 프레임이 안 돌면 조명이 전부 보이는 채로 남고,
+  // 그때 미리 굽는 셰이더(Preload · 로딩검사)가 「조명 9개」판으로 구워져 통째로 헛돈다(11/12 실측: 시작하면 전부 다시 굽는다)
+  useEffect(() => {
+    const enforce = () => apply(camera, true);
+    enforcers.add(enforce);
+    enforce();
+    const timer = window.setInterval(enforce, 250);
+    return () => {
+      enforcers.delete(enforce);
+      window.clearInterval(timer);
+    };
+  }, [camera, apply]);
 
   return null;
 }
