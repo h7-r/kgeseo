@@ -10,11 +10,11 @@
 - 이메일은 목록에서 가림, 상세는 전체(1단계 규칙).
 - 본문(문의 · 답변)은 **글자만** 저장하고 돌려준다. HTML 해석 없음, 자동 링크 없음(공지 · 문의 화면 규칙).
 - 퍼즐 정답 · 서버 런타임 · 콘텐츠 원문은 어떤 응답에도 싣지 않는다.
-- **IP 방침(미르 11/13):** 원문 저장 · 화면은 앞 두 자리(`203.0.*.*`) · 1년 보존. 이번 단계에서 IP 를 새로 남기는 곳은 문의 접수(`inquiries.client_ip`)와 관리자 감사 기록(`admin_audit_logs.client_ip`)뿐이다 — 둘 다 플레이 핵심 경로가 아니다. 로그인 IP(`user_sessions` · `login_throttles` 는 해시 키)는 로그인 경로라 **베타 뒤 세진**. 1년 지난 IP 지우기(배치)도 세진 몫으로 기록만 한다.
+- **IP 방침(미르 11/13):** 원문 저장 · 화면은 앞 두 자리(`203.0.*.*`) · 1년 보존. **이 PR 이 IP 를 새로 남기는 곳은 문의 접수(`inquiries.client_ip`) 하나뿐**이다. 관리자 감사 기록(`admin_audit_logs`)에 IP · UA · 대상 ID 열을 넣는 것은 **세진이 이번 주에 한 번에**(미르 11/13 — 같은 표를 둘이 바꾸면 마이그레이션이 겹친다). 해랑은 그 열이 생기면 활동 로그 화면에 앞 두 자리로 보여 주기만 한다. 로그인 IP(`user_sessions` · `login_throttles` 는 해시 키)는 로그인 경로라 베타 뒤 세진. 1년 지난 IP 지우기(배치)도 세진 몫으로 기록만 한다.
 
 ## 1. 마이그레이션 순서(Alembic 머리 하나 유지)
 - 지금 main 머리: `a3f9c2e7b1d4`(create_beta_events). 세진의 **공지 마이그레이션이 먼저** 그 뒤에 붙는다.
-- 이 단계 마이그레이션은 **하나**로 묶는다(`inquiries` · `inquiry_replies` · `admin_settings` · `admin_audit_logs.client_ip`). `down_revision` = 세진 공지 revision. 세진이 id 를 공유하면 그때 파일을 만든다. 세진 것이 머지되기 전엔 PR 을 Ready 로 올리지 않는다.
+- 이 단계 마이그레이션은 **하나**로 묶는다(`inquiries` · `inquiry_replies` · `admin_settings`). **`admin_audit_logs` 는 건드리지 않는다**(세진이 IP · UA · 대상 ID 를 한 번에 넣음). `down_revision` = 세진 공지 revision(세진 감사 기록 마이그레이션이 그 뒤에 또 오면 그것 뒤). 세진이 id 를 공유하면 그때 파일을 만든다. 세진 것이 머지되기 전엔 PR 을 Ready 로 올리지 않는다.
 - 콘텐츠는 DB 변경 없음.
 
 ## 2. 감사 기록 action 추가(§3.4 필터 값)
@@ -26,7 +26,7 @@
 | `update_inquiry` | 상태 · 우선순위 변경 | 같음 |
 | `update_setting` | 설정 값 변경 | — |
 | `list_admins` | 관리자 목록 조회(이메일이 보인다) | — |
-콘텐츠 조회(P3-3)와 설정 읽기는 사람이 안 보여 안 남긴다(2단계 D5-b 와 같은 기준).
+콘텐츠 조회(P3-3)와 설정 읽기는 사람이 안 보여 안 남긴다(2단계 D5-b 와 같은 기준). 대상 ID(문의 id · 설정 key)는 세진이 넣을 대상 ID 열이 생기면 그때부터 채운다 — 그 전엔 `target_user_id`(접수 회원)만.
 
 ---
 
@@ -155,13 +155,16 @@ DB 변경 없음. 원천은 셋: 레거시 콘텐츠 폴더(`app/content/cases`,
 
 ## P3-4 구독 관리 — 메뉴에서 뺀다(미르 11/13). 화면 파일은 남기지 않고 지운다(결제 연동이 생기면 그때 다시).
 
-## P3-5 IP — 감사 기록에 요청 IP
-- `admin_audit_logs.client_ip` VARCHAR(45) NULL 추가. `_audit()` 와 문의 접수는 **서버가 확인한 클라이언트 IP**(`request.client.host`)만 쓴다 — 지금 `_throttle_keys` 와 같은 규칙. 프록시(CloudFront/ALB) 뒤에서 실제 IP 를 받으려면 uvicorn `--proxy-headers --forwarded-allow-ips` 설정이 필요하고 그건 **배포 구성(세진)** 에서 켠다. 앱 코드는 헤더를 직접 읽지 않는다(세진 ⑤).
-- **1년 보존 뒤 파기(세진 ⑤):** 행은 남기고 `client_ip` 만 NULL 로 바꾼다(`created_at < now − 365일`). 매일 한 번 도는 배치(관리 스크립트 `scripts/purge_client_ips.py` + 운영 cron)는 **세진 후속** — 이 PR 은 열과 규칙만 둔다.
-- `GET /admin/audit-logs` 응답에 `client_ip_display`(앞 두 자리) 추가. 활동 로그 화면에 열 하나.
+## P3-5 IP — 문의 접수 IP 와 감사 기록 표시
+- **감사 기록 표(`admin_audit_logs`)의 IP · UA · 대상 ID 열은 세진이 이번 주 한 번에 넣는다(미르 11/13).** 이 PR 은 그 표를 바꾸지 않는다. 세진 열이 들어오면 `GET /admin/audit-logs` 응답의 IP 를 활동 로그 화면에서 **앞 두 자리로 보여 주는 것만** 해랑이 한다(가림은 서버가 해 주면 그대로, 원문을 주면 화면에서 가림 — 세진 계약 때 정함).
+- 문의 접수 IP(`inquiries.client_ip`)는 **서버가 확인한 클라이언트 IP**(`request.client.host`)만 쓴다 — 지금 `_throttle_keys` 와 같은 규칙. 프록시(CloudFront/ALB) 뒤에서 실제 IP 를 받으려면 uvicorn `--proxy-headers --forwarded-allow-ips` 설정이 필요하고 그건 **배포 구성(세진)** 에서 켠다. 앱 코드는 헤더를 직접 읽지 않는다(세진 ⑤).
+- **1년 보존 뒤 파기(세진 ⑤):** 행은 남기고 `client_ip` 만 NULL 로 바꾼다(`created_at < now − 365일`). 매일 한 번 도는 배치(관리 스크립트 + 운영 cron)는 **세진 후속**(감사 기록 IP 와 같은 배치로) — 이 PR 은 문의 표의 열과 규칙만 둔다.
 - 보안 화면 `hot_ips` · `admin_login_ip` 는 로그인 IP 가 쌓여야 열린다 → 그대로 `unavailable`, 까닭 문구를 「로그인 IP 기록은 베타 뒤」로 바꾼다.
 
 ---
+
+## 미르 11/13 추가 결정 반영
+- 감사 기록 표(IP · UA · 대상 ID)는 세진이 이번 주 한 번에 — 해랑은 문의 표 IP 만, 활동 로그 화면은 표시만. 구독 빼기 · 로그인 IP · 삭제 배치 세진 · 점검 모드 웹만 — 확정.
 
 ## 세진 1차 보완(11/13) 반영
 - ① 접수 번호 → `seq` AUTO_INCREMENT 로 확정(재시도 없음). ② 비회원 접수 안내 문구 · 관리자 표시 확정. ③ 점검은 웹만(게임 · API 안 막음) 유지. ④ fingerprint 저장값만. ⑤ IP 는 서버 확인 IP + 배포 구성의 proxy-headers, 1년 뒤 NULL 파기 배치(세진 후속). ⑥ 마이그레이션은 세진 공지 revision 뒤. ⑦ 빈도 제한 10분 5건 + 프록시 확인. 설정 읽기 전용 값은 실제 서버 값.
