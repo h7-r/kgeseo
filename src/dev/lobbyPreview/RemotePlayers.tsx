@@ -5,7 +5,7 @@
 // - 퍼즐 상호작용에는 넣지 않는다. 내 **걷기** 충돌에만 넣는다 — 내 캐릭터가 다른 사람을 뚫고 지나가지 않게(미르 지시 11/6,
 //   설계 v0.20 5절). 몸통 상자는 personColliders(걷기 전용)에 올린다 — 본편 공용 충돌 목록에는 안 올린다(카메라·물건 놓기 그대로).
 // - 동작은 「자동」(lobbyLookToRendererConfig), framePriority 는 내 아바타보다 먼저(1인칭 잘림면이 전역 하나).
-import { Html } from "@react-three/drei";
+import { Html, useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
@@ -15,7 +15,7 @@ import type { AvatarLink } from "@/engine/avatarLink";
 import { FRAME_PRIORITY } from "@/engine/camera";
 import { EYE_HEIGHT, PLAYER_RADIUS, UNITS_PER_METER } from "@/engine/movement/constants";
 import { playerView } from "@/engine/playerView";
-import { DEFAULT_OUTLINE, DEFAULT_TOON, LobbyChibi } from "@/naju";
+import { DEFAULT_OUTLINE, DEFAULT_TOON, LobbyChibi, getMeshBodyUrl, getMeshShoesUrl } from "@/naju";
 import type { LobbyConnection, RemotePlayerView } from "@/net/colyseus";
 import { lobbyLookToRendererConfig } from "@/net/lobbyLook";
 import { overlayLayer, isTypingTarget } from "@/game/overlayLayer";
@@ -118,6 +118,35 @@ function createLink(view: RemotePlayerView | undefined): AvatarLink {
     jumping: false,
     verticalVelocity: 0,
   };
+}
+
+const STANDIN_GEOMETRY = new THREE.CapsuleGeometry(PLAYER_RADIUS * 0.55, EYE_HEIGHT * 0.62, 4, 10);
+const STANDIN_MATERIAL = new THREE.MeshBasicMaterial({ color: "#aab4c8", transparent: true, opacity: 0.32, depthWrite: false });
+
+/** 아바타 모형이 오기 전의 자리 표시 — 그 사람 자리에 서서 옅게 숨쉰다. 모형이 오면 Suspense 가 걷어 낸다 */
+function LoadingStandin({ linkRef }: { linkRef: { current: AvatarLink } }) {
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    const link = linkRef.current;
+    mesh.position.set(link.position.x, link.footY + EYE_HEIGHT * 0.5, link.position.z);
+    STANDIN_MATERIAL.opacity = 0.26 + 0.1 * Math.sin(clock.elapsedTime * 3);
+  });
+  return <mesh ref={ref} geometry={STANDIN_GEOMETRY} material={STANDIN_MATERIAL} />;
+}
+
+/**
+ * 팀원 NPC 다섯(서버가 보내는 붙박이)이 쓰는 몸 모형 — 남 · 여 「상의 + 하의」 몸. 로비에 연결된 뒤에야 받기 시작해
+ * 한참 뒤에 나타났다(베타 11/13). 역이 선 뒤 미리 받아 둔다. 다른 접속자도 대부분 이 몸이라 같이 빨라진다
+ */
+const TEAM_BODY_PRELOAD_MS = 5000;
+function preloadTeamBodies() {
+  for (const gender of ["masculine", "feminine"] as const) {
+    const outfit = { gender, top: 0, bottom: 0 };
+    useGLTF.preload(getMeshBodyUrl(outfit));
+    useGLTF.preload(getMeshShoesUrl(outfit));
+  }
 }
 
 const wrapAngle = (angle: number) => Math.atan2(Math.sin(angle), Math.cos(angle));
@@ -294,7 +323,8 @@ function RemoteAvatar({
   return (
     <>
       <group ref={avatarRef}>
-        <Suspense fallback={null}>
+        {/* 몸 모형(7 ~ 8MB)을 받는 동안 그 자리에 옅은 사람 꼴을 세워 둔다 — 아무것도 안 그리면 로비가 비어 보였다(베타 11/13) */}
+        <Suspense fallback={<LoadingStandin linkRef={linkRef} />}>
           <LobbyChibi
             visible
             playerRef={linkRef}
@@ -387,6 +417,11 @@ export default function RemotePlayers({
   bubbles: ReadonlyMap<string, { text: string; until: number }>;
 }) {
   const [sids, setSids] = useState<string[]>([]);
+  // 첫 화면 로딩과 겹치지 않게 잠깐 뒤에 받기 시작한다
+  useEffect(() => {
+    const timer = window.setTimeout(preloadTeamBodies, TEAM_BODY_PRELOAD_MS);
+    return () => window.clearTimeout(timer);
+  }, []);
   const cutscene = useIsCutscenePlaying();
   const cutsceneRef = useRef(cutscene);
   useEffect(() => {

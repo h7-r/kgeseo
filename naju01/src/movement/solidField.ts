@@ -14,6 +14,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { publicAssetRegistry } from "../loaders/publicAssetManifest";
 import { collectPublicSolids, publicSolidsVersion } from "../loaders/publicAssets";
 import { METERS_PER_UNIT } from "../plan/sitePlan";
 
@@ -186,9 +187,19 @@ class InstanceRaster {
 
 /** 거리로 자리를 넣었다 빼는 무리의 전체 자리(없으면 null) — InstanceGroupMesh 가 solidFull 로 알린다 */
 const fullMatricesOf = (object: THREE.Object3D): Float32Array | null =>
-  object.userData.solidFull && object.userData.originalMatrices instanceof Float32Array
+  object.userData.solidFull && !isCompacted(object) && object.userData.originalMatrices instanceof Float32Array
     ? (object.userData.originalMatrices as Float32Array)
     : null;
+/**
+ * 교체본에 자리를 내준 원본 무리인가(publicAssetPlacement.compactOriginal 이 스냅샷을 남긴다) — 그 무리는 지금 담긴 자리가 곧 충돌 자리다.
+ * 전체 자리로 구우면 교체돼 사라진 원본 바위가 그대로 막는다 — 나루터에서 바위 아래로 넘어가는 바위틈이 통째로 막혔다(11/13 회귀, #155)
+ */
+// 스냅샷은 등록부에서 빠져도 남는다 — 지금도 등록부가 맡는 무리일 때만 압축된 것으로 본다(빠지면 거리 걸러내기가 다시 돈다, Codex 리뷰)
+const isCompacted = (object: THREE.Object3D) =>
+  object.userData.publicAssetOriginal !== undefined &&
+  publicAssetRegistry.touches((object.userData.groupId as string | undefined) ?? object.name);
+/** 원경판을 건너뛸까 — 가까운 판을 전체 자리로 구울 때만 */
+const isSkipped = (object: THREE.Object3D) => !!object.userData.solidSkip && !isCompacted(object);
 
 /** 전체 자리의 지문 — 수는 같고 자리 · 크기만 바뀐 편집도 다시 굽게(Codex 리뷰). 자리 · 첫 배율만 더한다 */
 function placementSum(matrices: Float32Array) {
@@ -209,7 +220,7 @@ function collectSources(scene: THREE.Scene): Source[] {
     if (!mesh.isMesh || object.userData.publicAsset || !isShown(object)) return;
     if (!isSolidName(object.name) || !isSolidMaterial(mesh.material)) return;
     // 거리로 자리를 넣었다 빼는 무리(InstanceGroupMesh) — 가까운 판의 전체 자리로 굽고 원경판은 건너뛴다
-    if (object.userData.solidSkip) return;
+    if (isSkipped(object)) return;
     object.updateWorldMatrix(true, false);
     const instanced = object as THREE.InstancedMesh;
     const matrices: THREE.Matrix4[] = [];
@@ -238,7 +249,7 @@ function signatureOf(scene: THREE.Scene) {
   scene.traverse((object) => {
     if (!(object as THREE.Mesh).isMesh || !isSolidName(object.name)) return;
     if (object.userData.publicAsset && object.userData.lodPaired) return; // 원근 나눔이 수시로 count 를 바꾼다
-    if (object.userData.solidSkip) return;
+    if (isSkipped(object)) return;
     const full = fullMatricesOf(object);
     // 전체 자리로 굽는 무리는 지금 담긴 수(걸을 때마다 바뀐다)가 아니라 전체 수를 적는다
     const count = object.userData.publicAsset

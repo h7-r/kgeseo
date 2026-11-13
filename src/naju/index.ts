@@ -41,6 +41,8 @@ export { pendingNajuReset, resetNajuCase } from "../../naju01/src/progress/reset
 // 로비 아바타 외형
 export {
   DEFAULT_MESH_CONFIG,
+  getMeshBodyUrl,
+  getMeshShoesUrl,
   normalizeMeshConfig,
   readMeshAppearance,
   type MeshAppearanceConfig as ChibiConfig,
