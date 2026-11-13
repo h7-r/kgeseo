@@ -14,6 +14,7 @@ import type { CollapseState } from "./useBlockerCollapse";
 import type { RiverShapes } from "./useWorldLayers";
 import type { AvatarLink } from "@/engine/avatarLink";
 import type { Terrain } from "./useTerrainLayers";
+import { setBaseFov } from "./cameraFocus";
 import { CLEARED_SKY, focus, focusTick } from "./immersion/focusFog";
 
 /** 걷기 훅이 매 프레임 갈아 끼우는 보고에 씬이 렌더 통계를 덧붙인다(검수 실행의 ReviewBridge 가 읽는다). */
@@ -32,6 +33,8 @@ export function useRendererSetup(fov: number) {
     if (!(camera instanceof THREE.PerspectiveCamera)) return;
     camera.fov = fov;
     camera.updateProjectionMatrix();
+    // 화면 고정이 끝나고 돌아갈 시야각도 같이 옮긴다 — 고정 중에 설정을 바꾸면 예전 값으로 되돌아갔다(Codex 리뷰)
+    setBaseFov(fov);
   }, [camera, fov]);
 
   // useFrame 은 렌더 전에 돈다. 자동 리셋이면 그 직후 값이 지워져 검수 보고와 측정 도구에 0 만 찍힌다 — 직접 리셋한다.

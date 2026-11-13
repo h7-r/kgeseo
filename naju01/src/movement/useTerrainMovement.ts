@@ -27,6 +27,7 @@ import { AIR_BOOST, FLOAT, LIGHT_JUMP, gravityField, isLight } from "./gravityFi
 import { playerPose, walkTerrain } from "./playerPose";
 import { playerPush } from "./playerPush";
 import { PROP_STEP, type SolidField } from "./solidField";
+import { isMotionReduced } from "@/settings/settings";
 
 // 오를 수 있는 턱(m). 이보다 높으면 벽 — 절벽 아래에서 위로 걸어 올라가지 못하게 하는 값이기도 하다.
 const STEP_HEIGHT = 0.55;
@@ -543,7 +544,8 @@ export function useTerrainMovement(
     // 물속 — 눈높이가 물결에 천천히 오르내린다. 움직이면 조금 더 크게(다음 프레임 첫머리에서 걷어 낸다)
     if (!isThirdPerson) {
       const moving = Math.min(1, Math.hypot(velocity.current.x, velocity.current.z) * METERS_PER_UNIT);
-      const bob = swim
+      const bob =
+        swim && !isMotionReduced()
         ? Math.sin(performance.now() * 0.001 * SWIM.bobRate * Math.PI * 2 * 0.5) *
           SWIM.bob *
           (1 + 0.6 * moving) *

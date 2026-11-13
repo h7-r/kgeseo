@@ -72,6 +72,7 @@ import { IS_REVIEW_REQUESTED, ReviewHud } from "../review/ReviewBridge";
 import { najuCaseProgress } from "../progress/caseProgress";
 import { readSavedSection } from "@/save/gameSave";
 import CaseStartCard from "./CaseStartCard";
+import { requestGameLock } from "@/engine/input/lookGuard";
 import NajuPauseMenu from "./NajuPauseMenu";
 import PlayTimeHud from "./PlayTimeHud";
 import { playClock } from "../progress/playClock";
@@ -303,10 +304,7 @@ export default function App() {
   // controls.lock() 과 같은 요청을 직접 — 브라우저가 거절하면(ESC 직후 · 창 밖 초점) 약속이 거절로 끝나니 받아 둔다.
   // 거절은 pointerlockerror 로 카드 · 멈춤 메뉴가 「한 번 더 눌러 주세요」를 보인다
   const requestLock = useCallback(() => {
-    const element = controlsRef.current?.domElement as
-      (HTMLElement & { requestPointerLock(): Promise<void> | void }) | undefined;
-    const request = element?.requestPointerLock();
-    if (request instanceof Promise) request.catch(() => {});
+    requestGameLock(controlsRef.current?.domElement);
   }, []);
   const startFromCard = useCallback(() => {
     // 다시 보기는 창처럼 잠금을 붙들어 두었다 — 먼저 놓는다(붙든 동안은 잠그지 않는다). 첫 시작 전에 연 다시 보기는 놓아도

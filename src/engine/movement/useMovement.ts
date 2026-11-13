@@ -37,6 +37,7 @@ import {
   WALK_SPEED,
 } from "./constants";
 import { clearPush, PUSH_COMBINED_SPEED_LIMIT, stopPushAxis, takePushStep } from "./push";
+import { DEFAULT_SETTINGS, settingsStore } from "@/settings/settings";
 
 /** 아바타가 읽는 몸 상태. useMovement 가 매 프레임 적는다. */
 export interface PlayerMotionState {
@@ -208,7 +209,8 @@ export function useMovement(
   /** 시야각을 목표로 부드럽게 옮긴다. null 이면 이 씬의 원래 값으로. */
   const easeFov = (target: number | null, dt: number, speed = 4) => {
     // camera.fov 를 읽지 않는다 — 다른 씬이 넓혀 둔 값을 원래 값으로 오해한다.
-    if (baseFov.current == null) baseFov.current = fov;
+    // 설정의 시야각(기본 60°)을 이 씬이 선언한 값에 더한다 — 씬마다 다르게 잡은 차이는 지킨다
+    baseFov.current = fov + (settingsStore.get().fov - DEFAULT_SETTINGS.fov);
     const goal = target ?? baseFov.current;
     const diff = goal - camera.fov;
     if (Math.abs(diff) < 0.02) {

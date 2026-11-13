@@ -18,6 +18,7 @@ import "@/game/gameUi.css";
 
 import {
   DEFAULT_SETTINGS,
+  FOV_RANGE,
   RESOLUTION_LABELS,
   RESOLUTION_OPTIONS,
   resetSettings,
@@ -256,12 +257,42 @@ function SettingsDialog({ onClose, leaveToLobby, onShowGuide, guideLabel }: Sett
           id="settings-sensitivity"
           label={isTouch ? "시점 감도" : "마우스 감도"}
           value={settings.sensitivity}
-          min={0.4}
+          min={0.2}
           max={2}
           step={0.05}
           format={formatMultiplier}
           onChange={(value) => updateSettings({ sensitivity: value })}
         />
+        <SliderRow
+          id="settings-fov"
+          label="시야각"
+          value={settings.fov}
+          min={FOV_RANGE.min}
+          max={FOV_RANGE.max}
+          step={1}
+          format={(value) => `${Math.round(value)}°`}
+          onChange={(value) => updateSettings({ fov: value })}
+        />
+        <div style={rowStyle}>
+          <span style={labelStyle}>
+            흔들림 줄이기
+            <span style={descriptionStyle}>멀미가 나면 켜세요</span>
+          </span>
+          <div style={choicesStyle} role="radiogroup" aria-label="화면 흔들림 줄이기">
+            {[false, true].map((value) => (
+              <button
+                key={String(value)}
+                type="button"
+                role="radio"
+                aria-checked={settings.reduceMotion === value}
+                onClick={() => updateSettings({ reduceMotion: value })}
+                style={settings.reduceMotion === value ? choiceActiveStyle : choiceStyle}
+              >
+                {value ? "켬" : "끔"}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {hasGameGroup && (
           <>

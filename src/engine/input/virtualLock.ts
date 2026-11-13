@@ -11,6 +11,7 @@
  */
 import type { PointerLockControls } from "three-stdlib";
 
+import { acceptLook, requestGameLock } from "./lookGuard";
 import { isTouchMode, subscribeTouchMode } from "./touchMode";
 
 /** 가상 잠금이 바뀌면 document 에 이 이벤트가 난다 — pointerlockchange 와 같이 들으면 된다 */
@@ -87,12 +88,7 @@ export function installVirtualLock(target: PointerLockControls | null | undefine
     if (typeof controls.domElement?.requestPointerLock !== "function") return;
     // 원래 lock() 과 같은 요청이되 거절(ESC 직후 · 몸짓 없이 청함)을 받아 둔다 — 원래 것은 약속을 버려 「잡히지 않은 거절」이 되고
     // index.html 의 에러 수집기가 탭 제목에 「ERR: REJ …」를 찍었다(멈춤 메뉴 ESC 로 돌아가기, 미르 11/11). 거절은 pointerlockerror 로도 온다
-    try {
-      const result = controls.domElement.requestPointerLock() as unknown;
-      if (result instanceof Promise) result.catch(() => {});
-    } catch {
-      // 막는 브라우저 — 기다림(다음 클릭 · 키)으로 넘어간다
-    }
+    requestGameLock(controls.domElement);
   };
   controls.unlock = () => {
     if (virtualLocked || isTouchMode()) {
@@ -119,6 +115,26 @@ export function installVirtualLock(target: PointerLockControls | null | undefine
   // 조작기가 새로 만들어졌다(카메라 교체 · 다시 붙음) — 가상 잠금 중이면 새 조작기도 잠긴 상태로 이어받는다.
   // 안 그러면 isLocked 가 false 라 손가락 시점이 안 돌고 unlock() 도 먹지 않는다(코덱스 구현 02회차)
   if (virtualLocked && isTouchMode()) controls.isLocked = true;
+}
+
+/**
+ * PC 마우스 시점에 지킴이(lookGuard)를 심는다 — 튀는 이동값과 연출이 카메라를 쥔 동안의 입력을 버리고, 잠금은 원본 입력으로 청한다.
+ * 가상 잠금(터치)과 따로, 조작기마다 한 번. 어느 쪽이 먼저 심겨도 된다(서로의 함수를 감싼다).
+ */
+export function installLookGuard(target: PointerLockControls | null | undefined) {
+  const controls = target as unknown as (PatchableControls & { __lookGuardPatched?: boolean }) | null | undefined;
+  if (!controls || controls.__lookGuardPatched) return;
+  controls.__lookGuardPatched = true;
+  const innerMouseMove = controls.onMouseMove;
+  const domElement = controls.domElement;
+  controls.disconnect();
+  controls.onMouseMove = (event) => {
+    if (controls.isLocked && !acceptLook(event.movementX, event.movementY, event.timeStamp)) return;
+    innerMouseMove(event);
+  };
+  // 가상 잠금이 이미 lock 을 바꿔 두었으면 그쪽이 원본 입력으로 청한다
+  if (!controls.__virtualLockPatched) controls.lock = () => requestGameLock(controls.domElement);
+  if (domElement) controls.connect(domElement);
 }
 
 // 터치 모드가 꺼지면 가상 잠금을 내려놓는다.

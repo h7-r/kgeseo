@@ -18,9 +18,15 @@ export interface Settings {
   /** 0.6 ~ 1.4 화면 밝기 배율 */
   brightness: number;
   resolution: Resolution;
-  /** 0.4 ~ 2 마우스 시점 회전 빠르기 */
+  /** 0.2 ~ 2 마우스 시점 회전 빠르기 */
   sensitivity: number;
+  /** 세로 시야각(°) 60 ~ 75 — 1인칭 기본 시야 */
+  fov: number;
+  /** 화면 흔들림 줄이기 — 걸음 출렁임 · 충격 흔들림 · 물속 출렁임 · 연출의 당겨 보기를 끈다(멀미 피드백, 베타 11/13) */
+  reduceMotion: boolean;
 }
+
+export const FOV_RANGE = { min: 60, max: 75 } as const;
 
 export const DEFAULT_SETTINGS: Settings = {
   // naju01 로딩 영상도 0.6 을 기본으로 쓴다.
@@ -29,6 +35,8 @@ export const DEFAULT_SETTINGS: Settings = {
   brightness: 1,
   resolution: "auto",
   sensitivity: 1,
+  fov: 60,
+  reduceMotion: false,
 };
 
 export const RESOLUTION_OPTIONS: readonly Resolution[] = ["auto", "low", "medium", "high", "max"];
@@ -83,6 +91,10 @@ function parseSettings(raw: unknown): Partial<Settings> {
       typeof value === "number"
     ) {
       result[field] = value;
+    } else if (field === "fov" && typeof value === "number" && Number.isFinite(value)) {
+      result.fov = Math.min(FOV_RANGE.max, Math.max(FOV_RANGE.min, value));
+    } else if (field === "reduceMotion" && typeof value === "boolean") {
+      result.reduceMotion = value;
     }
   }
   return result;
@@ -104,6 +116,9 @@ export const settingsStore = {
   get: (): Settings => current,
   subscribe: signal.subscribe,
 };
+
+/** 화면 흔들림 줄이기가 켜졌나 — 프레임 루프에서 바로 읽는다 */
+export const isMotionReduced = () => current.reduceMotion;
 
 export const useSettings = () => useSyncExternalStore(settingsStore.subscribe, settingsStore.get, settingsStore.get);
 
