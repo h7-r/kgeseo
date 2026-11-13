@@ -11,7 +11,12 @@ export interface StatsSummary {
   members: { total: number; signups_on_date: number; signups_in_month: number };
   /** 회원은 그날 로그인하거나 플레이를 새로 시작한 사람. 게스트는 브라우저 단위로 따로 센다 */
   activity: { members_dau: number; members_mau: number; guests_dau: number; guests_mau: number };
-  play_sessions: { created_on_date: number; created_on_date_by_member: number; created_on_date_by_guest: number };
+  play_sessions: {
+    created_on_date: number;
+    created_on_date_by_member: number;
+    created_on_date_by_guest: number;
+  }; /** 미답변(open) 1:1 문의 수(관리자 API v0.3 P3-1) */
+  inquiries: { open: number };
 }
 
 /** 관리자 계정은 기본으로 뺀다. includeInternal 이면 넣어서 센다. */
