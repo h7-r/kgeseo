@@ -135,7 +135,7 @@ function SearchBar({
   );
 }
 
-/** 전체 · 활성은 통계 요약 API(관리자 · 테스트 계정 제외, is_test 세진 11/13). 정지 · 탈퇴는 서버에 기능이 없어 준비 중이다. */
+/** 전체 · 활성은 통계 요약 API(관리자 제외). 정지 · 탈퇴는 서버에 기능이 없어 준비 중이다. */
 function MemberStatCards() {
   const [resource] = useAdminResource("stats:members", (signal) => fetchStatsSummary(false, signal));
   const stats = resource.status === "ready" ? resource.data : null;
@@ -147,7 +147,7 @@ function MemberStatCards() {
         value={stats && formatNumber(stats.members.total)}
         pendingText={waiting}
         unit="명"
-        caption="누적 · 관리자 · 테스트 계정 제외"
+        caption="누적 · 관리자 제외"
       />
       <StatCard
         label="활성"

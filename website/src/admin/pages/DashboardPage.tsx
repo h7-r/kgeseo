@@ -26,8 +26,8 @@ import { SignupTable } from "./UserStatsPage";
 
 /** 회원 통계에 관리자 계정을 넣을지(관리자 API v0.2 D7). 기본은 뺀다. */
 const SCOPES = [
-  { id: "members", label: "관리자 · 테스트 계정 제외" },
-  { id: "all", label: "관리자 · 테스트 계정 포함" },
+  { id: "members", label: "관리자 제외" },
+  { id: "all", label: "관리자 포함" },
 ] as const;
 
 const useStatsScope = () => useQueryChoice("scope", SCOPES, "members");
@@ -204,9 +204,7 @@ function SummaryCards({ stats, onOpen }: { stats: StatsSummary; onOpen: (kind: D
       </div>
       <p className="adm-summary__note">
         {stats.date} 한국 시각 기준 · {formatDateTime(stats.generated_at)} 집계 ·{" "}
-        {stats.include_internal
-          ? "관리자 · 테스트 계정 포함"
-          : `관리자 ${formatNumber(excluded.admins)}명${excluded.test_accounts === null ? "" : ` · 테스트 계정 ${formatNumber(excluded.test_accounts)}명`} 제외`}
+        {stats.include_internal ? "관리자 포함" : `관리자 ${formatNumber(excluded.admins)}명 제외`}
         {excluded.test_accounts === null && " · 테스트 계정은 아직 가려내지 못해 들어 있습니다"} · 카드를 누르면 자세히
         봅니다.
       </p>
@@ -243,7 +241,7 @@ function DetailModal({
   includeInternal: boolean;
   onClose: () => void;
 }) {
-  const meta = `${stats.date} 한국 시각 기준 · ${includeInternal ? "관리자 · 테스트 계정 포함" : "관리자 · 테스트 계정 제외"}`;
+  const meta = `${stats.date} 한국 시각 기준 · ${includeInternal ? "관리자 포함" : "관리자 제외"}`;
   if (kind === "dau")
     return (
       <Modal title="오늘 DAU" meta={meta} onClose={onClose}>
