@@ -189,7 +189,7 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
     {
       kind: "body",
       lines: [
-        `① 본 서비스는 인공지능사관학교 최종 프로젝트의 **무료 시연·시험운영**을 목적으로 하며, 정식 상용 서비스가 아닙니다. 운영자는 ${DEMO.operator}이고 약관 버전은 ${DEMO.version}이며, 시행일은 ${DEMO.publishDate}입니다.`,
+        `① 본 서비스는 LATENT SPACE 팀 프로젝트의 **무료 시연·시험운영**을 목적으로 하며, 정식 상용 서비스가 아닙니다. 운영자는 ${DEMO.operator}이고 약관 버전은 ${DEMO.version}이며, 시행일은 ${DEMO.publishDate}입니다.`,
         `② 시험운영의 예정 종료일은 **${DEMO.endDate}**입니다. 종료일이 변경되는 경우 사전에 웹사이트를 통해 안내합니다.`,
         "③ 시험운영 기간에는 이 조가 앞선 조항보다 우선 적용됩니다.",
         '④ **"게스트"**란 회원가입 없이 허용된 범위에서 서비스를 이용하는 사람을, **"시험 서비스"**란 정식 운영에 앞서 기능·안정성·사용성을 점검하는 공개 또는 제한 시연 서비스를 말합니다.',
@@ -647,7 +647,7 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
         "   · 상호 : LATENT SPACE",
         "   · 서비스명 : ESCAPE THE LEGEND",
         "   · 대표자 : 황미르",
-        "   · 주소 : 광주광역시 남구 송암로 60 광주광역시 인공지능 사관학교",
+        "   · 주소 : 광주광역시 ○○구 ○○로 ○○",
         `   · 전자우편 : ${SUPPORT_EMAIL}`,
       ],
     },
