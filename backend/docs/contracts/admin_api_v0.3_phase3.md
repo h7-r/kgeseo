@@ -26,7 +26,7 @@
 | `update_inquiry` | 상태 · 우선순위 변경 | 같음 |
 | `update_setting` | 설정 값 변경 | — |
 | `list_admins` | 관리자 목록 조회(이메일이 보인다) | — |
-콘텐츠 조회(P3-3)와 설정 읽기는 사람이 안 보여 안 남긴다(2단계 D5-b 와 같은 기준). 대상 ID(문의 id · 설정 key)는 세진이 넣을 대상 ID 열이 생기면 그때부터 채운다 — 그 전엔 `target_user_id`(접수 회원)만.
+콘텐츠 조회(P3-3)와 설정 읽기는 사람이 안 보여 안 남긴다(2단계 D5-b 와 같은 기준). **대상 표기(세진 감사 로그 확장 열 `target_type` · `target_id`, 11/13 확정):** `read_inquiry` · `reply_inquiry` · `update_inquiry` 는 `target_type="inquiry"`, `target_id=<inquiry id>`(+ 접수 회원이 있으면 `target_user_id`), `update_setting` 은 `target_type="setting"`, `target_id=<key>`. 세진 마이그레이션이 내 PR 보다 먼저 머지되면 바로 채우고, 뒤면 후속 커밋으로 채운다(`_audit()` 인자만 늘어남).
 
 ---
 
@@ -156,7 +156,7 @@ DB 변경 없음. 원천은 셋: 레거시 콘텐츠 폴더(`app/content/cases`,
 ## P3-4 구독 관리 — 메뉴에서 뺀다(미르 11/13). 화면 파일은 남기지 않고 지운다(결제 연동이 생기면 그때 다시).
 
 ## P3-5 IP — 문의 접수 IP 와 감사 기록 표시
-- **감사 기록 표(`admin_audit_logs`)의 IP · UA · 대상 ID 열은 세진이 이번 주 한 번에 넣는다(미르 11/13).** 이 PR 은 그 표를 바꾸지 않는다. 세진 열이 들어오면 `GET /admin/audit-logs` 응답의 IP 를 활동 로그 화면에서 **앞 두 자리로 보여 주는 것만** 해랑이 한다(가림은 서버가 해 주면 그대로, 원문을 주면 화면에서 가림 — 세진 계약 때 정함).
+- **감사 기록 표(`admin_audit_logs`)의 확장 열 넷 `client_ip` · `user_agent` · `target_type` · `target_id` 는 세진이 한 번에 넣는다(미르 · 세진 11/13 확정).** 이 PR 은 그 표를 바꾸지 않는다. 세진 열이 들어오면 `GET /admin/audit-logs` 응답에서 IP 를 **앞 두 자리로 보여 주는 것**과 대상(`target_type/id`)을 활동 로그 화면에 표시하는 것만 해랑이 한다(IP 가림을 서버가 해 주면 그대로, 원문을 주면 화면에서 가림 — 세진 계약 때 정함). 마이그레이션 순서(세진 `is_test` · 감사 로그 확장 · 공지)는 세진이 정리해 공유하고, 내 것은 그 맨 뒤.
 - 문의 접수 IP(`inquiries.client_ip`)는 **서버가 확인한 클라이언트 IP**(`request.client.host`)만 쓴다 — 지금 `_throttle_keys` 와 같은 규칙. 프록시(CloudFront/ALB) 뒤에서 실제 IP 를 받으려면 uvicorn `--proxy-headers --forwarded-allow-ips` 설정이 필요하고 그건 **배포 구성(세진)** 에서 켠다. 앱 코드는 헤더를 직접 읽지 않는다(세진 ⑤).
 - **1년 보존 뒤 파기(세진 ⑤):** 행은 남기고 `client_ip` 만 NULL 로 바꾼다(`created_at < now − 365일`). 매일 한 번 도는 배치(관리 스크립트 + 운영 cron)는 **세진 후속**(감사 기록 IP 와 같은 배치로) — 이 PR 은 문의 표의 열과 규칙만 둔다.
 - 보안 화면 `hot_ips` · `admin_login_ip` 는 로그인 IP 가 쌓여야 열린다 → 그대로 `unavailable`, 까닭 문구를 「로그인 IP 기록은 베타 뒤」로 바꾼다.
