@@ -64,6 +64,11 @@ class StatsPlaySessions(BaseModel):
     created_on_date_by_guest: int
 
 
+class StatsInquiries(BaseModel):
+    # 미답변(open) 문의 수 — 대시보드 카드(관리자 API v0.3 P3-1)
+    open: int
+
+
 class AdminStatsSummary(BaseModel):
     generated_at: datetime
     timezone: str
@@ -74,6 +79,7 @@ class AdminStatsSummary(BaseModel):
     members: StatsMembers
     activity: StatsActivity
     play_sessions: StatsPlaySessions
+    inquiries: StatsInquiries
     # 아직 원천이 없는 지표 — 값 대신 이유 code(화면은 「준비 중」)
     unavailable: dict[str, str]
 

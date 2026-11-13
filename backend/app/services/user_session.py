@@ -123,6 +123,17 @@ async def current_user(
     return user
 
 
+async def optional_current_user(
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+) -> AppUser | None:
+    """로그인이 필수가 아닌 곳(1:1 문의 접수) — 쿠키 세션이 유효하면 사용자, 아니면 None. 401 을 내지 않는다."""
+    response.headers["Cache-Control"] = "no-store"
+    token = request.cookies.get(SESSION_COOKIE)
+    return await _find_session_user(db, token) if token else None
+
+
 async def current_admin(user: AppUser = Depends(current_user)) -> AppUser:
     if user.role != "admin":
         raise HTTPException(

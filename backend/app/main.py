@@ -17,6 +17,7 @@ from app.api.v1.beta_events import router as beta_events_router
 from app.api.v1.cases import router as cases_router
 from app.api.v1.health import router as health_router
 from app.api.v1.hints import router as hints_router
+from app.api.v1.inquiries import router as inquiries_router
 from app.api.v1.interactions import router as interactions_router
 from app.api.v1.lobby import router as lobby_router
 from app.api.v1.me import router as me_router
@@ -26,6 +27,7 @@ from app.api.v1.npc import router as npc_router
 from app.api.v1.play_sessions import (
     router as play_sessions_router,
 )
+from app.api.v1.site import router as site_router
 from app.core.config import settings
 from app.core.deployment import api_docs_settings
 from app.db.session import AsyncSessionLocal
@@ -130,6 +132,15 @@ app.include_router(
 )
 app.include_router(
     admin_router,
+    prefix="/api/v1",
+)
+# 1:1 문의 공개 접수 · 사이트 점검 상태(관리자 API v0.3 3단계, 해랑 11/13)
+app.include_router(
+    inquiries_router,
+    prefix="/api/v1",
+)
+app.include_router(
+    site_router,
     prefix="/api/v1",
 )
 

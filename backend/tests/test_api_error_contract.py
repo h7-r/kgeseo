@@ -56,6 +56,19 @@ EXPECTED_ERRORS = {
     ("GET", "/api/v1/admin/stats/members"): {401, 403, 422},
     ("GET", "/api/v1/admin/stats/game"): {401, 403, 422},
     ("GET", "/api/v1/admin/security/summary"): {401, 403},
+    # 3단계(11/13 해랑) — 1:1 문의 · 설정 · 관리자 목록 · 콘텐츠
+    ("POST", "/api/v1/inquiries"): {403, 422, 429},
+    ("GET", "/api/v1/me/inquiries"): {401},
+    ("GET", "/api/v1/site/status"): set(),
+    ("GET", "/api/v1/admin/inquiries"): {401, 403, 422},
+    ("GET", "/api/v1/admin/inquiries/{inquiry_id}"): {401, 403, 404, 422},
+    ("POST", "/api/v1/admin/inquiries/{inquiry_id}/replies"): {401, 403, 404, 409, 422},
+    ("PATCH", "/api/v1/admin/inquiries/{inquiry_id}"): {401, 403, 404, 422},
+    ("GET", "/api/v1/admin/settings"): {401, 403},
+    ("PUT", "/api/v1/admin/settings/maintenance_mode"): {401, 403, 422},
+    ("GET", "/api/v1/admin/admins"): {401, 403},
+    ("GET", "/api/v1/admin/contents"): {401, 403},
+    ("GET", "/api/v1/admin/contents/{case_id}"): {401, 403, 404, 422},
     # 11/11 베타 분석 기록: 쿠키 없이도 받는다(401 없음). 형식 오류 422, 64KB 초과 413.
     ("POST", "/api/v1/beta-events"): {403, 413, 422, 429},
     ("POST", "/api/v1/auth/email-exists"): {403, 422, 429},
@@ -116,6 +129,8 @@ NO_CONTENT = {
     ("DELETE", "/api/v1/me/game-save"),
 }
 CREATED = {
+    ("POST", "/api/v1/inquiries"),
+    ("POST", "/api/v1/admin/inquiries/{inquiry_id}/replies"),
     ("POST", "/api/v1/auth/register"),
     ("POST", "/api/v1/auth/social-onboarding/complete"),
     ("POST", "/api/v1/anonymous-sessions"),

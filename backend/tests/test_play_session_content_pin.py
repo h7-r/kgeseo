@@ -252,7 +252,10 @@ def test_new_revision_is_single_head_after_previous_head() -> None:
     # 각 부모 관계는 그대로다.
     # 그 위의 계정 데이터(c1d2e3f4a5b6), 그 위의 게스트 세션 · Play Session 소유자(d8f2a6c4e1b9, 11/6 PM),
     # 그 위의 베타 분석 기록(a3f9c2e7b1d4, 11/11 — 새 표만)이 지금 단일 head다.
-    assert script.get_heads() == ["a3f9c2e7b1d4"]
+    # 그 위에 1:1 문의 · 관리자 설정(e7a1b2c3d4f5, 11/13 해랑 — 새 표만)이 지금 단일 head다.
+    # ⚠ 세진 마이그레이션(is_test → 감사 로그 확장 → 공지)이 먼저 머지되면 e7a1b2c3d4f5 의 down_revision 과 이 줄을 그 뒤로 옮긴다.
+    assert script.get_heads() == ["e7a1b2c3d4f5"]
+    assert script.get_revision("e7a1b2c3d4f5").down_revision == "a3f9c2e7b1d4"
     assert script.get_revision("a3f9c2e7b1d4").down_revision == "d8f2a6c4e1b9"
     assert script.get_revision("d8f2a6c4e1b9").down_revision == "c1d2e3f4a5b6"
     assert script.get_revision("c1d2e3f4a5b6").down_revision == "b3f7c2e9a4d1"
