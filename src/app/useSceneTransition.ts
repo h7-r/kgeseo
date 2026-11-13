@@ -38,6 +38,7 @@ export function useSceneTransition(isTrain: boolean, near: NearTarget) {
   const navigate = useNavigate();
   const [fade, setFade] = useState(0);
   const isChanging = useRef(false); // 연타로 두 번 넘어가는 것을 막는다
+  const hasBoardedOnce = useRef(false);
 
   const changeScene = useCallback(
     (path: string, prepare?: () => void, { fade: withFade = true }: ChangeSceneOptions = {}) => {
@@ -76,8 +77,11 @@ export function useSceneTransition(isTrain: boolean, near: NearTarget) {
         // 끌던 의자도 놓는다. 안 놓으면 돌아왔을 때 의자가 갑자기 다시 따라붙는다.
         dropChair(chairDragState.x, chairDragState.z);
       },
-      { fade: false },
+      // 첫 탑승만 검은 막으로 가린다 — 기차 안을 처음 그리는 순간(셰이더 · 텍스처 올리기)에 화면이 0.3초쯤 멎는다
+      // (베타 11/13 「기차 탈 때 렉」, 미리 지어 둬도 남는 몫). 두 번째부터는 멎지 않아 예전대로 바로 넘어간다
+      { fade: !hasBoardedOnce.current },
     );
+    hasBoardedOnce.current = true;
   }, [changeScene]);
 
   const leaveTrain = useCallback(() => {
@@ -95,10 +99,10 @@ export function useSceneTransition(isTrain: boolean, near: NearTarget) {
 
   // 문 안으로 걸어 들어가면 키 없이 넘어간다. near 는 바뀔 때만 갱신돼 매 프레임 돌지 않는다.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 기차는 페이드 없이 넘어가 실제로는 setState 를 부르지 않는다
-    if (near === NEAR_TARGET.trainEntrance && !isTrain) boardTrain();
+    // 첫 탑승은 검은 막을 올린다(setState) — effect 안에서 바로 부르지 않고 한 박자 뒤에. 겹쳐 불려도 changeScene 이 한 번만 받는다
+    if (near === NEAR_TARGET.trainEntrance && !isTrain) queueMicrotask(boardTrain);
     // 내릴 때도 문 안으로 걸어 들어가면 키 없이(TrainInteriorScene 이 문에서 한 번 떨어졌다 다시 다가올 때만 알린다)
-    if (near === NEAR_TARGET.trainExitDoor && isTrain) leaveTrain();
+    if (near === NEAR_TARGET.trainExitDoor && isTrain) queueMicrotask(leaveTrain);
   }, [near, isTrain, boardTrain, leaveTrain]);
 
   return { fade, boardTrain, leaveTrain };

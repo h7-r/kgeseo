@@ -3,7 +3,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { continuedStart, cursorAt, pickZone, reachSeconds, type ZoneChoice } from "../src/puzzles/fishTrap/gaugeMath.ts";
+import {
+  continuedStart,
+  cursorAt,
+  isGaugeHit,
+  pickZone,
+  reachSeconds,
+  type ZoneChoice,
+} from "../src/puzzles/fishTrap/gaugeMath.ts";
 
 const near = (actual: number, expected: number, label: string) =>
   assert.ok(Math.abs(actual - expected) < 1e-9, `${label}: ${actual} ≠ ${expected}`);
@@ -65,4 +72,22 @@ test("셋째(반대편 고정)에서 0.3 초를 못 채우면 가장 오래 걸�
   near(choice.center, 0.76, "더 먼 .76");
   const seconds = reachSeconds(cursor, 0.69, 0.83, 0.6);
   assert.ok(seconds > 0.14 && seconds < 0.2, `셋째 최장 ${seconds}`);
+});
+
+test("판정 — 누른 순간이 칸 밖이어도 방금 그려진 자리가 칸 안이면 맞는다(느린 화면, 베타 11/12)", () => {
+  const zone = { center: 0.3, zone: 0.14 };
+  // 셋째 판: 화면에는 정중앙(0.30)이 그려졌고 60ms 뒤 누른 순간의 자리는 0.40(칸 밖 — 막대 여유까지 넘는다)
+  assert.equal(isGaugeHit({ cursor: 0.4, shown: { position: 0.3, at: 1000 }, now: 1060, ...zone }), true);
+  // 그려진 지 오래됐으면(150ms 넘음) 그 자리는 안 쳐 준다
+  assert.equal(isGaugeHit({ cursor: 0.4, shown: { position: 0.3, at: 1000 }, now: 1200, ...zone }), false);
+  // 그려진 자리도 칸 밖이면 실패
+  assert.equal(isGaugeHit({ cursor: 0.6, shown: { position: 0.55, at: 1000 }, now: 1010, ...zone }), false);
+  // 누른 순간이 칸 안이면 그려진 자리와 상관없이 맞는다
+  assert.equal(isGaugeHit({ cursor: 0.31, shown: null, now: 0, ...zone }), true);
+});
+
+test("판정 — 막대 가장자리가 칸에 걸치면 맞는다(막대 폭의 절반만큼 여유)", () => {
+  const zone = { center: 0.3, zone: 0.14 };
+  assert.equal(isGaugeHit({ cursor: 0.37 + 0.01, shown: null, now: 0, ...zone }), true);
+  assert.equal(isGaugeHit({ cursor: 0.37 + 0.03, shown: null, now: 0, ...zone }), false);
 });
