@@ -97,7 +97,7 @@ export default function Marquee() {
               자산입니다.
             </p>
             <p style={{ margin: 0, lineHeight: 1.55 }}>
-              광주광역시 인공지능 사관학교 광주광역시 남구 송암로 60 | 대표자 : 황미르
+              LATENT SPACE | 광주광역시 ○○구 ○○로 ○○ | 대표자 : 황미르
             </p>
           </div>
 

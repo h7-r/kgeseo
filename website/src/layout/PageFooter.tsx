@@ -37,7 +37,7 @@ export default function PageFooter() {
           ESCAPE THE LEGEND의 로고 · 캐릭터 · 명칭을 비롯해 이와 관련된 모든 고유한 표현은 LATENT SPACE의 독점
           자산입니다.
         </p>
-        <p style={lineStyle}>대표자 : 황미르 | 광주광역시 인공지능 사관학교</p>
+        <p style={lineStyle}>대표자 : 황미르 | LATENT SPACE | 광주광역시 ○○구 ○○로 ○○</p>
       </div>
     </footer>
   );
