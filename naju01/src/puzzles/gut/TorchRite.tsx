@@ -197,7 +197,15 @@ function buildRite() {
   const finale = buildFinale();
   // 끝 연출의 작별 — 가락지가 오른 뒤 물가에 서는 아비사(abisaFarewell)
   const farewell = new AbisaFarewell();
-  root.add(handFire.flames.points, handFire.sparks.points, handLight, motes.points, finale.root, farewell.root);
+  root.add(
+    handFire.flames.points,
+    handFire.sparks.points,
+    handLight,
+    motes.points,
+    finale.root,
+    farewell.root,
+    farewell.embers.points,
+  );
 
   return {
     root,
@@ -294,6 +302,8 @@ function TorchRiteScene() {
   const reach = useRef<{ stake: number; time: number; hasCaught: boolean } | null>(null);
   /** 되살아나 움직이는 그림패 — 그림 번호와 불이 붙은 때(초) */
   const playing = useRef<{ tag: number; at: number }[]>([]);
+  /** 플레이어(카메라) 자리(유닛) — 끝 연출 카메라가 「내가 선 곳의 바닥부터」 잡는 데 쓴다 */
+  const playerAt = useRef(new THREE.Vector3());
 
   const actions = useMemo(() => {
     const later = (seconds: number, run: () => void) => pending.current.push({ at: gameNow() / 1000 + seconds, run });
@@ -415,33 +425,51 @@ function TorchRiteScene() {
      */
     const focusFinale = () => {
       const ringsAt = new THREE.Vector3();
+      const groundAt = new THREE.Vector3();
       const holdUntilFilm = FILM_AT + 4;
+      const sinceReleased = () => (gut.stage() === "dawn" ? FINALE.dawnAt + gut.elapsed() : gut.elapsed());
+      // 「내가 선 곳의 바닥부터 소반까지」(해랑 11/13) — 플레이어 쪽 바닥에서 시작해 불길이 땅을 달려 소반에 붙을 때까지
+      // 시선이 바닥을 따라 소반 위로 미끄러진다. 넓게(zoom 1.3) 잡아 바닥 불길 · 횃불대 · 소반이 한 화면에 들어온다
+      const px = playerAt.current.x / M;
+      const pz = playerAt.current.z / M;
+      const groundStart = new THREE.Vector3(
+        THREE.MathUtils.lerp(px, TABLE.x, 0.3) * M,
+        (groundY(THREE.MathUtils.lerp(px, TABLE.x, 0.3), THREE.MathUtils.lerp(pz, TABLE.z, 0.3)) + 0.3) * M,
+        THREE.MathUtils.lerp(pz, TABLE.z, 0.3) * M,
+      );
+      const tableTop = rite.tableTarget.clone().add(new THREE.Vector3(0, 0.7 * M, 0));
       focusCamera({
         id: FINALE_FOCUS.table,
-        target: rite.tableTarget.clone().add(new THREE.Vector3(0, 1.2 * M, 0)),
+        target: () => {
+          const since = sinceReleased();
+          const u = THREE.MathUtils.smootherstep(since, FINALE.runAt - 1.2, FINALE.igniteAt + 0.4);
+          return groundAt.lerpVectors(groundStart, tableTop, u);
+        },
         hold: holdUntilFilm,
         turnIn: 1.2,
+        zoom: 1.3,
       });
+      // 가락지가 떠오르면 소반이 화면 아래에 남은 채 따라 올려다본다 — 「바닥에서 위로 올라감」이 보이게 시선은 가락지보다 조금 아래를
       later(FINALE.ringsAt - 0.4, () =>
         focusCamera({
           id: FINALE_FOCUS.rings,
           target: () => {
-            const since = gut.stage() === "dawn" ? FINALE.dawnAt + gut.elapsed() : gut.elapsed();
-            const u = THREE.MathUtils.clamp((since - FINALE.ringsAt) / 7.5, 0, 1);
-            const rise = Math.min(FINALE_LOOK_UP, FINALE.ringsRise * u * u * (3 - 2 * u));
-            return ringsAt.copy(rite.tableTarget).add(new THREE.Vector3(0, (1.2 + rise) * M, 0));
+            const u = THREE.MathUtils.clamp((sinceReleased() - FINALE.ringsAt) / 7.5, 0, 1);
+            const rise = Math.min(FINALE_LOOK_UP, FINALE.ringsRise * u * u * (3 - 2 * u) * 0.7);
+            return ringsAt.copy(rite.tableTarget).add(new THREE.Vector3(0, (1.0 + rise) * M, 0));
           },
           hold: holdUntilFilm,
-          turnIn: 1.6,
+          turnIn: 1.8,
+          zoom: 1.15,
           replace: true,
         }),
       );
-      // 가락지가 한참 오른 뒤 물가의 아비사를 돌아본다 — 빈 하늘을 오래 보지 않는다
+      // 가락지가 한참 오른 뒤 물가의 아비사를 돌아본다 — 빈 하늘을 오래 보지 않는다. 불씨가 되어 오르는 동안은 시선도 천천히 따라 오른다
       later(FAREWELL.lookAt, () => {
         if (!rite.farewell.isReady) return;
         focusCamera({
           id: FINALE_FOCUS.farewell,
-          target: () => rite.farewell.head,
+          target: () => rite.farewell.lookTarget,
           hold: holdUntilFilm,
           turnIn: 1.8,
           replace: true,
@@ -612,6 +640,7 @@ function TorchRiteScene() {
   useFrame(({ camera, clock }, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
     const time = clock.elapsedTime;
+    playerAt.current.copy(camera.position);
     const nowSeconds = gameNow() / 1000;
     // 때가 된 일을 치른다 — 치르는 일이 새 일을 걸 수 있어, 먼저 목록에서 빼고 나서 부른다
     const due = pending.current.filter((job) => job.at <= nowSeconds);
@@ -795,6 +824,8 @@ function TorchRiteScene() {
       rite.motes.commit();
       rite.motes.material.uniforms.uPointScale.value = pointScaleFor(gl, camera);
     }
+    // 작별의 불씨 — 몸에서 떨어져 떠오르는 점도 화면 크기에 맞춘다
+    rite.farewell.embers.material.uniforms.uPointScale.value = pointScaleFor(gl, camera);
 
     // 가락지 — 소반에 올린 뒤로 놓여 있다. 굿이 풀리면 불길 위로 떠올라 돌며 하늘로 사라진다
     rite.rings.visible = (isRite || isOver) && finale.ringsFade < 1;
