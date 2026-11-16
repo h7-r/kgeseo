@@ -17,6 +17,9 @@ const RANGES = [
   { id: "92", label: "92일" },
 ] as const;
 
+/** 베타 기록의 4 · 5스테이지 굵은 표식 — 세부 목표(P14 … P16)가 들어오기 전 진입 표시용. 퍼즐 표에서는 뺀다 */
+const INTERIM_MARKERS: ReadonlySet<string> = new Set(["CLIFF", "GUT"]);
+
 /** 제목 오른쪽 기간 탭. */
 export function GameDataRangeTabs() {
   const [range, setRange] = useQueryChoice("range", RANGES, "30");
@@ -42,17 +45,23 @@ function GameDataView({ game }: { game: StatsGame }) {
   const finished = game.case_completed_people ?? last?.completed ?? null;
   const finishedCaption =
     game.case_completed_people !== undefined ? "엔딩(새벽)까지 간 사람" : last ? `${stageName(last.stage)} 완료` : null;
-  // 진입만 세는 스테이지는 표 끝에 「진입만」으로 붙인다
+  // 진입만 세는 스테이지(임시 필드)는 표 끝에 「진입만」으로 — 같은 번호가 stages 로 들어오면 그쪽만 보인다
+  const known = new Set(game.stages.map((stage) => stage.stage));
   const stageRows: { stage: number; entered: number; completed: number | null }[] = [
     ...game.stages,
-    ...(game.entry_only_stages ?? []).map((row) => ({ ...row, completed: null })),
+    ...(game.entry_only_stages ?? [])
+      .filter((row) => !known.has(row.stage))
+      .map((row) => ({ ...row, completed: null })),
   ];
+  const median = game.median_completion_minutes ?? null;
   const completion = game.stages.map((stage) => ({
     label: `${stage.stage}단계`,
     value: percent(stage.completed, stage.entered),
   }));
-  // 판정 없는 걸음은 기록이 있을 때만 보인다 — 표가 길어지지 않게
-  const puzzles = game.puzzles.filter((p) => p.judge !== "step" || p.attempts > 0 || p.completed_people > 0);
+  // 판정 없는 걸음은 기록이 있을 때만 보인다 — 표가 길어지지 않게. CLIFF · GUT 는 4 · 5스테이지의 굵은 표식이라 퍼즐 완료로 안 센다(세진 11/16)
+  const puzzles = game.puzzles.filter(
+    (p) => !INTERIM_MARKERS.has(p.objective_id) && (p.judge !== "step" || p.attempts > 0 || p.completed_people > 0),
+  );
 
   return (
     <>
@@ -79,7 +88,7 @@ function GameDataView({ game }: { game: StatsGame }) {
           value={game.avg_completion_minutes === null ? null : formatNumber(Math.round(game.avg_completion_minutes))}
           pendingText={`준비 중 — ${unavailableReason(game.unavailable.avg_completion_minutes)}`}
           unit="분"
-          caption={`사건 완주 회차 ${formatNumber(game.completed_runs)}개`}
+          caption={`${median === null ? "" : `중앙값 ${formatNumber(Math.round(median))}분 · `}사건 완주 회차 ${formatNumber(game.completed_runs)}개`}
         />
       </div>
       <p className="adm-summary__note">
