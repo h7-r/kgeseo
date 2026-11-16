@@ -377,6 +377,7 @@ def test_user_search_is_nickname_partial_and_email_exact_only():
         # 상세는 지금처럼 전체 이메일
         detail = await get_json(f"/api/v1/admin/users/{minsoo.id}")
         assert detail["user"]["email"] == "minsoo@example.com"
+        # 상세 user — 기존 일곱 필드 + 목록과 같은 정의의 네 값(11/16 덧붙임)
         assert set(detail["user"]) == {
             "user_id",
             "email",
@@ -385,7 +386,19 @@ def test_user_search_is_nickname_partial_and_email_exact_only():
             "created_at",
             "stage",
             "save_updated_at",
+            "region",
+            "providers",
+            "last_login_at",
+            "last_session_started_at",
         }
+        # 로그인 수단 · 지역은 목록과 같은 값(auth_identities · app_users.region)
+        listed_minsoo = next(u for u in body["users"] if u["user_id"] == minsoo.id)
+        assert detail["user"]["providers"] == ["google", "local"]
+        assert detail["user"]["providers"] == listed_minsoo["providers"]
+        assert detail["user"]["region"] == listed_minsoo["region"] == "naju"
+        assert "password_hash" not in str(detail) and "provider_subject" not in str(
+            detail
+        )
 
         # 목록 조회 한 번에 감사 기록 한 행 — 검색어는 남지 않는다(컬럼도 없다)
         async with sessions() as db:
