@@ -15,11 +15,12 @@ import type { InquiryRecord } from "@/services/account/db";
 import { readAccountData } from "@/services/account/manageAccount";
 import { PRICING } from "@/data/pricing";
 import { useActiveTabInView } from "@/components/useActiveTabInView";
-import { FAQ_ITEMS, NOTICES, SUPPORT_TABS } from "@/data/support";
+import { FAQ_ITEMS, SUPPORT_TABS } from "@/data/support";
 import { TERMS_TABS } from "@/data/terms";
 import { GAMEPLAY_VIDEOS, VIDEOS, type Video } from "@/data/videos";
 import { useQueryTab } from "@/hooks/useQueryTab";
 import { searchSite } from "@/lib/searchIndex";
+import { fetchNotices, formatNoticeDate, noticeCategoryLabel, type PublicNotice } from "@/services/notices";
 import { FONT } from "@/lib/style";
 import { QUERY, ROUTES, START_GAME, useSiteNavigate } from "@/navigation/routes";
 import CreditsCard from "@/sections/credits/CreditsCard";
@@ -262,35 +263,56 @@ export function MobilePricingPage() {
 
 // ── 고객센터 ──
 
+type MobileNoticesState = { status: "loading" } | { status: "ready"; items: PublicNotice[] } | { status: "error" };
+
+/** 서버 공지 첫 쪽(6건) — 옛 하드코딩 9건은 쓰지 않는다(미르 11/16). 못 불러오면 안내 + 문의 메일 */
+function MobileNotices() {
+  const [state, setState] = useState<MobileNoticesState>({ status: "loading" });
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchNotices({ page: 1 }, controller.signal)
+      .then((page) => setState({ status: "ready", items: page.items }))
+      .catch(() => {
+        if (!controller.signal.aborted) setState({ status: "error" });
+      });
+    return () => controller.abort();
+  }, []);
+  const note = (text: string) => (
+    <p style={{ fontFamily: FONT.body, fontSize: "14px", lineHeight: 1.6, color: COLOR.textMuted, margin: "16px 0 0" }}>
+      {text}
+    </p>
+  );
+  if (state.status === "loading") return note("공지를 불러오는 중입니다…");
+  if (state.status === "error")
+    return note(`공지를 불러오지 못했어요. 잠시 후 다시 시도하거나 ${SUPPORT_EMAIL} 로 알려 주세요.`);
+  if (state.items.length === 0) return note("아직 등록된 공지가 없습니다.");
+  return (
+    <ul style={{ ...plainListStyle, paddingLeft: 0, listStyle: "none", gap: 10 }}>
+      {state.items.map((notice) => (
+        <li key={notice.id} style={{ ...cardStyle, padding: "12px 14px" }}>
+          <span style={badgeStyle}>{noticeCategoryLabel(notice.category)}</span>
+          {notice.is_pinned && <span style={{ ...badgeStyle, marginLeft: 6 }}>고정</span>}
+          <div
+            style={{ fontFamily: FONT.body, fontSize: "15px", lineHeight: 1.5, color: COLOR.textBright, marginTop: 6 }}
+          >
+            {notice.title}
+          </div>
+          <div style={{ fontFamily: FONT.mono, fontSize: "12px", color: COLOR.textDim, marginTop: 4 }}>
+            {formatNoticeDate(notice.published_at)}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function MobileSupportPage() {
   const [tab, setTab] = useQueryTab(SUPPORT_TABS, "notices");
   return (
     <Shell>
       <PageHeading eyebrow="Support" title="고객센터" />
       <Tabs items={SUPPORT_TABS} active={tab} onSelect={setTab} />
-      {tab === "notices" && (
-        <ul style={{ ...plainListStyle, paddingLeft: 0, listStyle: "none", gap: 10 }}>
-          {NOTICES.map((notice) => (
-            <li key={notice.title} style={{ ...cardStyle, padding: "12px 14px" }}>
-              <span style={badgeStyle}>{notice.category}</span>
-              <div
-                style={{
-                  fontFamily: FONT.body,
-                  fontSize: "15px",
-                  lineHeight: 1.5,
-                  color: COLOR.textBright,
-                  marginTop: 6,
-                }}
-              >
-                {notice.title}
-              </div>
-              <div style={{ fontFamily: FONT.mono, fontSize: "12px", color: COLOR.textDim, marginTop: 4 }}>
-                {notice.date}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+      {tab === "notices" && <MobileNotices />}
       {tab === "faq" && (
         <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
           {FAQ_ITEMS.map((item) => (

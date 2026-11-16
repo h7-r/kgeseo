@@ -19,66 +19,12 @@ export const FAQ_FILTERS = [ALL_CATEGORIES, "계정", "게임플레이", "결제
 export type NoticeCategory = Exclude<(typeof NOTICE_FILTERS)[number], typeof ALL_CATEGORIES>;
 export type FaqCategory = Exclude<(typeof FAQ_FILTERS)[number], typeof ALL_CATEGORIES>;
 
-interface Notice {
-  category: NoticeCategory;
-  title: string;
-  date: string;
-}
-
 interface FaqItem {
   category: FaqCategory;
   question: string;
   /** 아직 답을 쓰지 않은 질문은 null */
   answer: string | null;
 }
-
-export const NOTICES: readonly Notice[] = [
-  {
-    category: "업데이트",
-    title: "v0.3 업데이트 — 나주 세 스테이지 · 본부실에서 기차로 이어지는 출동",
-    date: "2026.11.04",
-  },
-  {
-    category: "점검",
-    title: "정기 점검 안내 (9/5 04:00~06:00)",
-    date: "2026.09.04",
-  },
-  {
-    category: "이벤트",
-    title: "시즌 1 이벤트 — 앙암바위의 숨은 단서를 찾아라",
-    date: "2026.09.01",
-  },
-  {
-    category: "업데이트",
-    title: "v0.2 업데이트 패치 노트 — 1인칭 카메라 안정화",
-    date: "2026.08.28",
-  },
-  {
-    category: "안내",
-    title: "개인정보처리방침 및 서비스 이용약관 개정 안내",
-    date: "2026.08.25",
-  },
-  {
-    category: "이벤트",
-    title: "나주 Case 01 오픈 기념 특별 보상 이벤트",
-    date: "2026.08.20",
-  },
-  {
-    category: "점검",
-    title: "서버 긴급 점검 완료 및 임시 보상 안내",
-    date: "2026.08.19",
-  },
-  {
-    category: "안내",
-    title: "커뮤니티 가이드라인 · 공정한 게임 이용 캠페인 안내",
-    date: "2026.08.15",
-  },
-  {
-    category: "업데이트",
-    title: "v0.1.5 업데이트 — 그래픽 최적화 · 로딩 시간 단축",
-    date: "2026.08.10",
-  },
-];
 
 export const FAQ_ITEMS: readonly FaqItem[] = [
   {
