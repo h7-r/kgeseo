@@ -15,7 +15,7 @@ import {
 import ResourceView from "../auth/ResourceView";
 import { formatDate, formatDateTime, formatNumber, maskEmail } from "../lib/format";
 import { stageLabel } from "../lib/gameStage";
-import { SEARCH_MAX_LENGTH, providerLabel, readMemberSearch, recentLogin } from "../lib/memberSearch";
+import { ESTIMATE_NOTE, SEARCH_MAX_LENGTH, providerLabel, readMemberSearch, recentLogin } from "../lib/memberSearch";
 import { appendUnique } from "../lib/paging";
 import { useQueryChoice } from "../lib/useQueryChoice";
 import { ADMIN_PATHS, adminLoginPath } from "../paths";
@@ -248,8 +248,6 @@ function UserList({ q }: { q: string | undefined }) {
     </ResourceView>
   );
 }
-
-const ESTIMATE_NOTE = "로그인 · 가입 때 만든 세션의 시각입니다. 자동 로그인으로 계속 쓰면 바뀌지 않습니다.";
 
 function userColumns(listPath: string): Column<AdminUserListItem>[] {
   return [

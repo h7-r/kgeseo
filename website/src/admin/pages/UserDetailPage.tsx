@@ -6,6 +6,7 @@ import { fetchUserDetail, type AdminUserDetail } from "../api/users";
 import ResourceView from "../auth/ResourceView";
 import { formatDate, formatDateTime, formatNumber } from "../lib/format";
 import { stageLabel } from "../lib/gameStage";
+import { ESTIMATE_NOTE, providerLabel, recentLogin } from "../lib/memberSearch";
 import { listSections } from "../lib/saveSections";
 import { ADMIN_PATHS } from "../paths";
 import Badge from "../ui/Badge";
@@ -53,6 +54,22 @@ function Field({ label, children, mono }: { label: string; children: ReactNode; 
   );
 }
 
+/** 실제 로그인 시각 → 없으면 세션 시작 시각에 「추정」 → 둘 다 없으면 기록 없음(목록과 같은 규칙, 계약 admin_last_login.md §4) */
+function RecentLoginValue({ user }: { user: AdminUserDetail["user"] }) {
+  const login = recentLogin(user);
+  if (!login) return <span className="adm-muted">기록 없음</span>;
+  return (
+    <span title={login.isEstimate ? ESTIMATE_NOTE : undefined}>
+      {formatDateTime(login.at)}
+      {login.isEstimate && (
+        <span className="adm-stamp">
+          <Badge tone="gray">추정</Badge>
+        </span>
+      )}
+    </span>
+  );
+}
+
 function UserDetail({ detail }: { detail: AdminUserDetail }) {
   const { user, save, character, items } = detail;
   const sections = listSections(save?.state);
@@ -70,8 +87,19 @@ function UserDetail({ detail }: { detail: AdminUserDetail }) {
             <Field label="역할">
               {user.role === "admin" ? <Badge tone="blue">관리자</Badge> : <Badge tone="gray">회원</Badge>}
             </Field>
+            <Field label="로그인 수단">
+              {user.providers.length ? (
+                user.providers.map(providerLabel).join(" · ")
+              ) : (
+                <span className="adm-muted">—</span>
+              )}
+            </Field>
+            <Field label="지역">{user.region ?? <span className="adm-muted">—</span>}</Field>
             <Field label="가입일" mono>
               {formatDate(user.created_at)}
+            </Field>
+            <Field label="최근 로그인" mono>
+              <RecentLoginValue user={user} />
             </Field>
             <Field label="회원 ID" mono>
               <span className="adm-break">{user.user_id}</span>

@@ -12,12 +12,12 @@ export interface AdminUserSummary {
   save_updated_at: string | null;
 }
 
-/** 목록 한 줄 — 위 칸에 관리자 API v0.2 §3.1 칸을 더한다. 상세의 user 는 위 칸만 있다. */
+/** 목록 한 줄 — 위 칸에 관리자 API v0.2 §3.1 칸을 더한다. 상세의 user 도 같은 칸을 준다(#167, 계약 admin_last_login.md §4). */
 export interface AdminUserListItem extends AdminUserSummary {
   region: string | null;
   /** local · google · naver. 연결이 없으면 [] */
   providers: string[];
-  /** 실제 로그인 시각 — 서버에 칸이 아직 없어 늘 null(베타 이후) */
+  /** 마지막으로 새 로그인 세션을 발급한 시각(가입 · 로그인 · 소셜 가입 완료). 쿠키로 계속 쓰는 동안은 바뀌지 않는다 */
   last_login_at: string | null;
   /** 로그인 · 가입 때 만든 세션의 시각(추정값) */
   last_session_started_at: string | null;
@@ -52,7 +52,7 @@ export interface AdminOwnedItem {
 }
 
 export interface AdminUserDetail {
-  user: AdminUserSummary;
+  user: AdminUserListItem;
   save: AdminGameSave | null;
   character: AdminCharacter | null;
   items: AdminOwnedItem[];

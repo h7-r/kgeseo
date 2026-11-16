@@ -35,6 +35,9 @@ export function recentLogin(user: {
   return null;
 }
 
+/** 「추정」 표시에 붙이는 설명 — 목록 · 상세가 같은 글을 쓴다 */
+export const ESTIMATE_NOTE = "로그인 · 가입 때 만든 세션의 시각입니다. 자동 로그인으로 계속 쓰면 바뀌지 않습니다.";
+
 const PROVIDER_LABELS: Record<string, string> = { local: "이메일", google: "구글", naver: "네이버" };
 
 /** 로그인 수단. 모르는 값은 원문 그대로. */
