@@ -21,6 +21,7 @@ import {
 } from "../lib/betaReport";
 import { TEST_ACCOUNT_KEYS, testAccountsIn } from "../lib/betaTestAccounts";
 import { formatDateTime, formatNumber } from "../lib/format";
+import { betaObjectiveLabel } from "../lib/gameObjectives";
 import BarChart from "../ui/BarChart";
 import DataTable, { type Column } from "../ui/DataTable";
 import Panel from "../ui/Panel";
@@ -283,7 +284,7 @@ function ReportView({ report, loadedAt }: { report: BetaReport; loadedAt: number
             rowKey={(row) => row.spot}
             emptyText="그만둔 사람이 없거나 아직 하루가 지나지 않았습니다."
             columns={[
-              { key: "spot", header: "마지막 목표", render: (row) => row.spot },
+              { key: "spot", header: "마지막 목표", width: "55%", render: (row) => betaObjectiveLabel(row.spot) },
               { key: "people", header: "그만둔 사람", align: "end", mono: true, render: (row) => row.people },
               {
                 key: "reached",
@@ -379,7 +380,7 @@ function ReportView({ report, loadedAt }: { report: BetaReport; loadedAt: number
 }
 
 const OBJECTIVE_COLUMNS: readonly Column<ObjectiveRow>[] = [
-  { key: "id", header: "목표", render: (row) => row.id },
+  { key: "id", header: "목표", width: "300px", render: (row) => betaObjectiveLabel(row.id) },
   { key: "reached", header: "도달", align: "end", mono: true, render: (row) => row.reached },
   { key: "done", header: "완료", align: "end", mono: true, render: (row) => row.done },
   { key: "pass", header: "통과율", align: "end", render: (row) => row.pass },
