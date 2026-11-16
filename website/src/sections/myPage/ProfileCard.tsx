@@ -65,11 +65,11 @@ export default function ProfileCard({ user, stats, hasProgress, onStart, onSignO
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: "32px", flexShrink: 0 }}>
-        <div style={{ display: "flex", gap: "28px" }}>
+        <div style={{ display: "flex", gap: "36px" }}>
           {stats.map(([label, value, unit]) => (
             <div key={label} style={statStyle}>
               <span style={statLabelStyle}>{label}</span>
-              <span style={{ display: "flex", alignItems: "baseline", gap: "3px" }}>
+              <span style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: "3px" }}>
                 <span style={statValueStyle}>{value}</span>
                 {unit && <span style={statUnitStyle}>{unit}</span>}
               </span>
@@ -151,12 +151,14 @@ const profileChipStyle: CSSProperties = {
   color: "#c9d2e6",
   whiteSpace: "nowrap",
 };
+// 이름표와 숫자를 같은 세로축에 가운데로 — 오른쪽 끝 맞춤이면 자릿수마다 이름표가 비껴 보였다(해랑 11/16). 사이 행간도 넉넉히
 const statStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "8px",
-  alignItems: "flex-end",
-  minWidth: "72px",
+  gap: "16px",
+  alignItems: "center",
+  textAlign: "center",
+  minWidth: "84px",
 };
 // 한글 이름표는 본문 글꼴 — 모노 글꼴엔 한글이 없어 대체 글꼴로 떨어지며 자간이 들쭉날쭉했다.
 const statLabelStyle: CSSProperties = {
