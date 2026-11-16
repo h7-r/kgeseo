@@ -204,7 +204,9 @@ def test_inquiry_flow_submit_list_reply_and_my_inquiries():
             # ⑧ 대시보드 요약에 미답변 수
             sign_in(admin)
             summary = await get_json("/api/v1/admin/stats/summary")
-            assert summary["inquiries"] == {"open": 0}  # 비회원 것은 종료 · 회원 것은 답변됨
+            assert summary["inquiries"] == {
+                "open": 0
+            }  # 비회원 것은 종료 · 회원 것은 답변됨
 
             # ⑨ 감사 기록 — 목록 · 상세 · 답변 · 상태 변경이 남는다
             logs = await get_json("/api/v1/admin/audit-logs")
