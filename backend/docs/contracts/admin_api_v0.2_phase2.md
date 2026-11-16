@@ -14,7 +14,7 @@ BE 리뷰 세진 · 머지 미르 · DB 바꾸는 2단계는 세진 몫. **구�
 
 공통: `current_admin` 매 요청 · `Cache-Control: no-store` · 날짜 질의는 KST `YYYY-MM-DD`, 미래·400일 전은 422 `invalid_query` · 숫자 질의 범위 밖도 422 ·
 시각은 시간대 없는 UTC · 비밀번호 해시 · 토큰 · `login_throttles` 키 · IP · User-Agent 는 어떤 응답에도 없다(§5).
-`include_internal` 은 §3.3 과 같다(기본 `false` = 관리자 제외, 테스트 계정 표시는 아직 없음).
+`include_internal` 은 §3.3 과 같다(기본 `false` = 관리자 · 테스트 계정(`app_users.is_test`) 제외, `true` = 포함). 테스트 계정 규칙은 아래 「테스트 계정 is_test(미르 11/13)」.
 `unavailable` 칸은 원천이 없는 지표의 이유 코드 — 화면은 「준비 중」으로 보인다.
 
 ## P2-1 `GET /admin/stats/traffic` — 날짜별 접속
@@ -71,7 +71,8 @@ Query: `date`(기준, 기본 오늘) · `months`(1~24, 기본 6) · `include_int
 
 ## P2-3 `GET /admin/stats/game` — 게임 진행 집계(beta_events)
 
-Query: `date`(끝, 기본 오늘) · `days`(1~92, 기본 30). `received_at` 이 범위 안인 `beta_events` 중 `stage_reached` · `objective_state` · `puzzle_attempt` · `help_event` · `run_state` 만 읽어(최대 200,000행) 사람 단위로 센다.
+Query: `date`(끝, 기본 오늘) · `days`(1~92, 기본 30) · `include_internal`(11/13 추가, 기본 `false`). `received_at` 이 범위 안인 `beta_events` 중 `stage_reached` · `objective_state` · `puzzle_attempt` · `help_event` · `run_state` 만 읽어(최대 200,000행) 사람 단위로 센다.
+응답에 `include_internal` 이 더해진다. 기본(`false`)은 내부 계정(관리자 · 테스트 계정)에 이어진 기록을 상한보다 먼저 뺀다 — 기준과 **식별 한계**는 아래 「테스트 계정 is_test」.
 사람 = `app_user_id` > `guest_session_id` > `tab_id`.
 **게스트 → 회원 전환 중복 방지(세진 11/12):**
 - 확인한 사실: 로그인한 사람의 기록엔 `guest_session_id` 가 **남지 않는다**(`play_principal` 이 user 면 None, `beta_events.py` 는 그 값을 그대로 적음). 그래서 기록 안에서 두 id 를 함께 볼 수는 없다.
@@ -113,6 +114,23 @@ Query 없음.
 - **창 기준(세진 11/13 지적 반영):** `record_login_failure` 는 `window_started_at` 이 15분(`THROTTLE_WINDOW`)보다 오래된 줄을 다음 실패 때 새 창으로 바꾼다(옛 실패 수는 버린다). `keys_with_failures` · `failures_in_window` 는 그 규칙과 같게 **`window_started_at ≥ now − 15분` 인 줄만** 센다. 단 **아직 잠긴 줄(`locked_until > now`)은 창이 지났어도 센다** — 잠김이 유효한 동안 그 실패 수가 살아 있고, 잠긴 키가 실패 키 수에서 빠지면 안 맞는다. `locked_now` 는 전처럼 `locked_until > now`. 창이 지나고 잠김도 풀린 줄은 어디에도 안 든다(표에는 남아 있다 — 삭제는 로그인 성공 때만).
 - `admin_logins_7d` = role admin 회원의 `user_sessions.created_at`(로그인 · 가입 때 생기는 세션) 최근 7일, 최대 50. IP 는 없다(D15 뒤).
 - **기록: `view_security_summary`**.
+
+## 테스트 계정 is_test(미르 11/13)
+
+팀 테스트 계정을 관리자 통계에서 빼기 위한 표시. 운영 절차 · 서버 명령은 `backend/docs/admin_test_accounts.md`.
+
+- **정의 · 기본값:** `app_users.is_test` BOOLEAN(MySQL TINYINT(1)) · NOT NULL · 기본 `false`(migration `f3c8a1d6e2b7`). 기존 회원 · 새 가입은 모두 `false`. 값은 서버 명령 `scripts/set_test_account.py` 로만 바꾼다 — 일반 · 관리자 API 는 없고, 어떤 응답에도 이 값을 싣지 않는다.
+- **내부 계정 = `role == "admin"` OR `is_test == true`(미르 11/13 최종).** `include_internal=false`(기본)면 회원 · 게스트 · 게임 통계 **모두**에서 같은 판정으로 뺀다, `true` 면 모두 넣는다(`_internal_account`).
+  - 회원 수 · 가입 수(`members.*`, `totals.*`, `monthly_signups`, `signups_on_date`, `recent_signups`, `by_region`, `by_provider`) · 회원 DAU/MAU · 회원 플레이 세션 수(`created_on_date_by_member`, traffic `play_sessions_created` 의 회원 몫) — `stats/summary` · `stats/traffic` · `stats/members` 공통(`_internal_excluded`).
+  - `stats/summary` 의 `excluded`: `admins` = 뺀 관리자 수, `test_accounts` = 뺀 테스트 계정 중 **관리자가 아닌** 수(겹치면 `admins` 에만 센다). `include_internal=true` 면 둘 다 0. 이제 `test_accounts` 는 null 이 아니다.
+- **게스트 통계(미르 확정):** 내부 계정(관리자 · 테스트 계정)으로 **승계된** 게스트는 게스트 DAU/MAU · 게스트 플레이 세션 수(`guests_dau`, `guests_mau`, `created_on_date_by_guest`, traffic 의 게스트 몫)에서도 뺀다. 판정은 `guest_session_transfers.anonymous_session_id = play_sessions.anonymous_session_id` 인 승계 기록의 `app_user_id` 가 지금 내부 계정인지다(`_transferred_to_internal_account`). 생성 당시 소유자 판정(P2-1 의 다섯 조건, `_transferred_after_creation`)은 **그대로** 두고 그 위에 따로 건다 — Play Session 소유권 · 승계 동작은 바꾸지 않는다. 승계 안 된 게스트 · 일반 회원에게 승계된 게스트는 그대로 센다.
+  - 게스트는 브라우저 쿠키 단위라, 공용 기기에서 다른 사람이 게스트로 플레이한 뒤 그 브라우저에서 내부 계정이 로그인하면 그 게스트도 내부로 보고 뺀다(승계 기록만으로는 누가 플레이했는지 가를 수 없다).
+- **과거 통계 재계산:** 모든 판정은 **조회 시점의 현재 값**이다. 지난 날짜를 다시 조회해도 지금의 `is_test` · `role` 로 다시 센다 — 테스트 계정으로 지정하면 그 계정의 과거 숫자(가입 · DAU · 세션, 승계된 게스트 기록 포함)가 지난 날짜에서도 빠지고, 해제하면 다시 든다. 지정 이력은 남기지 않는다.
+- **게임 집계(`stats/game`, beta_events):** 기본(`false`)은 ① `app_user_id` 가 지금 내부 계정(관리자 · 테스트 계정)인 기록을 뺀다. ② `app_user_id` 가 없고 `guest_session_id` 가 있는 기록은 그 게스트가 내부 계정으로 승계됐으면 뺀다(게스트 통계와 같은 기준, P2-3 의 「같은 사람 합치기」와도 맞음)(`_beta_event_internal_excluded`). 관리자 기록도 이제 기본으로 빠진다(11/13 전에는 셌다). 상한(20만 행)보다 먼저 빼므로 내부 기록이 상한 자리를 차지하지 않는다. `GET /admin/beta-events` 내보내기는 원본 그대로다(빼지 않음). 기록을 고치거나 지우지 않는다.
+  - **식별 한계:** `app_user_id` 도 없고, 내부 계정에 승계된 `guest_session_id` 도 없는 기록(참여 코드 · 탭만 있는 기록, 아직 승계 안 된 게스트 기록)은 **내부 계정인지 정할 수 없다.** 참여 코드가 팀 것으로 보여도 추측해 빼지 않고 그대로 센다. 팀이 계정 없이 남긴 시험 기록은 집계에 남는다 — 줄이려면 팀은 테스트 · 관리자 계정으로 로그인한 채 시험한다.
+- **조회 비용:** 제외 조건은 기존 쿼리 안의 조건(EXISTS)이라 traffic 일별 5쿼리 · summary 쿼리 수는 그대로다. summary 는 `excluded.test_accounts` 를 세는 1쿼리가 늘어난다(`include_internal=false` 일 때). `is_test` 에는 색인이 없다 — app_users 는 기본 키로 이어 읽는다.
+- 제외하지 않는 것: 활성 세션 목록 · `live.active_play_sessions_5m` · 보안 집계(사람 목록 · 실시간 근사치), 회원 목록 · 상세, beta_events 원본 내보내기.
+- **화면(FE) 문구:** 응답 모양은 호환된다(`excluded.test_accounts` 는 null 대신 숫자, game 응답에 `include_internal` 이 더해짐 — 남는 필드는 화면이 무시). 다만 「관리자 제외/포함」 이름표와 회원 통계의 「테스트 계정은 아직 가려내지 못해 들어 있습니다」 고정 문구는 이 정책과 맞지 않으므로 FE 에서 「내부 계정(관리자 · 테스트) 제외/포함」으로 바꾼다(해랑).
 
 ## 감사 기록 action 추가(§3.4 필터 값)
 `view_member_stats` · `view_active_sessions` · `view_security_summary`. 화면 이름표: 회원 통계 조회 · 활성 세션 조회 · 보안 집계 조회.

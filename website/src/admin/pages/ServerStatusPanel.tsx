@@ -41,7 +41,7 @@ function StatusTile({ name, check, pendingNote, reachOnly }: Tile) {
   );
 }
 
-/** 서버 상태. API · DB 는 실제로 묻고, 로비는 브라우저에서 닿는지만 본다. CDN 은 쓰지 않는다. */
+/** 서버 상태. API · DB · 에셋 CDN 은 실제로 묻고, 로비는 브라우저에서 닿는지만 본다. */
 export default function ServerStatusPanel() {
   const [resource, retry] = useAdminResource("health", checkPlatformHealth);
   const health = resource.status === "ready" ? resource.data : null;
@@ -65,7 +65,7 @@ export default function ServerStatusPanel() {
           pendingNote={health && !health.lobby ? "로비 주소(VITE_LOBBY_URL)가 없어 확인하지 않습니다" : "확인하는 중…"}
           reachOnly
         />
-        <StatusTile name="에셋(CDN)" check={null} pendingNote="CDN 을 쓰지 않습니다 — 게임 서버가 직접 제공" />
+        <StatusTile name="에셋(CDN)" check={health?.cdn ?? null} pendingNote="확인하는 중…" />
       </div>
     </Panel>
   );

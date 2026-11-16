@@ -94,6 +94,8 @@ interface StoreOptions {
   layout?: PageLayout;
   setTimer?: (run: () => void, ms: number) => unknown;
   clearTimer?: (handle: unknown) => void;
+  /** 이 말이 [F] 를 기다리며 머물 가장 긴 시간(ms) — 0 이면 글 길이대로 넘어간다(수동 넘김 설정, readPace) */
+  manualHoldMs?: (speech: Speech) => number;
 }
 
 /** 아직 안 읽은 쪽들 */
@@ -141,7 +143,8 @@ export function createDialogueStore(options: StoreOptions = {}) {
       if (speech.timeoutMs) timer = setTimer(() => finish(null), speech.timeoutMs);
       return;
     }
-    timer = setTimer(step, pageDurationMs(pages[pageIndex], timing, speech.holdMs));
+    const byLength = pageDurationMs(pages[pageIndex], timing, speech.holdMs);
+    timer = setTimer(step, Math.max(byLength, options.manualHoldMs?.(speech) ?? 0));
   }
 
   function show(speech: Speech) {

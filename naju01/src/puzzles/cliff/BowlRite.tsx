@@ -1,7 +1,7 @@
 /**
  * 바위 위 만나던 자리 — 정화수 세 그릇(P14).
  *   엎어진 사발 셋(큰 · 가운데 · 작은)을 주워 독의 빗물을 뜨고, 선바위 앞 바위 위(너럭바위 · 받침돌 둘)에 크기대로 하나씩 올린다.
- *   물에 달이 내려앉으면 달빛이 사발에서 선바위로 튄다. 셋이 다 켜지면 달빛이 선바위에 모여 그 뒤의 밤들을 비춘다(moonPlay).
+ *   물에 달이 내려앉으면 달빛이 사발에서 선바위로 튄다. 셋이 다 켜지면 달빛이 선바위에 모여 그 뒤의 밤들을 비춘다(moonClip — 영상 파일).
  *   그림이 깨지며 사발 셋이 조각나고, 쏟아진 물이 흙에 묻힌 귀때동이 쪽으로 흘러 굳은 흙을 씻어 낸다(spill) → 귀때동이를 뽑아 독의 물을 퍼 담는다.
  * 그 물로 발자국을 드러내는 것은 FootTrail 이 맡는다. 반사광은 실제로 잰다(cliffShape.REFLECT_DIR).
  * 좌표는 미터, 그리는 것은 유닛(M 배).
@@ -28,7 +28,8 @@ import { M } from "../units";
 import { usePrewarm } from "../usePrewarm";
 import { BOWLS, BOWL_SIZES, BOWL_WATER, JAR, JUG, JUG_POURS, SEAT, STANDING, type BowlSize } from "./cliffShape";
 import { cliff, type SavedCliff } from "./cliffState";
-import { MOON_PLAY_CAPTIONS, MOON_PLAY_CUES, MOON_PLAY_FADE, MOON_PLAY_SECONDS } from "./moonPlay";
+import { MOON_CLIP_CAPTIONS, MOON_CLIP_CUES, MOON_CLIP_FADE, MOON_CLIP_SECONDS } from "./moonClip";
+import { useFilmClipLayer } from "../filmClip";
 import { captionAt, setFilmCaption } from "../filmCaption";
 import {
   MODELS,
@@ -91,6 +92,8 @@ function BowlRiteScene() {
   const spill = useMemo(() => buildSpill(rite), [rite]);
   const scoop = useMemo(() => buildScoop(), []);
   const vision = useRef({ time: -1, fired: new Set<number>() });
+  // 영상 판은 후처리 뒤에 따로 그린다(먹선이 둘레에 네모를 긋지 않게)
+  useFilmClipLayer(rite.play);
   /** 사발이 깨진 뒤 흐른 시간(초) — 안 깨졌으면 −1 */
   const brokenFor = useRef(-1);
   const pending = useRef<{ at: number; run: () => void }[]>([]);
@@ -134,7 +137,7 @@ function BowlRiteScene() {
       focusCamera({
         id: "cliff-vision",
         target: rite.play.mesh.position,
-        hold: MOON_PLAY_SECONDS - 0.9,
+        hold: MOON_CLIP_SECONDS - 0.9,
         turnIn: 0.9,
         turnOut: 0.8,
         zoom: 0.78,
@@ -146,6 +149,7 @@ function BowlRiteScene() {
     const breakBowls = () => {
       vision.current.time = -1;
       setFilmCaption(null);
+      rite.play.stop();
       rite.play.mesh.visible = false;
       cliff.advance("flowing");
       const bowlsAt = new THREE.Vector3();
@@ -202,6 +206,7 @@ function BowlRiteScene() {
     gl.localClippingEnabled = true;
     return () => {
       scene.remove(rite.root, spill.root, scoop.root);
+      rite.play.dispose();
       gl.localClippingEnabled = previous;
     };
   }, [scene, gl, rite, spill, scoop]);
@@ -452,15 +457,15 @@ function BowlRiteScene() {
     // 그 뒤의 밤들
     const v = vision.current;
     if (v.time >= 0) {
-      v.time += Math.min(dt, 1 / 30);
+      // 영상이 틀어지고 있으면 영상의 시각이 기준 — 자막 · 소리 · 끝이 그림과 어긋나지 않게
+      v.time = rite.play.draw(v.time + dt);
       const t = v.time;
-      rite.play.draw(t);
       // 자막 — 컷마다 한 줄, 영상 시각에 맞춰
-      setFilmCaption(captionAt(MOON_PLAY_CAPTIONS, t));
+      setFilmCaption(captionAt(MOON_CLIP_CAPTIONS, t));
       rite.play.material.opacity =
         THREE.MathUtils.smootherstep(t, 0.2, 1.0) *
-        (1 - THREE.MathUtils.smootherstep(t, MOON_PLAY_SECONDS - MOON_PLAY_FADE, MOON_PLAY_SECONDS));
-      for (const cue of MOON_PLAY_CUES) {
+        (1 - THREE.MathUtils.smootherstep(t, MOON_CLIP_SECONDS - MOON_CLIP_FADE, MOON_CLIP_SECONDS));
+      for (const cue of MOON_CLIP_CUES) {
         if (t < cue.at || v.fired.has(cue.at)) continue;
         v.fired.add(cue.at);
         audio.play(cue.sound);
@@ -469,7 +474,7 @@ function BowlRiteScene() {
           rite.bowls.forEach((bowl) => (bowl.ripple = 1));
         }
       }
-      if (t >= MOON_PLAY_SECONDS) actions.breakBowls();
+      if (t >= MOON_CLIP_SECONDS) actions.breakBowls();
     }
   });
 
@@ -512,7 +517,7 @@ function BowlRiteScene() {
       },
       vision: () => actions.startVision(),
       skipVision: () => {
-        if (vision.current.time >= 0) vision.current.time = MOON_PLAY_SECONDS;
+        if (vision.current.time >= 0) vision.current.time = MOON_CLIP_SECONDS;
       },
       /** 영상 없이 바로 사발을 깨고 귀때동이를 푼다 */
       loosen: () => {

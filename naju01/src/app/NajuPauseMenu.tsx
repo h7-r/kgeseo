@@ -11,12 +11,14 @@
  * 계속하기는 클릭(몸짓)으로 잠근다. 크롬이 ESC 직후 잠시 거절하면 메뉴에 남아 「한 번 더」를 알린다.
  * 로비 · 기차는 본편과 한 출처에서 돌 때만(canLeaveToLobby). 처음부터 다시는 이 페이지에서 나주 칸을 지우고 새로 연다(restartNajuHere).
  */
-import { useEffect, useState, useSyncExternalStore, type CSSProperties } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 
 import { EXIT_FAILED_TEXT, exitGame, exitNote } from "@/game/exitGame";
 import type { LeaveResult, LeaveToLobbyAction } from "@/game/LeaveToLobby";
 import PauseMenu, { type PauseMenuItem, type PauseRunResult } from "@/game/PauseMenu";
 import { UI } from "@/game/gameUi";
+
+import { textLog } from "../dialogue/textLog";
 import { openSurvey, shouldOfferSurvey } from "@/beta/betaSurvey";
 import { isGameSaveEnabled, scheduleGameSave } from "@/save/gameSave";
 
@@ -218,9 +220,41 @@ function CaseStatus() {
           직접 청한 도움 {helpLog.asked()}회{helpLog.isAnswerSeen() ? " · 정답 확인함" : ""}
         </div>
       )}
+      <RecentLog />
     </>
   );
 }
+
+/** 지난 글 다시 보기 — 놓친 대사 · 알림을 멈춘 채로 읽는다(베타 11/13). 최근 글이 아래 */
+function RecentLog() {
+  const entries = useSyncExternalStore(textLog.subscribe, textLog.entries, textLog.entries);
+  const listRef = useRef<HTMLDivElement>(null);
+  if (entries.length === 0) return null;
+  return (
+    <details
+      style={logStyle}
+      onToggle={(event) => {
+        // 펼치면 가장 최근 글이 보이게 맨 아래로
+        if (event.currentTarget.open && listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
+      }}
+    >
+      <summary style={logSummaryStyle}>지난 글 다시 보기 ({entries.length})</summary>
+      <div ref={listRef} style={logListStyle}>
+        {entries.map((entry, index) => (
+          <p key={index} style={logLineStyle}>
+            <b style={logWhoStyle}>{entry.who}</b> {entry.text}
+          </p>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+const logStyle: CSSProperties = { marginTop: 8, borderTop: `1px solid ${UI.border}`, paddingTop: 8 };
+const logSummaryStyle: CSSProperties = { cursor: "pointer", color: UI.text, fontWeight: 600 };
+const logListStyle: CSSProperties = { maxHeight: 220, overflowY: "auto", marginTop: 6, paddingRight: 4 };
+const logLineStyle: CSSProperties = { margin: "0 0 6px", lineHeight: 1.5, whiteSpace: "pre-line" };
+const logWhoStyle: CSSProperties = { color: UI.textSubtle, fontWeight: 600, marginRight: 4 };
 
 function Stars({ n }: { n: number }) {
   return (

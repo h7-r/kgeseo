@@ -24,6 +24,11 @@ export interface Settings {
   fov: number;
   /** 화면 흔들림 줄이기 — 걸음 출렁임 · 충격 흔들림 · 물속 출렁임 · 연출의 당겨 보기를 끈다(멀미 피드백, 베타 11/13) */
   reduceMotion: boolean;
+  /**
+   * 대사 자동 넘김 — 끄면(기본) 이야기 대사 · 퍼즐 설명 · 청한 대답은 [F] 를 눌러야 넘어간다(베타 11/13 「읽기 전에 글이 사라진다」).
+   * 짧은 알림 · 주변 한마디는 켜든 끄든 제 시간에 지나간다
+   */
+  autoAdvance: boolean;
 }
 
 export const FOV_RANGE = { min: 60, max: 75 } as const;
@@ -36,7 +41,8 @@ export const DEFAULT_SETTINGS: Settings = {
   resolution: "auto",
   sensitivity: 1,
   fov: 60,
-  reduceMotion: false,
+  reduceMotion: true,
+  autoAdvance: false,
 };
 
 export const RESOLUTION_OPTIONS: readonly Resolution[] = ["auto", "low", "medium", "high", "max"];
@@ -93,8 +99,8 @@ function parseSettings(raw: unknown): Partial<Settings> {
       result[field] = value;
     } else if (field === "fov" && typeof value === "number" && Number.isFinite(value)) {
       result.fov = Math.min(FOV_RANGE.max, Math.max(FOV_RANGE.min, value));
-    } else if (field === "reduceMotion" && typeof value === "boolean") {
-      result.reduceMotion = value;
+    } else if ((field === "reduceMotion" || field === "autoAdvance") && typeof value === "boolean") {
+      result[field] = value;
     }
   }
   return result;

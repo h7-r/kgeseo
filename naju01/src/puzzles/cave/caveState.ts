@@ -14,6 +14,7 @@ import type { Heading } from "../../plan/sitePlan";
 import { DEFAULT_TERRAIN, type Terrain } from "../../terrain/terrain";
 import { isCameraFocused } from "../../scene/cameraFocus";
 import { ritual, useRitualStage } from "../ritual/ritualState";
+import { isReadingHeld } from "../../dialogue/readPace";
 
 /** 갈라진 물 사이 강바닥 길 — 물가(44.5)에서 강 밑(−6 m)까지 내려간다 */
 export const CORRIDOR = { x: 45, halfWidth: 2.2, zStart: 44.5, zEnd: 58, depth: 6 };
@@ -270,7 +271,7 @@ export function guardBreathFor(label: string, seconds: number): () => void {
   };
 }
 /** 지금 숨을 지키는 중인가 — 장면 · 화면 고정 */
-export const isBreathGuarded = () => breathGuards.size > 0 || isCameraFocused();
+export const isBreathGuarded = () => breathGuards.size > 0 || isCameraFocused() || isReadingHeld();
 
 let wasBreathGuarded = false;
 /** 숨 — 매 프레임. 물속이 아니거나 공기 기둥 안이면 찬다. 다하면 true 를 돌려주고 숨을 채운다. 지키는 장면 동안은 줄지 않는다 */

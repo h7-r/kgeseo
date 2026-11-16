@@ -64,6 +64,7 @@ import { isTalkPaused } from "./storyTalk";
 import { SerpentEcho } from "./serpentEcho";
 import { betaSignals } from "../../beta/betaSignals";
 import { stripEmphasis } from "../../dialogue/emphasis";
+import { storyHoldSeconds } from "../../dialogue/readPace";
 
 /** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
 const showNotice = noticeFor("abisa");
@@ -719,7 +720,7 @@ function updateAbisa(brain: Brain, rig: ActorRig, eye: THREE.Vector3, camera: TH
     }
     if (shouldPause) return;
     talk.lineTime += dt;
-    if (talk.index < 0 ? talk.lineTime >= 0 : talk.lineTime >= lineSeconds(line?.text ?? "")) nextLine(brain);
+    if (talk.index < 0 ? talk.lineTime >= 0 : talk.lineTime >= storyHoldSeconds(lineSeconds(line?.text ?? ""))) nextLine(brain);
     // 멀리 가 버리면 그친다 — 의뢰 · 인연 이야기는 들은 줄까지 남아, 다시 겨누고 [F] 면 그 줄부터 잇는다(저절로 다시 열지 않는다)
     if (brain.state.talk && state.abisaDistance > 14) stopTalk(brain);
     return;

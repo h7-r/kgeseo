@@ -3,9 +3,8 @@
 Revision ID: e7a1b2c3d4f5
 Revises: a3f9c2e7b1d4
 
-⚠ `down_revision` 은 **임시**로 지금 main 머리(a3f9c2e7b1d4)에 걸어 두었다. 세진 마이그레이션(is_test → 감사 로그 확장 → 공지)이
-먼저 머지되므로, 이 PR 을 Ready 로 올리기 전에 그 마지막 revision 으로 바꾼다(머리 하나 유지 — 미르 11/13 「나중에 머지되는 쪽이 앞
-revision 뒤로」). `admin_audit_logs` 는 건드리지 않는다(세진 몫).
+`down_revision` 은 세진 is_test(f3c8a1d6e2b7, #158 머지됨) 뒤다 — 머리 하나 유지(미르 11/13 「나중에 머지되는 쪽이 앞
+revision 뒤로」). 세진 감사 로그 확장 · 공지 마이그레이션은 이 revision 뒤에 붙는다. `admin_audit_logs` 는 건드리지 않는다(세진 몫).
 """
 
 import sqlalchemy as sa
@@ -14,7 +13,7 @@ from sqlalchemy.dialects.mysql import DATETIME
 from alembic import op
 
 revision = "e7a1b2c3d4f5"
-down_revision = "a3f9c2e7b1d4"
+down_revision = "f3c8a1d6e2b7"
 branch_labels = None
 depends_on = None
 

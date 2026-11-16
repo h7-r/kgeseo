@@ -20,7 +20,7 @@ import {
   STANDING,
   type BowlSize,
 } from "./cliffShape";
-import { createMoonPlay } from "./moonPlay";
+import { createMoonClip } from "./moonClip";
 
 export const MODELS = {
   standing: "/_sf_local/lib/ast-terrain-engraved-rock-01.glb",
@@ -251,8 +251,8 @@ export function buildRite() {
   jug.scale.setScalar(M);
   root.add(jug);
 
-  const play = createMoonPlay();
-  root.add(play.mesh);
+  // 영상 판은 root 에 넣지 않는다 — BowlRite 가 후처리 뒤에 따로 그린다(filmClip.useFilmClipLayer)
+  const play = createMoonClip();
 
   const normal = new THREE.Vector3(Math.sin(STANDING.yaw), 0, Math.cos(STANDING.yaw));
   return {

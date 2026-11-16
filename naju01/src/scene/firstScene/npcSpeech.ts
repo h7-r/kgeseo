@@ -7,6 +7,7 @@
 import { useSyncExternalStore } from "react";
 
 import { createChangeSignal } from "@/lib/changeSignal";
+import { textLog } from "../../dialogue/textLog";
 
 export interface NpcSpeech {
   speaker: string;
@@ -85,6 +86,7 @@ export function interruptTalk(): boolean {
 export function setNpcSpeech(next: Omit<NpcSpeech, "key"> | null, by?: string) {
   if (owner !== null && by !== undefined && owner !== by) return;
   speech = next ? { ...next, key: nextKey++ } : null;
+  if (next) textLog.add(next.speaker, next.text);
   signal.notify();
 }
 

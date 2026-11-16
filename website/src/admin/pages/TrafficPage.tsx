@@ -73,9 +73,9 @@ function TrafficView({ traffic }: { traffic: StatsTraffic }) {
         />
       </div>
       <p className="adm-summary__note">
-        {traffic.daily[0]?.date} ~ {traffic.date} 한국 날짜 · {formatDateTime(traffic.generated_at)} 집계 · 관리자 제외.
-        DAU 는 그날 로그인하거나 플레이를 새로 시작한 회원 수라 이어 하기만 한 회원은 빠질 수 있습니다. 게스트로 놀다
-        뒤에 로그인한 사람은 그날엔 게스트로 남습니다(세션을 만든 때의 소유자 기준).
+        {traffic.daily[0]?.date} ~ {traffic.date} 한국 날짜 · {formatDateTime(traffic.generated_at)} 집계 · 관리자 ·
+        테스트 계정 제외. DAU 는 그날 로그인하거나 플레이를 새로 시작한 회원 수라 이어 하기만 한 회원은 빠질 수
+        있습니다. 게스트로 놀다 뒤에 로그인한 사람은 그날엔 게스트로 남습니다(세션을 만든 때의 소유자 기준).
       </p>
       <div className="adm-grid adm-grid--two">
         <Panel title="회원 DAU 추이" meta="일 단위 · 회색 점선은 게스트">

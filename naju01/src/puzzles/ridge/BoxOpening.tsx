@@ -2,7 +2,7 @@
  * 아랑사의 함 열기 — 불탄 평상을 겨눠 함을 올려놓고(E, 바닥에 떨어진 함도 그 자리에서 열 수 있다) 돌새가 준 청동 열쇠를 자물통 구멍에 꽂아 돌리면(E)
  * 열쇠가 들어가 「철컥」 돌고 → 자물통이 빠져 떨어지고 → 뚜껑이 덜컥 열린다.
  * 함 속에는 작은 구렁이상(미르의 구렁이 모형을 줄였다)과 주마등. 열리면 함에서 빛기둥이 위로 쏟아지고 그 빛 속에 그날 밤의 영상이
- * 흐른다(shadowPlay) — 글은 없다. 구렁이상은 넷째 이야기의 조각으로 남긴다.
+ * 흐른다(boxClip — 영상 파일, 가장자리는 빛 속으로 풀린다) — 글은 자막뿐이다. 구렁이상은 넷째 이야기의 조각으로 남긴다.
  * 소지품의 「받는 곳」 규칙을 그대로 쓴다 — 빈손으로 겨눠도 소지품에서 알아서 꺼내 쓴다. 좌표는 미터, 그리는 것은 유닛(M 배).
  */
 import { assetUrl } from "@/config/env";
@@ -27,13 +27,8 @@ import { M, groundY } from "../units";
 import { LID, LOCK_AT, LOCK_LENGTH, buildBoxBase, buildBoxLid, BOX, buildBronzeKey, buildPadlock } from "./lockedBox";
 import { bindBoxPhase, type BoxPhase } from "./boxPhase";
 import { PLATFORM } from "./ridgeShape";
-import {
-  SHADOW_PLAY_CAPTIONS,
-  SHADOW_PLAY_CUES,
-  SHADOW_PLAY_FADE,
-  SHADOW_PLAY_SECONDS,
-  createShadowPlay,
-} from "./shadowPlay";
+import { BOX_CLIP_CAPTIONS, BOX_CLIP_CUES, BOX_CLIP_FADE, BOX_CLIP_SECONDS, createBoxClip } from "./boxClip";
+import { useFilmClipLayer } from "../filmClip";
 import { captionAt, setFilmCaption } from "../filmCaption";
 import { makeVertexColorMaterial } from "./vertexPaint";
 
@@ -163,7 +158,7 @@ function buildBox() {
     serpent,
     beam,
     beamMaterial,
-    play: createShadowPlay(),
+    play: createBoxClip(),
     restAt: new THREE.Vector3(),
     placeFrom: new THREE.Vector3(),
     lockTarget: new THREE.Vector3(),
@@ -206,11 +201,14 @@ export default function BoxOpening() {
   const worldItems = useWorldItems();
 
   useEffect(() => {
-    scene.add(box.root, box.play.mesh);
+    scene.add(box.root);
     return () => {
-      scene.remove(box.root, box.play.mesh);
+      scene.remove(box.root);
+      box.play.dispose();
     };
   }, [scene, box]);
+  // 영상 판은 후처리 뒤에 따로 그린다(먹선이 둘레에 네모를 긋지 않게)
+  useFilmClipLayer(box.play);
 
   // 구렁이상 — 미르의 구렁이 모형을 손바닥만 하게 줄여 함 바닥에 앉힌다
   useEffect(() => {
@@ -488,7 +486,7 @@ export default function BoxOpening() {
     focusCamera({
       id: "box-shadow-play",
       target: mesh.position,
-      hold: SHADOW_PLAY_SECONDS - 1.3,
+      hold: BOX_CLIP_SECONDS - 1.3,
       turnIn: 0.8,
       turnOut: 0.7,
       zoom: 0.82,
@@ -498,13 +496,13 @@ export default function BoxOpening() {
 
   /** 재생 한 프레임 — 함 속이 밝아지며 빛기둥이 솟고, 영상이 끝나면 빛이 함으로 가라앉는다 */
   const updatePlay = (dt: number, time: number) => {
-    playTime.current += Math.min(dt, 1 / 30);
+    // 영상이 틀어지고 있으면 영상의 시각이 기준 — 자막 · 소리 · 끝이 그림과 어긋나지 않게
+    playTime.current = box.play.draw(playTime.current + dt);
     const t = playTime.current;
-    box.play.draw(t);
     // 자막 — 컷마다 한 줄, 영상 시각에 맞춰
-    setFilmCaption(captionAt(SHADOW_PLAY_CAPTIONS, t));
+    setFilmCaption(captionAt(BOX_CLIP_CAPTIONS, t));
     // 끝에는 빛이 천천히 약해지고 영상도 함께 옅어진다
-    const dim = 1 - THREE.MathUtils.smootherstep(t, SHADOW_PLAY_SECONDS - SHADOW_PLAY_FADE, SHADOW_PLAY_SECONDS);
+    const dim = 1 - THREE.MathUtils.smootherstep(t, BOX_CLIP_SECONDS - BOX_CLIP_FADE, BOX_CLIP_SECONDS);
     const rise = THREE.MathUtils.smootherstep(t, 0, 0.9) * dim;
     const light = rise * (0.9 + 0.1 * Math.sin(time * 9));
     (box.glow.material as THREE.SpriteMaterial).opacity = light;
@@ -512,19 +510,20 @@ export default function BoxOpening() {
     box.beamMaterial.uniforms.uTime.value = time;
     // 영상이 비치는 동안 판도 빛 따라 서서히
     box.play.material.opacity = THREE.MathUtils.smootherstep(t, 0.2, 1.0) * dim;
-    for (const cue of SHADOW_PLAY_CUES) {
+    for (const cue of BOX_CLIP_CUES) {
       if (t < cue.at || cuesFired.current.has(cue.at)) continue;
       cuesFired.current.add(cue.at);
       audio.play(cue.sound);
       if (cue.shake) director.cue({ 카메라: "흔들림", 세기: cue.shake });
     }
-    if (t < SHADOW_PLAY_SECONDS) return;
+    if (t < BOX_CLIP_SECONDS) return;
     phase.current = "done";
     setFilmCaption(null);
+    box.play.stop();
     box.play.mesh.visible = false;
     box.beam.visible = false;
     (box.glow.material as THREE.SpriteMaterial).opacity = 0;
-    // 화면이 다 돌아온 뒤에 — 영상(12.4 s)이 화면 고정(돌아보기 · 머물기 · 풀기 12.6 s)보다 조금 먼저 끝나 [E] 안내가 조작보다 먼저 떴다(Codex 01)
+    // 화면이 다 돌아온 뒤에 — 영상(25 s)이 화면 고정(돌아보기 · 머물기 · 풀기 25.2 s)보다 조금 먼저 끝나 [E] 안내가 조작보다 먼저 떴다(Codex 01)
     gameSetTimeout(() => showNotice("함 바닥에 작은 구렁이상 하나가 남아 있다. [E] 로 꺼낸다.", 5), 500);
   };
 

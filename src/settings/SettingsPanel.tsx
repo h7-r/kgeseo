@@ -276,7 +276,7 @@ function SettingsDialog({ onClose, leaveToLobby, onShowGuide, guideLabel }: Sett
         <div style={rowStyle}>
           <span style={labelStyle}>
             흔들림 줄이기
-            <span style={descriptionStyle}>멀미가 나면 켜세요</span>
+            <span style={descriptionStyle}>걸음 출렁임 · 당겨 보기를 끕니다</span>
           </span>
           <div style={choicesStyle} role="radiogroup" aria-label="화면 흔들림 줄이기">
             {[false, true].map((value) => (
@@ -287,6 +287,26 @@ function SettingsDialog({ onClose, leaveToLobby, onShowGuide, guideLabel }: Sett
                 aria-checked={settings.reduceMotion === value}
                 onClick={() => updateSettings({ reduceMotion: value })}
                 style={settings.reduceMotion === value ? choiceActiveStyle : choiceStyle}
+              >
+                {value ? "켬" : "끔"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>
+            대사 자동 넘김
+            <span style={descriptionStyle}>끄면 [F] 로 넘깁니다</span>
+          </span>
+          <div style={choicesStyle} role="radiogroup" aria-label="대사 자동 넘김">
+            {[false, true].map((value) => (
+              <button
+                key={String(value)}
+                type="button"
+                role="radio"
+                aria-checked={settings.autoAdvance === value}
+                onClick={() => updateSettings({ autoAdvance: value })}
+                style={settings.autoAdvance === value ? choiceActiveStyle : choiceStyle}
               >
                 {value ? "켬" : "끔"}
               </button>

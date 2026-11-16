@@ -24,6 +24,8 @@ import {
 import { isLetterOpenNow } from "./cliff/letters";
 import { isFilmCaptionOn } from "./filmCaption";
 import { isPaperOpenNow } from "./ridge/oldPaper";
+import { inCompanionVoice } from "../dialogue/gameVoice";
+import { textLog } from "../dialogue/textLog";
 
 export interface Interactable {
   id: string;
@@ -442,6 +444,8 @@ function dropOlderReactions() {
 }
 
 function displayNotice(item: NoticeItem) {
+  // 「지난 글」에는 실제로 화면에 뜬 것만 적는다 — 버려진 · 때를 놓친 알림은 적지 않는다(Codex 리뷰)
+  textLog.add("알림", inCompanionVoice(item.text));
   showing = { item, left: item.seconds };
   noticeKey += 1;
   notice = { text: item.text, key: noticeKey, always: item.always === true };

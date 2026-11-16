@@ -79,8 +79,7 @@ function MemberStatsView({ stats }: { stats: StatsMembers }) {
         />
       </div>
       <p className="adm-summary__note">
-        {stats.date} 한국 날짜 기준 · {formatDateTime(stats.generated_at)} 집계 · 관리자 제외 · 테스트 계정은 아직
-        가려내지 못해 들어 있습니다.
+        {stats.date} 한국 날짜 기준 · {formatDateTime(stats.generated_at)} 집계 · 관리자 · 테스트 계정 제외.
       </p>
       <div className="adm-grid adm-grid--two">
         <Panel title="월별 가입" meta={`최근 ${stats.months}개월 · 탈퇴는 기능 전이라 없음`}>

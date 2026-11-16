@@ -18,6 +18,7 @@ import { cameraFocusId } from "../cameraFocus";
 import { stage } from "../immersion/state";
 import { claimTalk, releaseTalk, setNpcSpeech } from "./npcSpeech";
 import { stripEmphasis } from "../../dialogue/emphasis";
+import { storyHoldSeconds } from "../../dialogue/readPace";
 
 export interface StoryLine {
   text: string;
@@ -123,7 +124,7 @@ export class StoryTalk {
     if (shouldPause) return;
     this.lineTime += dt;
     const line = this.line;
-    if (this.index < 0 ? this.lineTime >= 0 : this.lineTime >= lineSeconds(line?.text ?? "")) this.next();
+    if (this.index < 0 ? this.lineTime >= 0 : this.lineTime >= storyHoldSeconds(lineSeconds(line?.text ?? ""))) this.next();
   }
 
   private show(line: StoryLine) {
