@@ -218,6 +218,16 @@ def test_inquiry_flow_submit_list_reply_and_my_inquiries():
                 "update_inquiry",
             ):
                 assert expected in actions, actions
+            # 대상 표기(감사 기록 확장 63566bb6005b) — 문의 셋은 inquiry / 문의 id, 목록은 비어 있다
+            inquiry_ids = {guest_inquiry["id"], member_inquiry["id"]}
+            for row in logs["logs"]:
+                if row["action"] in ("read_inquiry", "reply_inquiry", "update_inquiry"):
+                    assert (
+                        row["target_type"] == "inquiry"
+                        and row["target_id"] in inquiry_ids
+                    ), row
+                elif row["action"] == "list_inquiries":
+                    assert row["target_type"] is None and row["target_id"] is None, row
         finally:
             app.dependency_overrides.pop(optional_current_user, None)
 
@@ -354,7 +364,15 @@ def test_settings_maintenance_toggle_and_public_status():
         )
         assert turned_off.status_code == 200 and turned_off.json()["message"] == ""
         logs = await get_json("/api/v1/admin/audit-logs")
-        assert [row["action"] for row in logs["logs"]].count("update_setting") == 2
+        setting_rows = [
+            row for row in logs["logs"] if row["action"] == "update_setting"
+        ]
+        assert len(setting_rows) == 2
+        # 대상 표기 — 설정은 setting / 설정 키
+        assert all(
+            row["target_type"] == "setting" and row["target_id"] == "maintenance_mode"
+            for row in setting_rows
+        ), setting_rows
 
         # 관리자 목록 — 가린 이메일, 기록 list_admins
         admins = await get_json("/api/v1/admin/admins")

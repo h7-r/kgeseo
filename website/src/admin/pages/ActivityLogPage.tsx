@@ -11,7 +11,14 @@ import {
 import { toAdminError, type AdminApiError } from "../api/client";
 import { useAdminResource } from "../api/useAdminResource";
 import ResourceView from "../auth/ResourceView";
-import { AUDIT_ACTION_FILTERS, AUDIT_MAX_DAYS, AUDIT_PERIODS, auditActionLabel, kstPeriod } from "../lib/auditLog";
+import {
+  AUDIT_ACTION_FILTERS,
+  AUDIT_MAX_DAYS,
+  AUDIT_PERIODS,
+  auditActionLabel,
+  auditTargetLabel,
+  kstPeriod,
+} from "../lib/auditLog";
 import { isIsoDate, validateRange, type DateRange } from "../lib/dateRange";
 import { formatDateTime, formatNumber } from "../lib/format";
 import { appendUnique } from "../lib/paging";
@@ -105,8 +112,12 @@ function matches(log: AuditLogEntry, find: string): boolean {
   const term = find.trim().toLowerCase();
   if (!term) return true;
   const actors = [log.admin, log.target].filter((actor): actor is AuditActor => actor !== null);
-  return actors.some(
-    (actor) => actor.nickname?.toLowerCase().includes(term) || actor.user_id.toLowerCase().startsWith(term),
+  return (
+    actors.some(
+      (actor) => actor.nickname?.toLowerCase().includes(term) || actor.user_id.toLowerCase().startsWith(term),
+    ) ||
+    // 대상 물건 id(문의 id · 설정 키)로도 찾는다
+    (log.target_id?.toLowerCase().startsWith(term) ?? false)
   );
 }
 
@@ -150,7 +161,8 @@ function AuditLogTable({ range, action, find }: { range: DateRange; action: stri
           <section className="adm-panel adm-panel--flush" aria-label="활동 로그">
             <p className="adm-audit-note">
               {query.from} ~ {query.to} 한국 시각. 이 화면을 열 때마다 「활동 로그 조회」 한 줄이 남고, 방금 연 기록은
-              「다시 조회」나 다음에 열 때 보입니다. IP · 브라우저 정보는 아직 기록하지 않습니다.
+              「다시 조회」나 다음에 열 때 보입니다. IP 는 앞 두 자리만 보이고, 11/16 확장 전 기록은 대상 · IP ·
+              브라우저가 비어 있습니다.
             </p>
             <DataTable
               caption="활동 로그"
@@ -166,13 +178,14 @@ function AuditLogTable({ range, action, find }: { range: DateRange; action: stri
                   key: "at",
                   header: "시각",
                   mono: true,
-                  width: "168px",
+                  width: "150px",
                   render: (log) => formatDateTime(log.created_at),
                 },
-                { key: "admin", header: "관리자", width: "22%", render: (log) => <Actor actor={log.admin} /> },
+                { key: "admin", header: "관리자", width: "12%", render: (log) => <Actor actor={log.admin} /> },
                 {
                   key: "action",
                   header: "한 일",
+                  width: "132px",
                   render: (log) => (
                     <Badge tone={log.action === "read_user" ? "blue" : "gray"}>{auditActionLabel(log.action)}</Badge>
                   ),
@@ -180,11 +193,31 @@ function AuditLogTable({ range, action, find }: { range: DateRange; action: stri
                 {
                   key: "target",
                   header: "대상 회원",
-                  width: "22%",
+                  width: "12%",
                   render: (log) =>
                     log.target ? <Actor actor={log.target} link /> : <span className="adm-muted">—</span>,
                 },
-                { key: "id", header: "기록 번호", mono: true, align: "end", width: "112px", render: (log) => log.id },
+                {
+                  key: "object",
+                  header: "대상",
+                  width: "16%",
+                  truncate: (log) => (log.target_type && log.target_id ? `${log.target_type} ${log.target_id}` : ""),
+                  render: (log) => <TargetObject log={log} />,
+                },
+                {
+                  key: "ip",
+                  header: "IP",
+                  mono: true,
+                  width: "104px",
+                  render: (log) => log.client_ip_display ?? <span className="adm-muted">—</span>,
+                },
+                {
+                  key: "ua",
+                  header: "브라우저",
+                  truncate: (log) => log.user_agent ?? "",
+                  render: (log) => log.user_agent ?? <span className="adm-muted">—</span>,
+                },
+                { key: "id", header: "기록 번호", mono: true, align: "end", width: "84px", render: (log) => log.id },
               ]}
             />
             <footer className="adm-table-foot">
@@ -217,6 +250,29 @@ function AuditLogTable({ range, action, find }: { range: DateRange; action: stri
         );
       }}
     </ResourceView>
+  );
+}
+
+/**
+ * 열람 · 변경한 대상 물건 — 종류 이름표와 id. 회원이면 상세로 잇고, 문의 · 설정 · 공지는 id 만(문의 화면엔 아직 바로 가는 주소가 없다).
+ * 확장 전 기록은 비어 있다.
+ */
+function TargetObject({ log }: { log: AuditLogEntry }) {
+  if (!log.target_type || !log.target_id) return <span className="adm-muted">—</span>;
+  const label = auditTargetLabel(log.target_type);
+  // UUID 꼴(36자)만 앞 8자로 줄이고, 설정 키 같은 짧은 id 는 그대로 보인다
+  const shortId = log.target_id.length >= 32 ? `${log.target_id.slice(0, 8)}…` : log.target_id;
+  if (log.target_type === "user") {
+    return (
+      <span>
+        {label} · <Link to={ADMIN_PATHS.userDetail(log.target_id)}>{shortId}</Link>
+      </span>
+    );
+  }
+  return (
+    <span>
+      {label} · <span className="is-mono">{shortId}</span>
+    </span>
   );
 }
 

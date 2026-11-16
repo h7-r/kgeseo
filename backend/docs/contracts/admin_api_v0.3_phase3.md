@@ -26,7 +26,7 @@
 | `update_inquiry` | 상태 · 우선순위 변경 | 같음 |
 | `update_setting` | 설정 값 변경 | — |
 | `list_admins` | 관리자 목록 조회(이메일이 보인다) | — |
-콘텐츠 조회(P3-3)와 설정 읽기는 사람이 안 보여 안 남긴다(2단계 D5-b 와 같은 기준). **대상 표기(세진 감사 로그 확장 열 `target_type` · `target_id`, 11/13 확정):** `read_inquiry` · `reply_inquiry` · `update_inquiry` 는 `target_type="inquiry"`, `target_id=<inquiry id>`(+ 접수 회원이 있으면 `target_user_id`), `update_setting` 은 `target_type="setting"`, `target_id=<key>`. 세진 마이그레이션이 내 PR 보다 먼저 머지되면 바로 채우고, 뒤면 후속 커밋으로 채운다(`_audit()` 인자만 늘어남).
+콘텐츠 조회(P3-3)와 설정 읽기는 사람이 안 보여 안 남긴다(2단계 D5-b 와 같은 기준). **대상 표기(세진 감사 로그 확장 열 `target_type` · `target_id`, 11/13 확정):** `read_inquiry` · `reply_inquiry` · `update_inquiry` 는 `target_type="inquiry"`, `target_id=<inquiry id>`(+ 접수 회원이 있으면 `target_user_id`), `update_setting` 은 `target_type="setting"`, `target_id=<key>`. 세진 열(#163, `63566bb6005b`)이 들어온 뒤 후속 PR 에서 채웠다(`_audit()` 인자만 늘어남 — 계약 `admin_audit_log_ext.md` §3).
 
 ---
 
@@ -78,7 +78,7 @@
 - **비회원 접수 안내(세진 ②):** 비로그인으로 접수한 문의는 `app_user_id` 가 없어 「내 문의」에 안 나오고, 서버에 이메일 자동 발송도 없다. 그래서 웹 폼은 접수 전에 이렇게 적는다 — 「로그인하고 접수하면 답변을 마이페이지 〉 내 문의에서 바로 볼 수 있어요. 로그인 없이 접수하면 답변은 운영팀이 입력하신 이메일로 따로 보내 드려요(자동 발송 아님).」 접수 완료 카드에도 접수 번호와 같은 문구를 다시 보여 준다. 관리자 상세에는 「비회원 — 메일로 답변」 표시를 둬 운영자가 메일을 따로 보내게 한다. 이메일 주소로 회원 문의와 묶는 것은 하지 않는다(가입 이메일 검증 여부와 무관하게 남의 문의가 보일 위험).
 
 ### 관리자 API
-`GET /api/v1/admin/inquiries` — Query `status`(`all`(기본) · `open` · `answered` · `closed`) · `priority`(`urgent` 만 거를 때) · `offset` · `limit`(기본 50, 최대 50 — 1단계 회원 목록과 같은 `next_offset` 방식, 구현에서 cursor 대신). **기록 `list_inquiries`.**
+`GET /api/v1/admin/inquiries` — Query `status`(`all`(기본) · `open` · `answered` · `closed`) · `priority`(`urgent` 만 거를 때) · `offset` · `limit`(기본 50, 최대 50 — 1단계 회원 목록과 같은 `next_offset` 방식, 구현에서 cursor 대신). **기록 `list_inquiries`.** 알려진 제한(세진 11/16): 쪽을 넘기는 사이 새 문의가 들어오면 한 줄이 두 번 보이거나 빠질 수 있다 — 「다시 조회」로 맞춘다.
 ```json
 { "stats": { "total": 120, "open": 7, "today": 3, "avg_first_reply_hours": 5.4 },
   "items": [ { "id": "…", "number": "INQ-…", "title": "…", "category": "gameplay", "status": "open", "priority": "normal",
@@ -173,7 +173,7 @@ DB 변경 없음. 원천은 셋: 레거시 콘텐츠 폴더(`app/content/cases`,
 ## 구현 기록(11/13 해랑)
 - 백엔드 d6aaf5e · 웹 674c78c(+ 후속) — #154. 격리 MySQL 검사 5개(접수 → 목록 → 답변 → 내 문의 · 동시 접수 20건 번호 유일 · 실패 롤백 · 빈도 제한 · 설정 · 콘텐츠) 포함 전체 2836 통과, 운영 빌드 + 로컬 백엔드 라이브 확인 28/28(비회원 · 회원 접수, 내 문의 답변, CS 관리 · 설정 점검 모드 · 관리자 목록 · 콘텐츠 · 활동 로그).
 - 마이그레이션 `e7a1b2c3d4f5` 의 `down_revision` 은 임시(a3f9c2e7b1d4). 세진 revision(is_test → 감사 로그 확장 → 공지) 뒤로 옮긴 뒤 Ready.
-- 감사 기록의 대상 표기(`target_type/id`)는 세진 열이 들어온 뒤 후속 커밋.
+- 감사 기록의 대상 표기(`target_type/id`)는 세진 열(#163) 뒤 후속 PR 로 채움(11/16).
 
 ## 세진 확인 요청
 ① 접수 번호 순번 방식(유일 제약 충돌 재시도 3회) — 다른 방식이 좋으면 알려 줘(예: AUTO_INCREMENT 보조 열).
