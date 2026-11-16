@@ -87,13 +87,28 @@ Query: `date`(끝, 기본 오늘) · `days`(1~92, 기본 30) · `include_interna
   "stages": [ { "stage": 1, "entered": 15, "completed": 9 }, { "stage": 2, "entered": 9, "completed": 3 }, { "stage": 3, "entered": 3, "completed": 1 } ],
   "puzzles": [ { "objective_id": "P01", "judge": "server", "attempts": 40, "wrong": 22, "hint_requests": 6, "completed_people": 12 } ],
   "avg_completion_minutes": 48.5, "completed_runs": 1,
+  "case_completed_people": 1, "median_completion_minutes": 48.5,
+  "entry_only_stages": [ { "stage": 4, "entered": 2 }, { "stage": 5, "entered": 1 } ],
   "unavailable": {}
 }
 ```
 - 스테이지 묶음 · 서버 판정 목록은 `naju01/src/dialogue/objectives.ts`(STAGE_OF · SERVER_JUDGED)를 서버에 옮긴 표(`services/admin_stats.py`). 1 = 나루터, 2 = 바위 아래 + 물굴, 3 = 증언 능선. 스테이지 「완료」 = 끝 걸음(S1_SMOKE · C_SOCKET · S3_RIFT) 완료.
 - `entered` = 그 스테이지 목표를 하나라도 본(available · focus · complete) 사람 수. `completed_people` = `objective_state complete` 이고 `data.origin` 이 `live`(복원 제외)인 사람 수.
 - `attempts` = `puzzle_attempt` 건수(sent_back 포함), `wrong` = phase `fail` · `incorrect`. `hint_requests` = `help_event request` 건수. `judge` = server · screen · step.
-- `avg_completion_minutes` = `run_state start/resume → dawn` 까지 분의 평균(같은 `run_id`). 없으면 null + `unavailable.avg_completion_minutes`.
+- **사건 완주(11/16 미르 확정)** = `run_state` 의 phase `released` 또는 `dawn`(`data.origin` 이 `live`, 없으면 live 로 본다). 두 값은 굿판의 마지막 두 단계라 정상 완주 한 번에 둘 다 남는다 — 같은 회차(`run_id`)는 한 번, 같은 사람은 한 번으로 묶는다. **`S3_RIFT`(3스테이지 끝) 완료는 사건 완주가 아니다**(그 뒤에 4 · 5스테이지가 있다). 엔딩이 아닌 run_state(`restart` · `quit` 등) · 복원 기록은 완주로 세지 않는다.
+  - `completed_runs` = 엔딩이 있는 회차 수(`run_id` 기준). **11/16 의미 변경**: 전에는 `dawn` 만, 그리고 같은 회차에 시작(start · resume) 기록이 있어야 셌다. 지금은 `released` 도 완주이고, 시작 기록이 없어도 엔딩이 있으면 센다. `run_id` 가 없는 엔딩은 회차로 셀 수 없어 빠진다(기존 규칙).
+  - `case_completed_people`(11/16 추가) = 사건 완주한 사람 수(사람 키 규칙은 위와 같다 — 계정에 이어지지 않는 기록은 탭 · 「모름」 단위로 센다).
+  - **완주 시간 표본**(평균 · 중앙값 공통): 시작(start · resume)과 엔딩(released · dawn)이 **둘 다 있는 회차**, `run_id` 하나에 한 값. 값 = 그 회차의 첫 시작 → **가장 이른 엔딩**(released · dawn 이 둘 다 있으면 이른 쪽) 분. 엔딩이 시작보다 앞서는(음수) 회차는 뺀다. 시작 기록이 없는 엔딩 회차는 `completed_runs` 에는 들지만 이 표본에는 들지 않는다.
+  - `avg_completion_minutes` = 표본의 산술평균, 소수 첫째 자리(`round`). 표본이 없으면 null + `unavailable.avg_completion_minutes = "no_completed_run"`(코드 그대로).
+  - `median_completion_minutes`(11/16 추가, `number | null`) = 같은 표본의 중앙값 — 홀수 개면 가운데 값, 짝수 개면 가운데 두 값의 산술평균. 단위 · 반올림은 평균과 같다(분, 소수 첫째 자리). 표본이 같으므로 **평균이 null 일 때만 null** 이고, 그때 `unavailable.median_completion_minutes = "no_completed_run"` 을 덧붙여 준다(기존 키 · 코드는 그대로 — 덧붙임이라 하위 호환).
+- **4 · 5스테이지(11/16 추가, 진입만) — `entry_only_stages` 는 임시 필드(미르 11/16 확정).** 목표표 밖이라 `stages`(1~3)에 넣지 않고 따로 준다. 세부 완료 조건은 아직 없다(`completed` 없음).
+  - 4스테이지(바위 위) 진입 = `objective_state` · phase `progress` · `objective_id` `CLIFF`(`data.stage` 는 단계 정보 — 값과 무관하게 진입)
+  - 5스테이지(굿판) 진입 = `objective_state` · phase `rite` · `objective_id` `GUT`
+  - 사람 단위로 한 번. 다른 phase · objective 조합(예: GUT progress)은 세지 않는다.
+  - **정식 집계 전환(향후)**: 해랑님이 4 · 5스테이지 세부 목표 ID 를 게임 이벤트(`objective_state` 의 `objective_id`)에 넣으면, 그 ID 를 `services/admin_stats.py` 의 `STAGE_OBJECTIVES`(스테이지 4 · 5 묶음) · `STAGE_END`(각 스테이지의 끝 걸음) · 필요하면 `SERVER_JUDGED` 에 더해 `stages` · `puzzles` 로 센다. 그때 `ENTRY_ONLY_STAGES` 를 비워 **`entry_only_stages` 는 `[]`** 가 된다(필드는 하위 호환을 위해 남긴다). 프론트는 `stages` 의 4 · 5 행을 쓰도록 바꾼다.
+  - 전환 전제: (1) 목표 ID 목록과 각 스테이지의 끝 걸음을 해랑님 · 미르님이 확정, (2) 게임이 그 ID 로 `available` · `focus` · `complete` 를 실제로 남김(배포 확인), (3) 이 문서 · 시험 갱신. **ID 를 받기 전에는 전환하지 않고 지금의 CLIFF · GUT 진입 집계를 유지한다** — 없는 ID 를 미리 만들거나 완료 조건을 추정하지 않는다.
+  - 전환 전후 같은 기간을 비교하면 4 · 5스테이지 진입 기준이 달라질 수 있다(CLIFF progress · GUT rite → 세부 목표를 본 사람). 전환 시점을 이 문서에 적는다.
+- 내부 계정 제외(include_internal)는 위 집계 전에 기록을 거르는 기존 규칙 그대로다 — 새 값들에도 같이 적용된다.
 - **200,000행 상한(`unavailable.truncated = first_200000_events_only`):** `id` 오름차순으로 앞 20만 건만 읽으므로 걸리면 **기간 뒤쪽(최근) 기록이 빠진다.** 그러면 `people` · `funnel` · `stages` · `puzzles` · `avg_completion_minutes` **전부** 불완전하다(최근 사람 · 최근 완료가 빠져 작게 나온다). 화면은 그 사실을 한 줄로 적고 기간을 줄이라고 안내한다. 상한을 넘기는 날이 오면 날짜별 사전 집계 표(DB 변경 → 세진 몫)로 바꾼다.
 - 기록 안 남김. 정답 값은 어디에도 없다.
 

@@ -221,6 +221,13 @@ class StageStats(BaseModel):
     completed: int
 
 
+class EntryOnlyStageStats(BaseModel):
+    """4 · 5스테이지 — 진입만 센다(세부 완료 조건 미확정, 11/16). 4 = 바위 위(CLIFF progress) · 5 = 굿판(GUT rite)."""
+
+    stage: int
+    entered: int
+
+
 class PuzzleStats(BaseModel):
     objective_id: str
     judge: str
@@ -242,9 +249,18 @@ class AdminStatsGame(BaseModel):
     funnel: list[FunnelStep]
     stages: list[StageStats]
     puzzles: list[PuzzleStats]
-    # 새벽(dawn)까지 간 회차의 평균 분 — 한 회차도 없으면 null
+    # 시작(start · resume) → 사건 완주(released · dawn 중 이른 것) 평균 분 — 그런 회차가 없으면 null
     avg_completion_minutes: float | None
+    # 사건 완주(run_state released 또는 dawn)한 회차 수(run_id 기준, 11/16 — 전에는 dawn 만 · 시작 기록 필수)
     completed_runs: int
+    # --- 11/16 덧붙임(세진, 미르 · 해랑 승인 방향) ---
+    # 사건 완주한 사람 수(사람 단위). 3스테이지 끝(S3_RIFT)은 사건 완주가 아니다
+    case_completed_people: int = 0
+    # 평균과 같은 표본의 중앙값(분, 소수 첫째 자리) — 그런 회차가 없으면 null(평균이 null 일 때와 같다)
+    median_completion_minutes: float | None = None
+    # 4 · 5스테이지 진입(사람 단위) — **임시 필드**(미르 11/16). 세부 목표 ID 가 게임 이벤트에 들어와 stages · puzzles 로
+    # 정식 집계되면 [] 가 된다(계약 문서 P2-3). `stages` 는 1~3 그대로
+    entry_only_stages: list[EntryOnlyStageStats] = []
     unavailable: dict[str, str]
 
 
