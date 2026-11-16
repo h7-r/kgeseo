@@ -29,12 +29,27 @@ const OBJECTIVE_NAMES: Readonly<Record<string, string>> = {
   S3_SCALE: "눈물 자국",
   S3_KEY: "청동 열쇠와 함",
   S3_RIFT: "시공간 틈",
+  // 4 · 5스테이지 — 베타 기록 전용 ID(naju01/src/beta/lateObjectives.ts, 미르 11/16). CLIFF · GUT 는 11/11 부터의 굵은 표식
+  P14: "정화수 세 그릇",
+  P15: "끊긴 발자국",
+  S4_POUCH: "아랑사의 주머니",
+  S4_SERPENT: "구렁이상과 틈",
+  CLIFF: "바위 위(틈 지남)",
+  S5_RINGS: "소반에 가락지",
+  P16: "다섯 횃불",
+  GUT: "굿판(다섯 불)",
 };
 
 /** 모르는 ID(나중에 생긴 목표)는 ID 그대로. */
 export const objectiveName = (id: string): string => OBJECTIVE_NAMES[id] ?? id;
 
-export const STAGE_NAMES: Readonly<Record<number, string>> = { 1: "나루터", 2: "바위 아래 · 물굴", 3: "증언 능선" };
+export const STAGE_NAMES: Readonly<Record<number, string>> = {
+  1: "나루터",
+  2: "바위 아래 · 물굴",
+  3: "증언 능선",
+  4: "바위 위",
+  5: "굿판",
+};
 
 export const stageName = (stage: number): string =>
   `스테이지 ${stage} · ${STAGE_NAMES[stage] ?? ""}`.replace(/ · $/, "");
@@ -60,7 +75,7 @@ const UNAVAILABLE_REASONS: Readonly<Record<string, string>> = {
   no_time_series_source: "분 단위 기록 원천 없음",
   withdrawal_not_implemented: "탈퇴 기능 전",
   suspension_not_implemented: "정지 기능 전",
-  no_completed_run: "새벽까지 간 회차 없음",
+  no_completed_run: "시작과 사건 완주(풀려남 · 새벽)가 모두 기록된 회차 없음",
   memory_only: "서버 메모리에만 있어 집계 전",
   not_stored: "기록하지 않음",
   ip_not_stored: "IP 를 기록하지 않음",

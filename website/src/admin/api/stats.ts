@@ -138,9 +138,13 @@ export interface StatsGame {
   people: number;
   funnel: { phase: string; people: number }[];
   stages: { stage: number; entered: number; completed: number }[];
+  /** 세부 목표가 없어 진입만 세는 스테이지(세진 11/16 제안, 4 · 5 가 stages 로 들어오면 비거나 없다) */
+  entry_only_stages?: { stage: number; entered: number }[];
   puzzles: PuzzleStats[];
   avg_completion_minutes: number | null;
   completed_runs: number;
+  /** 엔딩(run_state released · dawn)까지 간 사람 수(세진 11/16). 없으면 마지막 스테이지 완료 인원으로 */
+  case_completed_people?: number;
   unavailable: Unavailable;
 }
 

@@ -65,7 +65,10 @@ test("지난달 대비 % — 분모 0 은 null", () => {
 test("목표 · 스테이지 · 판정 · 깔때기 이름표 — 모르는 값은 원문", () => {
   assert.equal(objectiveName("P01"), "조개 숨구멍");
   assert.equal(objectiveName("P99"), "P99");
+  assert.equal(objectiveName("P16"), "다섯 횃불");
+  assert.equal(objectiveName("S4_SERPENT"), "구렁이상과 틈");
   assert.equal(stageName(1), "스테이지 1 · 나루터");
+  assert.equal(stageName(5), "스테이지 5 · 굿판");
   assert.equal(stageName(9), "스테이지 9");
   assert.deepEqual(["server", "screen", "step", "x"].map(judgeLabel), ["서버", "화면", "걸음", "x"]);
   assert.equal(funnelLabel("naju_controllable"), "나주 조작 가능");
