@@ -112,7 +112,7 @@ function MemberStatsView({ stats }: { stats: StatsMembers }) {
           />
         </Panel>
         <Panel title="오늘 가입" meta={`${stats.date} · ${formatNumber(stats.signups_on_date.length)}명`}>
-          <SignupTable rows={stats.signups_on_date} emptyText="오늘 가입한 회원이 없습니다." />
+          <SignupTable rows={stats.signups_on_date} emptyText="오늘 가입한 회원이 없습니다." compact />
         </Panel>
       </div>
       <Panel title="최근 가입자" meta="최신 20명 · 이메일 가림">
@@ -122,7 +122,16 @@ function MemberStatsView({ stats }: { stats: StatsMembers }) {
   );
 }
 
-export function SignupTable({ rows, emptyText }: { rows: StatsMembers["recent_signups"]; emptyText: string }) {
+/** compact = 반폭 카드용. 날짜는 카드 제목에 있으니 시각만 적고 고정 열을 좁혀 닉네임 · 이메일이 잘리지 않게 한다 */
+export function SignupTable({
+  rows,
+  emptyText,
+  compact = false,
+}: {
+  rows: StatsMembers["recent_signups"];
+  emptyText: string;
+  compact?: boolean;
+}) {
   return (
     <DataTable
       caption="가입자"
@@ -147,17 +156,22 @@ export function SignupTable({ rows, emptyText }: { rows: StatsMembers["recent_si
         {
           key: "region",
           header: "지역",
-          width: "96px",
+          width: compact ? "72px" : "96px",
           render: (row) => row.region ?? <span className="adm-muted">—</span>,
         },
         {
           key: "joined",
-          header: "가입 시각",
+          header: compact ? "시각" : "가입 시각",
           mono: true,
-          width: "168px",
-          render: (row) => formatDateTime(row.created_at),
+          width: compact ? "72px" : "168px",
+          render: (row) => (compact ? formatDateTime(row.created_at).slice(11) : formatDateTime(row.created_at)),
         },
-        { key: "stage", header: "진행 단계", width: "120px", render: (row) => stageLabel(row.stage) },
+        {
+          key: "stage",
+          header: "진행 단계",
+          width: compact ? "96px" : "120px",
+          render: (row) => stageLabel(row.stage),
+        },
       ]}
     />
   );

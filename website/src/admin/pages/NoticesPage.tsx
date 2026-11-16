@@ -40,6 +40,8 @@ const CATEGORIES = Object.keys(NOTICE_CATEGORY_LABEL) as NoticeCategory[];
 
 /** 주소의 ?new=1 이 켜지면 작성 창이 열린다 — 머리의 단추와 화면이 이 값 하나로 통한다 */
 const NEW_PARAM = "new";
+/** 주소의 ?open=<공지 id> — 수정 창(활동 로그의 대상에서 바로 온다) */
+const OPEN_PARAM = "open";
 
 /** 머리 오른쪽 「공지 작성」 — 작성 창을 연다 */
 export function NoticeWriteButton() {
@@ -75,22 +77,32 @@ export default function NoticesPage() {
     fetchAdminNoticePage(filter === "all" ? undefined : filter, 0, signal),
   );
   const [more, setMore] = useState<{ key: string; items: AdminNoticeItem[]; next: number | null } | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const openId = params.get(OPEN_PARAM);
   const isCreating = params.get(NEW_PARAM) === "1";
+  const setOpenId = (id: string) =>
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        next.set(OPEN_PARAM, id);
+        return next;
+      },
+      { replace: true },
+    );
 
   const refresh = () => {
     setMore(null);
     setReload((count) => count + 1);
   };
-  const closeEditor = () => {
-    setOpenId(null);
-    if (isCreating)
-      setParams((current) => {
+  const closeEditor = () =>
+    setParams(
+      (current) => {
         const next = new URLSearchParams(current);
+        next.delete(OPEN_PARAM);
         next.delete(NEW_PARAM);
         return next;
-      });
-  };
+      },
+      { replace: true },
+    );
   const loadMore = (next: number) =>
     fetchAdminNoticePage(filter === "all" ? undefined : filter, next).then((page) =>
       setMore((current) => ({

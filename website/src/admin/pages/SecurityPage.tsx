@@ -16,7 +16,8 @@ import { PendingScreen } from "../ui/StatusScreen";
 
 /**
  * 보안 이상 신호(security/summary). 로그인 잠김 창 · 관리자 로그인 · 관리자 기록은 실제 값.
- * 429 · 요청 오류 · 채팅 거절 · IP 는 서버에 원천이 없어 「준비 중」 — 무엇이 없어서인지 칸마다 적는다.
+ * 429 · 요청 오류 · 채팅 거절 · 로그인 IP 는 서버에 원천이 없어 「준비 중」 — 무엇이 없어서인지 칸마다 적는다.
+ * (문의 · 관리자 기록의 IP 는 11/16부터 앞 두 자리로 남지만, 로그인 시도의 IP 는 아직 안 남긴다 — 베타 뒤 세진.)
  * 이 화면을 열 때마다 「보안 집계 조회」 한 줄이 남는다.
  */
 export default function SecurityPage() {
@@ -63,7 +64,8 @@ function SecurityView({ summary }: { summary: SecuritySummary }) {
       </div>
       <p className="adm-summary__note">
         {formatDateTime(summary.generated_at)} 집계. 로그인 잠김은 서버가 지금 들고 있는 창의 값이라 이력은 없고, 429
-        횟수는 서버 메모리에만 있어 아직 집계하지 않습니다. IP 는 기록하지 않습니다.
+        횟수는 서버 메모리에만 있어 아직 집계하지 않습니다. 로그인 시도의 IP 는 아직 기록하지 않습니다(문의 · 관리자
+        기록의 IP 는 앞 두 자리만 남깁니다).
       </p>
       <div className="adm-grid adm-grid--two">
         <Panel title="관리자 열람 · 조회" meta="최근 24시간 · 종류별 건">
@@ -84,7 +86,7 @@ function SecurityView({ summary }: { summary: SecuritySummary }) {
             활동 로그에서 자세히
           </Link>
         </Panel>
-        <Panel title="관리자 로그인" meta="최근 7일 · 로그인 · 가입 때 만든 세션 기준">
+        <Panel title="관리자 로그인" meta="최근 7일 · 로그인 · 가입 때 만든 세션 기준 · IP 는 로그인 기록이 생기면">
           <DataTable
             caption="최근 7일 관리자 로그인"
             rows={summary.admin_logins_7d}
@@ -103,7 +105,7 @@ function SecurityView({ summary }: { summary: SecuritySummary }) {
                   ),
               },
               { key: "at", header: "시각", mono: true, width: "168px", render: (row) => formatDateTime(row.at) },
-              { key: "ip", header: "IP", width: "120px", render: () => <Badge tone="gray">기록 안 함</Badge> },
+              { key: "ip", header: "IP", width: "120px", render: () => <Badge tone="gray">아직 안 남김</Badge> },
             ]}
           />
         </Panel>
@@ -112,7 +114,7 @@ function SecurityView({ summary }: { summary: SecuritySummary }) {
         <Panel title="실패가 몰린 IP" meta="최근 24시간">
           <PendingScreen
             compact
-            needs={`${unavailableReason(unavailable.hot_ips)} — IP 기록 방침(D15)이 정해진 뒤 열립니다.`}
+            needs={`${unavailableReason(unavailable.hot_ips)} — 로그인 시도의 IP 를 남기기 시작하면 열립니다(방침은 앞 두 자리 표시 · 1년 보존으로 정해짐).`}
           />
         </Panel>
         <Panel title="요청 오류 · 채팅 거절" meta="최근 24시간">
