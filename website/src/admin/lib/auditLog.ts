@@ -32,6 +32,10 @@ const ACTION_LABELS: Record<string, string> = {
 /** 모르는 값(나중 버전에 생긴 종류)은 원문 그대로 보인다. */
 export const auditActionLabel = (action: string): string => ACTION_LABELS[action] ?? action;
 
+/** 대상 물건의 종류(감사 기록 확장 계약 §3) — 모르는 값은 원문 그대로 */
+const TARGET_LABELS: Record<string, string> = { user: "회원", inquiry: "문의", setting: "설정", notice: "공지" };
+export const auditTargetLabel = (targetType: string): string => TARGET_LABELS[targetType] ?? targetType;
+
 /** 서버가 받는 최대 기간(양 끝 포함) */
 export const AUDIT_MAX_DAYS = 92;
 

@@ -6,13 +6,23 @@ export interface AuditActor {
   nickname: string | null;
 }
 
-/** GET /api/v1/admin/audit-logs(관리자 API v0.2 §3.4) 한 줄. 이메일 · IP · 브라우저 정보는 없다. */
+/**
+ * GET /api/v1/admin/audit-logs(관리자 API v0.2 §3.4 + 감사 기록 확장 계약 admin_audit_log_ext.md §4) 한 줄.
+ * 이메일 · IP 원문은 없다. 확장 전 기록(11/16 이전)은 아래 넷이 모두 null 이다.
+ */
 export interface AuditLogEntry {
   id: number;
   created_at: string;
   action: string;
   admin: AuditActor;
+  /** 개인정보가 보인 회원 */
   target: AuditActor | null;
+  /** 열람 · 변경한 대상 물건 — user · inquiry · setting · notice */
+  target_type: string | null;
+  target_id: string | null;
+  /** 서버가 앞 두 자리만 남긴 IP(203.0.*.*) */
+  client_ip_display: string | null;
+  user_agent: string | null;
 }
 
 export interface AuditLogPage {

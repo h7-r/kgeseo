@@ -1470,7 +1470,15 @@ async def read_inquiry(
 
     row = await _inquiry_or_404(db, inquiry_id)
     detail = await _inquiry_detail(db, row)
-    await _audit(db, admin, "read_inquiry", row.app_user_id)
+    # 대상 표기(세진 감사 기록 확장 계약 §3): 문의 = inquiry / 문의 id. 접수 회원은 target_user_id 그대로
+    await _audit(
+        db,
+        admin,
+        "read_inquiry",
+        row.app_user_id,
+        target_type="inquiry",
+        target_id=str(row.id),
+    )
     return detail
 
 
@@ -1517,7 +1525,14 @@ async def reply_inquiry(
     await db.commit()
     await db.refresh(row)
     detail = await _inquiry_detail(db, row)
-    await _audit(db, admin, "reply_inquiry", row.app_user_id)
+    await _audit(
+        db,
+        admin,
+        "reply_inquiry",
+        row.app_user_id,
+        target_type="inquiry",
+        target_id=str(row.id),
+    )
     return detail
 
 
@@ -1546,7 +1561,14 @@ async def update_inquiry(
     await db.commit()
     await db.refresh(row)
     detail = await _inquiry_detail(db, row)
-    await _audit(db, admin, "update_inquiry", row.app_user_id)
+    await _audit(
+        db,
+        admin,
+        "update_inquiry",
+        row.app_user_id,
+        target_type="inquiry",
+        target_id=str(row.id),
+    )
     return detail
 
 
@@ -1602,7 +1624,15 @@ async def update_maintenance_mode(
     value = await write_maintenance(
         db, admin_user_id=admin.id, on=payload.on, message=payload.message.strip()
     )
-    await _audit(db, admin, "update_setting", None)
+    # 대상 표기: 설정 = setting / 설정 키(admin_settings.key)
+    await _audit(
+        db,
+        admin,
+        "update_setting",
+        None,
+        target_type="setting",
+        target_id="maintenance_mode",
+    )
     return _maintenance_out(value, admin.nickname)
 
 
