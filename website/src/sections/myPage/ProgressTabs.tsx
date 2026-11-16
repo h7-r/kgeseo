@@ -51,9 +51,12 @@ export function ProgressTab({ progress, onStart }: ProgressTabProps) {
   const { journey, naju, savedAt, characterName } = progress;
   const percent = naju?.percent ?? 0;
   const status = naju?.isCleared ? "해결" : naju ? "조사 중" : "출동 전";
+  // 점을 잇는 선 — 지금 단계까지는 초록, 그 뒤는 어둡게. 점이 다섯 칸 가운데에 있어 선은 10%~90% 사이다
+  const current = journey.findIndex((step) => step.state === "current");
+  const reached = current < 0 ? 1 : current / Math.max(1, journey.length - 1);
   return (
     <>
-      <div style={{ ...darkCardStyle, gap: "18px" }}>
+      <div style={{ ...darkCardStyle, gap: "22px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "16px" }}>
           <span style={subheadingStyle}>여정</span>
           <span style={labelTextStyle}>
@@ -62,7 +65,9 @@ export function ProgressTab({ progress, onStart }: ProgressTabProps) {
             {savedAt ? `마지막 저장 ${formatDateTime(savedAt)}` : "저장된 기록 없음"}
           </span>
         </div>
-        <ol style={journeyListStyle} aria-label="여정 단계">
+        <div style={{ position: "relative" }}>
+          <div aria-hidden="true" style={journeyLineStyle(reached)} />
+          <ol style={journeyListStyle} aria-label="여정 단계">
           {journey.map((step, index) => (
             <li key={step.name} style={journeyItemStyle} aria-current={step.state === "current" ? "step" : undefined}>
               <span style={{ ...journeyDotStyle, ...JOURNEY_DOT[step.state] }} aria-hidden="true">
@@ -78,12 +83,13 @@ export function ProgressTab({ progress, onStart }: ProgressTabProps) {
               >
                 {step.name}
               </span>
-              <span style={{ ...labelTextStyle, fontSize: "12px" }}>
-                {step.state === "done" ? "지남" : step.state === "current" ? "지금 여기" : "아직"}
+              <span style={{ ...labelTextStyle, fontSize: "12px", color: JOURNEY_NOTE_COLOR[step.state] }}>
+                {step.state === "done" ? "성공" : step.state === "current" ? "지금 여기" : "아직"}
               </span>
             </li>
           ))}
-        </ol>
+          </ol>
+        </div>
       </div>
 
       <div className="interactive-row" style={caseCardStyle}>
@@ -93,7 +99,7 @@ export function ProgressTab({ progress, onStart }: ProgressTabProps) {
             <span style={{ fontFamily: FONT.mono, fontSize: "13px", letterSpacing: "1.6px", color: COLOR.accent }}>
               CASE 01 · 나주
             </span>
-            <span style={{ fontFamily: FONT.body, fontWeight: 700, fontSize: "22px", color: COLOR.textBright }}>
+            <span style={{ fontFamily: FONT.body, fontWeight: 700, fontSize: "24px", color: COLOR.textBright }}>
               앙암바위의 비밀
             </span>
             <div style={barTrackStyle} role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
@@ -108,7 +114,7 @@ export function ProgressTab({ progress, onStart }: ProgressTabProps) {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "20px", flexShrink: 0 }}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px" }}>
-            <span style={{ fontFamily: FONT.display, fontSize: "36px", lineHeight: 1, color: COLOR.textBright }}>
+            <span style={{ fontFamily: FONT.display, fontSize: "40px", lineHeight: 1, color: COLOR.textBright }}>
               {percent}%
             </span>
             <span style={{ ...statusChipStyle, ...(naju?.isCleared ? clearedChipStyle : activeChipStyle) }}>
@@ -122,20 +128,20 @@ export function ProgressTab({ progress, onStart }: ProgressTabProps) {
       </div>
 
       {naju && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "12px" }}>
-          {naju.stages.map((stage) => {
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "14px" }}>
+          {naju.stages.map((stage, index) => {
             const isDone = stage.done >= stage.total;
+            // 끝낸 곳은 초록, 지금 하는 곳은 남색 빛, 아직인 곳은 가라앉혀 — 어디까지 왔는지 한눈에(해랑 11/16)
+            const tone: StageTone = isDone ? "done" : stage.name === naju.stageName ? "now" : "ahead";
             return (
-              <div
-                key={stage.name}
-                style={{ ...stageCardStyle, borderColor: isDone ? "rgba(74,222,128,0.35)" : "#1f2433" }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ ...valueTextStyle, fontWeight: 700 }}>{stage.name}</span>
-                  <span
-                    style={{ ...labelTextStyle, fontSize: "14px", color: isDone ? COLOR.success : COLOR.textMuted }}
-                  >
-                    {isDone ? "✓ 완료" : `${stage.done} / ${stage.total}`}
+              <div key={stage.name} style={{ ...stageCardStyle, ...STAGE_TONE[tone] }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: "10px", minWidth: 0 }}>
+                    <span style={stageIndexStyle}>{String(index + 1).padStart(2, "0")}</span>
+                    <span style={{ ...valueTextStyle, fontWeight: 700, fontSize: "17px" }}>{stage.name}</span>
+                  </div>
+                  <span style={{ ...stageBadgeStyle, ...STAGE_BADGE[tone] }}>
+                    {isDone ? "완료" : stage.done ? `${stage.done} / ${stage.total}` : "대기"}
                   </span>
                 </div>
                 <div style={barTrackStyle}>
@@ -143,7 +149,7 @@ export function ProgressTab({ progress, onStart }: ProgressTabProps) {
                     style={{
                       ...barFillStyle,
                       width: `${(stage.done / stage.total) * 100}%`,
-                      background: isDone ? COLOR.success : barFillStyle.background,
+                      background: isDone ? SUCCESS_FILL : barFillStyle.background,
                     }}
                   />
                 </div>
@@ -289,6 +295,7 @@ const noticeCardStyle: CSSProperties = {
 const smallButtonStyle: CSSProperties = { ...profileStartStyle, padding: "10px 18px", fontSize: "14px" };
 
 const journeyListStyle: CSSProperties = {
+  position: "relative",
   display: "grid",
   gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
   gap: "12px",
@@ -296,8 +303,28 @@ const journeyListStyle: CSSProperties = {
   padding: 0,
   listStyle: "none",
 };
-const journeyItemStyle: CSSProperties = { display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" };
+/** 점 뒤를 지나는 선 — reached(0~1)까지 초록 */
+const journeyLineStyle = (reached: number): CSSProperties => {
+  const at = `${Math.round(reached * 100)}%`;
+  return {
+    position: "absolute",
+    top: "16px",
+    left: "10%",
+    right: "10%",
+    height: "2px",
+    borderRadius: "1px",
+    background: `linear-gradient(90deg, rgba(74,222,128,0.55) 0%, rgba(74,222,128,0.55) ${at}, #262d40 ${at}, #262d40 100%)`,
+  };
+};
+const journeyItemStyle: CSSProperties = { display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" };
+const JOURNEY_NOTE_COLOR: Record<MyProgress["journey"][number]["state"], string> = {
+  done: COLOR.success,
+  current: "#9fb2ea",
+  ahead: COLOR.textDim,
+};
+// 점은 선 위에 그려야 하므로 바탕을 불투명하게 두고 position 을 준다
 const journeyDotStyle: CSSProperties = {
+  position: "relative",
   display: "grid",
   placeItems: "center",
   width: "34px",
@@ -309,7 +336,7 @@ const journeyDotStyle: CSSProperties = {
   border: "1px solid #262d40",
 };
 const JOURNEY_DOT: Record<MyProgress["journey"][number]["state"], CSSProperties> = {
-  done: { background: "rgba(74,222,128,0.12)", borderColor: "rgba(74,222,128,0.45)", color: COLOR.success },
+  done: { background: "#15261e", borderColor: "rgba(74,222,128,0.5)", color: COLOR.success },
   current: {
     background: COLOR.navy,
     borderColor: "rgba(159,178,234,0.7)",
@@ -325,15 +352,16 @@ const caseCardStyle: CSSProperties = {
   justifyContent: "space-between",
   gap: "24px",
   width: "100%",
-  padding: "20px 24px",
-  borderRadius: "14px",
-  background: "#121219",
-  border: "1px solid #1f2433",
+  padding: "22px 26px",
+  borderRadius: "16px",
+  // 프로필 카드와 같은 결 — 왼쪽에서 남색 빛을 살짝 얹는다
+  background: "linear-gradient(100deg, rgba(46,72,137,0.22) 0%, rgba(18,18,25,1) 48%)",
+  border: "1px solid #1f2a45",
   boxSizing: "border-box",
 };
 const posterStyle: CSSProperties = {
-  width: "72px",
-  height: "72px",
+  width: "84px",
+  height: "84px",
   borderRadius: "50%",
   flexShrink: 0,
   backgroundSize: "cover",
@@ -345,14 +373,15 @@ const posterStyle: CSSProperties = {
 const barTrackStyle: CSSProperties = {
   width: "100%",
   maxWidth: "520px",
-  height: "6px",
-  borderRadius: "3px",
+  height: "8px",
+  borderRadius: "4px",
   background: "#1b2135",
   overflow: "hidden",
 };
+const SUCCESS_FILL = "linear-gradient(90deg, #2f9e5a 0%, #4ade80 100%)";
 const barFillStyle: CSSProperties = {
   height: "100%",
-  borderRadius: "3px",
+  borderRadius: "4px",
   background: "linear-gradient(90deg, #2e4889 0%, #4f6cb0 100%)",
   transition: "width .4s ease",
 };
@@ -377,11 +406,28 @@ const clearedChipStyle: CSSProperties = {
 const stageCardStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "12px",
-  padding: "16px 18px",
-  borderRadius: "12px",
+  gap: "14px",
+  padding: "18px 20px",
+  borderRadius: "14px",
   background: "#121219",
   border: "1px solid #1f2433",
+};
+type StageTone = "done" | "now" | "ahead";
+const STAGE_TONE: Record<StageTone, CSSProperties> = {
+  done: { background: "linear-gradient(180deg, rgba(74,222,128,0.07) 0%, #121219 70%)", borderColor: "rgba(74,222,128,0.32)" },
+  now: {
+    background: "linear-gradient(180deg, rgba(79,108,176,0.16) 0%, #121219 70%)",
+    borderColor: "rgba(111,134,191,0.5)",
+    boxShadow: "0 0 18px rgba(50,82,150,0.25)",
+  },
+  ahead: {},
+};
+const stageIndexStyle: CSSProperties = { fontFamily: FONT.mono, fontSize: "12px", letterSpacing: "1.2px", color: COLOR.textDim };
+const stageBadgeStyle: CSSProperties = { ...statusChipStyle, padding: "3px 10px", fontSize: "13px" };
+const STAGE_BADGE: Record<StageTone, CSSProperties> = {
+  done: clearedChipStyle,
+  now: activeChipStyle,
+  ahead: { color: COLOR.textDim, background: "transparent", border: "1px solid #262d40" },
 };
 const comingSoonStyle: CSSProperties = { ...noticeCardStyle };
 
