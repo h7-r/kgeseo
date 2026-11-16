@@ -23,7 +23,7 @@ export const TERMS_HEIGHTS: Record<TermsTabId, number> = {
   privacy: 4048,
   disclaimer: 2957,
   copyright: 3193,
-  legal: 3179,
+  legal: 3139,
 };
 
 /** title 문서 이름 · article 조문 제목 · body 본문 줄 묶음. 본문 줄에는 강조 표기(**…** · !!…!!, lib/emphasis)를 쓴다. */
@@ -647,7 +647,6 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
         "   · 상호 : LATENT SPACE",
         "   · 서비스명 : ESCAPE THE LEGEND",
         "   · 대표자 : 황미르",
-        "   · 주소 : 광주광역시 ○○구 ○○로 ○○",
         `   · 전자우편 : ${SUPPORT_EMAIL}`,
       ],
     },
@@ -762,7 +761,7 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
       kind: "body",
       lines: [
         "   · 2026-11-12 : 최초 제정",
-        "   · 2026-11-16 : 사실관계 정정 — 등급분류·결제·확률형 아이템은 시험운영 현황대로, 분쟁조정 연락처 갱신, 수집 항목·위탁 현황을 실제대로",
+        "   · 2026-11-16 : 사실관계 정정 — 등급분류·결제·확률형 아이템은 시험운영 현황대로, 분쟁조정 연락처 갱신, 수집 항목·위탁 현황을 실제대로, 사업자 주소 줄 삭제(사업자 등록 전)",
       ],
     },
     { kind: "article", text: "제15조 (시험운영 고지)" },
