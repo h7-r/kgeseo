@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     rate_limit_anonymous_session_create: int = Field(default=60, ge=1)
     # 베타 분석 기록 받기(POST /api/v1/beta-events). 교실 하나가 같은 IP 로 나갈 수 있어 넉넉히 둔다(11/11 미르).
     rate_limit_beta_events: int = Field(default=1500, ge=1)
+    # 1:1 문의 접수(POST /api/v1/inquiries) — IP 당 창(초) 안 최대 건수. 기본 10분 5건(세진 · 해랑 11/13)
+    rate_limit_inquiry_create: int = Field(default=5, ge=1)
+    rate_limit_inquiry_window_sec: int = Field(default=600, ge=1, le=86400)
 
     # 베타 분석 기록을 저장할지. false 면 받기만 하고 저장하지 않는다(`disabled: true` 응답 — 게임 화면은 그만 보낸다).
     beta_events_enabled: bool = True

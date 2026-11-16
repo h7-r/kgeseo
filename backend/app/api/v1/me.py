@@ -12,6 +12,7 @@ from app.api.v1 import error_responses
 from app.db.session import get_db
 from app.models.account_data import GamePlaySave, ItemCatalog, UserCharacter, UserItem
 from app.models.app_user import AppUser
+from app.models.inquiry import Inquiry
 from app.schemas.account_data import (
     CharacterResponse,
     CharacterWrite,
@@ -20,6 +21,8 @@ from app.schemas.account_data import (
     MeResponse,
     OwnedItem,
 )
+from app.schemas.inquiry import MyInquiry, MyInquiryList, MyInquiryReply
+from app.services.inquiry import replies_of
 from app.services.local_auth import utc_now
 from app.services.user_session import (
     current_user,
@@ -119,6 +122,47 @@ async def logout(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     await end_session(db, request, response)
+
+
+@router.get(
+    "/inquiries", response_model=MyInquiryList, responses=error_responses.ME_READ
+)
+async def read_my_inquiries(
+    user: AppUser = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MyInquiryList:
+    """내가 로그인한 채 접수한 1:1 문의 전부(최신순)와 답변(관리자 API v0.3 P3-1). 답변에 관리자 이름은 싣지 않는다 — 「운영팀」."""
+    rows = (
+        (
+            await db.execute(
+                select(Inquiry)
+                .where(Inquiry.app_user_id == user.id)
+                .order_by(Inquiry.created_at.desc(), Inquiry.seq.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    replies = await replies_of(db, [row.id for row in rows])
+    return MyInquiryList(
+        items=[
+            MyInquiry(
+                id=row.id,
+                number=row.number or "",
+                category=row.category,
+                title=row.title,
+                body=row.body,
+                status=row.status,
+                created_at=row.created_at,
+                answered_at=row.answered_at,
+                replies=[
+                    MyInquiryReply(body=reply.body, created_at=reply.created_at)
+                    for reply in replies.get(row.id, [])
+                ],
+            )
+            for row in rows
+        ]
+    )
 
 
 @router.get(

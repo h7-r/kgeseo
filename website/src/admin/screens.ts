@@ -15,7 +15,7 @@ interface ScreenInput {
   label: string;
   description: string;
   status: ScreenStatus;
-  /** pending 화면을 라우트에서 막을 때 보일 안내. 없으면 화면이 스스로 빈 상태를 그린다(구독 · 설정). */
+  /** pending 화면을 라우트에서 막을 때 보일 안내. 없으면 화면이 스스로 빈 상태를 그린다. */
   pendingNote?: string;
   /** 메뉴에 따로 안 나오고 이 메뉴를 따른다 */
   parent?: string;
@@ -101,32 +101,22 @@ const SCREEN_LIST = [
     id: "contents",
     path: "contents",
     label: "콘텐츠",
-    description: "홈 영상 · 미디어와 게임 콘텐츠 판의 게시 상태를 봅니다.",
-    status: "pending",
-    pendingNote:
-      "콘텐츠 게시 API 가 생기면 열립니다. 지금 웹 영상은 코드 데이터, 게임 콘텐츠 판은 서버 게시 기록에 있습니다.",
+    description: "게임 콘텐츠(사건 · 판 · 게시 상태 · fingerprint)를 읽기 전용으로 봅니다. 정답은 나오지 않습니다.",
+    status: "live",
   },
   {
     id: "support",
     path: "support",
     label: "CS 관리",
-    description: "1:1 문의에 답합니다.",
-    status: "pending",
-    pendingNote: "문의 API 가 생기면 열립니다. 지금 웹 1:1 문의는 서버로 보내지 않고 접수 표시만 합니다.",
-  },
-  {
-    id: "subscriptions",
-    path: "subscriptions",
-    label: "구독 관리",
-    description: "구독 현황 · 결제 내역 · 쿠폰을 봅니다.",
-    status: "pending",
+    description: "1:1 문의를 보고 답합니다. 회원 문의의 답변은 마이페이지 「내 문의」에 보입니다.",
+    status: "live",
   },
   {
     id: "settings",
     path: "settings",
     label: "설정",
-    description: "서비스 설정을 확인합니다. 값은 서버에서 정하고 이 화면에서는 바꾸지 않습니다.",
-    status: "pending",
+    description: "점검 모드를 켜고 끄고, 서버 값과 관리자 계정을 확인합니다.",
+    status: "live",
   },
 ] as const satisfies readonly ScreenInput[];
 

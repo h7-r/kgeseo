@@ -13,6 +13,13 @@ export const AUDIT_ACTION_FILTERS = [
   { id: "view_member_stats", label: "회원 통계 조회" },
   { id: "view_active_sessions", label: "활성 세션 조회" },
   { id: "view_security_summary", label: "보안 집계 조회" },
+  // 3단계(11/13 해랑) — 1:1 문의 · 설정 · 관리자 목록
+  { id: "list_inquiries", label: "문의 목록 조회" },
+  { id: "read_inquiry", label: "문의 열람" },
+  { id: "reply_inquiry", label: "문의 답변" },
+  { id: "update_inquiry", label: "문의 상태 변경" },
+  { id: "update_setting", label: "설정 변경" },
+  { id: "list_admins", label: "관리자 목록 조회" },
 ] as const;
 
 export type AuditActionFilter = (typeof AUDIT_ACTION_FILTERS)[number]["id"];

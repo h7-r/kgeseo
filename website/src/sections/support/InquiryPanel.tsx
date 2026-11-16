@@ -1,11 +1,10 @@
-import { useId, useState, type CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 
-import uploadCloudIcon from "@/assets/images/imgUploadCloud.svg";
 import { FONT } from "@/lib/style";
 import { hasNoErrors, validateFields, type FieldErrors, type FieldName, type FormValues } from "@/lib/validation";
 import { QUERY, ROUTES, useSiteNavigate, withQuery } from "@/navigation/routes";
 import type { InquiryRecord } from "@/services/account/db";
-import { saveInquiry } from "@/services/account/manageAccount";
+import { submitInquiry, toCategoryCode } from "@/services/inquiries";
 import { useSessionUser } from "@/services/session";
 import { COLOR, SHADOW } from "@/styles/tokens";
 import { SUPPORT_EMAIL } from "@/data/contact";
@@ -16,18 +15,11 @@ import { ACTIVE_TAB_BACKGROUND, labelStyle } from "./supportStyles";
 
 const INQUIRY_FIELDS: readonly FieldName[] = ["inquiryType", "title", "content", "email"];
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
-
-interface Attachment {
-  name: string;
-  size: string;
-}
-
 /**
- * 문의 서버(API · 저장 표)가 생기면 켠다. 그전엔 접수 양식 대신 메일 안내를 보인다 — 양식이 접수된 것처럼 보이지만
- * 운영자에게 닿지 않았다(11/11 세진 · 미르). 켜면 handleSubmit 에서 서버로 보내고 서버가 준 접수 번호를 쓴다.
+ * 문의 서버(관리자 API v0.3, POST /api/v1/inquiries)가 생겨 켰다(미르 11/13). 끄면 전처럼 메일 안내만 보인다 —
+ * 서버가 내려가 접수를 받지 못할 때 쓰는 스위치.
  */
-const IS_INQUIRY_API_READY = false;
+const IS_INQUIRY_API_READY = true;
 
 export default function InquiryPanel() {
   return IS_INQUIRY_API_READY ? <InquiryForm /> : <InquiryByEmail />;
@@ -113,7 +105,7 @@ function InfoCard() {
   );
 }
 
-/** 문의 서버가 생긴 뒤의 접수 양식 */
+/** 문의 서버 접수 양식(관리자 API v0.3 P3-1, 11/13) — 접수 번호는 서버가 준다. 첨부는 없다(파일 저장소가 없다). */
 function InquiryForm() {
   const user = useSessionUser();
   const navigate = useSiteNavigate();
@@ -125,10 +117,8 @@ function InquiryForm() {
   // 마지막으로 접수한 문의. 있으면 입력 칸 자리에 접수 완료 카드를 보인다.
   const [receipt, setReceipt] = useState<InquiryRecord | null>(null);
   const [receiptCount, setReceiptCount] = useState(0);
-  const [attachment, setAttachment] = useState<Attachment | null>(null);
-  const [fileError, setFileError] = useState("");
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputId = useId();
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState("");
 
   const handleChange = (name: FieldName) => (value: string) => {
     const next = { ...values, [name]: value };
@@ -136,26 +126,34 @@ function InquiryForm() {
     if (submitted) setErrors(validateFields(INQUIRY_FIELDS, next));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setSubmitted(true);
     const nextErrors = validateFields(INQUIRY_FIELDS, values);
     setErrors(nextErrors);
-    // 보낼 서버(세진 문의 API)가 아직 없어 접수 표시만 남긴다. 붙으면 여기서 보내고 서버가 준 번호를 쓴다.
-    if (!hasNoErrors(nextErrors)) return;
-    const now = new Date();
-    const inquiry: InquiryRecord = {
-      number: makeReceiptNumber(now),
+    if (!hasNoErrors(nextErrors) || isSending) return;
+    setIsSending(true);
+    setSendError("");
+    const result = await submitInquiry({
+      category: toCategoryCode(values.inquiryType ?? ""),
+      title: values.title ?? "",
+      body: values.content ?? "",
+      email: values.email ?? "",
+    });
+    setIsSending(false);
+    if (!result.ok) {
+      setSendError(result.reason);
+      return;
+    }
+    setReceipt({
+      number: result.number,
       type: values.inquiryType ?? "",
       title: values.title ?? "",
       content: values.content ?? "",
       email: values.email ?? "",
-      attachment: attachment?.name ?? null,
-      receivedAt: now.getTime(),
-    };
-    setReceipt(inquiry);
+      attachment: null,
+      receivedAt: result.createdAt,
+    });
     setReceiptCount((count) => count + 1);
-    // 로그인했으면 이 계정 기록에 남겨 마이페이지 「내 문의」에서 다시 본다.
-    if (user?.email) void saveInquiry(user.email, inquiry);
   };
 
   /** 「추가 접수하기」 — 빈 양식으로 돌아간다 */
@@ -163,8 +161,7 @@ function InquiryForm() {
     setValues(blankForm());
     setErrors({});
     setSubmitted(false);
-    setAttachment(null);
-    setFileError("");
+    setSendError("");
     setReceipt(null);
   };
 
@@ -173,21 +170,6 @@ function InquiryForm() {
     onChange: handleChange(name),
     error: errors[name],
   });
-
-  const acceptFile = (file: File | undefined) => {
-    if (!file) return;
-    if (file.size > MAX_FILE_BYTES) {
-      setFileError("10MB를 넘는 파일은 첨부할 수 없습니다.");
-      return;
-    }
-    setAttachment({ name: file.name, size: formatFileSize(file.size) });
-    setFileError("");
-  };
-
-  const clearAttachment = () => {
-    setAttachment(null);
-    setFileError("");
-  };
 
   return (
     <>
@@ -213,83 +195,35 @@ function InquiryForm() {
             <InquiryField label="제목" placeholder="문의 제목을 입력해 주세요" {...fieldProps("title")} />
             <InquiryField
               label="내용"
-              placeholder="문의 내용을 자세히 적어 주세요"
+              placeholder="문의 내용을 자세히 적어 주세요 (4000자까지)"
               height={200}
               {...fieldProps("content")}
             />
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
-              <div style={labelStyle}>첨부파일</div>
-              {/* htmlFor 가 없으면 라벨은 안의 첫 단추(지우기)를 누른 것으로 친다. */}
-              <label
-                htmlFor={fileInputId}
-                style={{
-                  ...dropZoneStyle,
-                  cursor: "pointer",
-                  borderColor: isDragging ? COLOR.blue : COLOR.blueMid,
-                  background: isDragging ? "rgba(46,72,137,0.08)" : "transparent",
-                  transition: "border-color .18s ease, background .18s ease",
-                }}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  setIsDragging(true);
-                }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  setIsDragging(false);
-                  acceptFile(event.dataTransfer.files?.[0]);
-                }}
-              >
-                <img
-                  loading="lazy"
-                  decoding="async"
-                  src={uploadCloudIcon}
-                  alt=""
-                  style={{ width: "24px", height: "24px", display: "block" }}
-                />
-                <span
-                  style={{
-                    fontFamily: FONT.mono,
-                    fontSize: "16px",
-                    color: attachment ? COLOR.blue : COLOR.lightTextMuted,
-                    textAlign: "center",
-                  }}
-                >
-                  {attachment
-                    ? `${attachment.name} · ${attachment.size}`
-                    : "파일을 끌어다 놓거나 눌러서 첨부 (최대 10MB)"}
-                </span>
-                {attachment && (
-                  <button
-                    type="button"
-                    className="text-link"
-                    style={clearButtonStyle}
-                    onClick={(event) => {
-                      // 라벨 안이라 막지 않으면 파일 고르는 창이 다시 열린다.
-                      event.preventDefault();
-                      clearAttachment();
-                    }}
-                  >
-                    지우기
-                  </button>
-                )}
-                <input
-                  id={fileInputId}
-                  type="file"
-                  accept="image/*,.pdf,.txt,.log,.zip"
-                  style={{ display: "none" }}
-                  onChange={(event) => acceptFile(event.target.files?.[0])}
-                />
-              </label>
-              {fileError && (
-                <span style={{ fontFamily: FONT.mono, fontSize: "16px", color: COLOR.danger }}>{fileError}</span>
-              )}
-            </div>
-
             <InquiryField label="이메일" placeholder="답변 받을 이메일 주소" {...fieldProps("email")} />
-            <button type="button" className="button" style={submitButtonStyle} onClick={handleSubmit}>
-              <span className="button__label">문의 접수하기</span>
+            <ul style={tipListStyle}>
+              {user ? (
+                <li>답변은 마이페이지 「내 문의」에서 바로 볼 수 있습니다.</li>
+              ) : (
+                <>
+                  <li>로그인하고 접수하면 답변을 마이페이지 「내 문의」에서 바로 볼 수 있습니다.</li>
+                  <li>로그인 없이 접수하면 운영팀이 입력하신 이메일로 따로 답변드립니다(자동 발송 아님).</li>
+                </>
+              )}
+              <li>화면 캡처 등 첨부가 필요하면 접수 번호와 함께 {SUPPORT_EMAIL} 로 보내 주세요.</li>
+            </ul>
+            {sendError && (
+              <span role="alert" style={{ fontFamily: FONT.mono, fontSize: "16px", color: COLOR.danger }}>
+                {sendError}
+              </span>
+            )}
+            <button
+              type="button"
+              className="button"
+              style={{ ...submitButtonStyle, opacity: isSending ? 0.7 : 1 }}
+              disabled={isSending}
+              onClick={handleSubmit}
+            >
+              <span className="button__label">{isSending ? "접수하는 중…" : "문의 접수하기"}</span>
             </button>
           </div>
         )}
@@ -316,7 +250,6 @@ function ReceiptCard({ receipt, count, isSignedIn, onAnother, onOpenMine }: Rece
     ["문의 유형", receipt.type],
     ["제목", receipt.title],
     ["답변 받을 이메일", receipt.email],
-    ["첨부파일", receipt.attachment ?? "없음"],
     ["접수 시각", formatReceivedAt(new Date(receipt.receivedAt))],
   ];
   return (
@@ -334,7 +267,9 @@ function ReceiptCard({ receipt, count, isSignedIn, onAnother, onOpenMine }: Rece
             문의가 접수되었습니다
           </span>
           <span style={{ fontFamily: FONT.body, fontSize: "15px", color: COLOR.lightTextMuted }}>
-            평균 1~2영업일 안에 적어 주신 이메일로 답변드립니다.
+            {isSignedIn
+              ? "답변이 등록되면 마이페이지 「내 문의」에서 볼 수 있습니다."
+              : "운영팀이 적어 주신 이메일로 따로 답변드립니다(자동 발송 아님)."}
             {count > 1 ? ` (이번에 접수한 문의 ${count}건)` : ""}
           </span>
         </div>
@@ -364,33 +299,17 @@ function ReceiptCard({ receipt, count, isSignedIn, onAnother, onOpenMine }: Rece
       </div>
       {!isSignedIn && (
         <span style={{ fontFamily: FONT.body, fontSize: "14px", color: COLOR.lightTextMuted }}>
-          로그인하고 접수하면 마이페이지 「내 문의」에서 접수 내역을 다시 볼 수 있습니다.
+          접수 번호를 적어 두세요. 로그인하고 접수한 문의만 마이페이지 「내 문의」에 보입니다.
         </span>
       )}
     </div>
   );
 }
 
-/** Q-20261110-1620-7F3A — 날짜 · 시각에 무작위 넷을 붙여 같은 분에 두 건이어도 겹치지 않게 */
-function makeReceiptNumber(at: Date): string {
-  const pad = (value: number) => String(value).padStart(2, "0");
-  const random = Array.from(crypto.getRandomValues(new Uint8Array(2)), (byte) => byte.toString(16).padStart(2, "0"))
-    .join("")
-    .toUpperCase();
-  return `Q-${at.getFullYear()}${pad(at.getMonth() + 1)}${pad(at.getDate())}-${pad(at.getHours())}${pad(at.getMinutes())}-${random}`;
-}
-
 /** 2026.11.10 16:20 */
 function formatReceivedAt(at: Date): string {
   const pad = (value: number) => String(value).padStart(2, "0");
   return `${at.getFullYear()}.${pad(at.getMonth() + 1)}.${pad(at.getDate())} ${pad(at.getHours())}:${pad(at.getMinutes())}`;
-}
-
-/** 1024 단위로 끊어 읽기 좋게 */
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 const inquiryCardStyle: CSSProperties = {
@@ -402,23 +321,6 @@ const inquiryCardStyle: CSSProperties = {
   border: `1px solid ${COLOR.lightDivider}`,
   boxShadow: "0px 8px 16px 0px rgba(20,30,60,0.06)",
   boxSizing: "border-box",
-};
-
-const dropZoneStyle: CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "8px",
-  alignItems: "center",
-  padding: "24px",
-  borderRadius: "12px",
-  border: `1px dashed ${COLOR.blueMid}`,
-  boxSizing: "border-box",
-};
-
-const clearButtonStyle: CSSProperties = {
-  fontFamily: FONT.mono,
-  fontSize: "16px",
-  color: COLOR.lightTextMuted,
 };
 
 const infoListStyle: CSSProperties = {

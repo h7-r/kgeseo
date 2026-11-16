@@ -37,6 +37,7 @@ NICKNAME_EXISTS = "nickname_exists"
 REGISTER = "register"
 ANONYMOUS_SESSION_CREATE = "anonymous_session_create"
 BETA_EVENTS = "beta_events"
+INQUIRY_CREATE = "inquiry_create"
 
 RATE_LIMITED_CODE = "rate_limited"
 RATE_LIMITED_MESSAGE = "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."
@@ -58,8 +59,15 @@ def configured_rule(name: str) -> RateLimitRule:
         REGISTER: settings.rate_limit_register,
         ANONYMOUS_SESSION_CREATE: settings.rate_limit_anonymous_session_create,
         BETA_EVENTS: settings.rate_limit_beta_events,
+        INQUIRY_CREATE: settings.rate_limit_inquiry_create,
     }
-    return RateLimitRule(name, limits[name], settings.rate_limit_window_sec)
+    # 문의 접수만 창이 길다(10분) — 나머지는 공용 창
+    window = (
+        settings.rate_limit_inquiry_window_sec
+        if name == INQUIRY_CREATE
+        else settings.rate_limit_window_sec
+    )
+    return RateLimitRule(name, limits[name], window)
 
 
 class SlidingWindowLimiter:

@@ -2,7 +2,8 @@ import { apiUrl } from "@/config/env";
 
 /** 관리자 요청이 실패한 까닭. 화면은 이것만 보고 무엇을 보여 줄지 고른다. */
 /** invalidQuery = 서버가 질의 값(검색어 · 날짜 등)을 받지 않음(422 invalid_query). */
-export type AdminErrorKind = "unauthenticated" | "forbidden" | "notFound" | "invalidQuery" | "server" | "offline";
+export type AdminErrorKind =
+  "unauthenticated" | "forbidden" | "notFound" | "invalidQuery" | "conflict" | "server" | "offline";
 
 export class AdminApiError extends Error {
   readonly kind: AdminErrorKind;
@@ -35,6 +36,28 @@ export async function adminGet<T>(path: string, signal?: AbortSignal): Promise<T
     throw new AdminApiError("offline", 0);
   }
   if (!response.ok) throw new AdminApiError(kindOf(response.status), response.status);
+  try {
+    return (await response.json()) as T;
+  } catch {
+    throw new AdminApiError("server", response.status);
+  }
+}
+
+/** 관리자 쓰기(답변 · 상태 · 설정) — JSON 본문으로 보낸다. 브라우저가 Origin 을 붙이고 서버가 같은 출처인지 본다. */
+export async function adminSend<T>(method: "POST" | "PATCH" | "PUT", path: string, body: unknown): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(apiUrl(path), {
+      method,
+      credentials: "include",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new AdminApiError("offline", 0);
+  }
+  if (!response.ok)
+    throw new AdminApiError(response.status === 409 ? "conflict" : kindOf(response.status), response.status);
   try {
     return (await response.json()) as T;
   } catch {

@@ -13,7 +13,7 @@ const { ADMIN_SCREENS, MENU_SCREENS, buildAdminPaths, findScreen, menuScreenOf, 
 const BASE = "/admin";
 const paths = buildAdminPaths(BASE);
 
-test("메뉴 — 정한 순서 그대로 열세 칸", () => {
+test("메뉴 — 정한 순서 그대로 열두 칸(구독 관리는 미르 11/13 결정으로 뺌)", () => {
   assert.deepEqual(
     MENU_SCREENS.map((screen) => screen.label),
     [
@@ -28,7 +28,6 @@ test("메뉴 — 정한 순서 그대로 열세 칸", () => {
       "공지사항",
       "콘텐츠",
       "CS 관리",
-      "구독 관리",
       "설정",
     ],
   );
