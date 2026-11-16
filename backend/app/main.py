@@ -21,6 +21,7 @@ from app.api.v1.inquiries import router as inquiries_router
 from app.api.v1.interactions import router as interactions_router
 from app.api.v1.lobby import router as lobby_router
 from app.api.v1.me import router as me_router
+from app.api.v1.notices import router as notices_router
 from app.api.v1.npc import router as npc_router
 
 # 플레이 세션 Router
@@ -60,7 +61,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    # PATCH — 관리자 부분 수정(문의 상태 · 공지). 운영 웹(www)은 다른 출처(api.k-escape.com)로 부르므로 사전 요청에서 허용해야 한다.
+    # 허용 출처는 settings.cors_origins 그대로(운영은 validate_deployment 가 HTTPS 정확 origin 만 허용) — 넓히지 않는다
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Accept"],
     # 로비 입장권 429 의 다음 발급까지 남은 초를 게임 화면이 읽을 수 있게 한다(로비 설계 2.2절)
     expose_headers=["Retry-After"],
@@ -141,6 +144,14 @@ app.include_router(
 )
 app.include_router(
     site_router,
+    prefix="/api/v1",
+)
+# 공지사항 공개 조회(11/16 세진). 관리자 공지는 admin_router(/api/v1/admin/notices)
+#
+# 최종 경로:
+# /api/v1/notices · /api/v1/notices/{notice_id}
+app.include_router(
+    notices_router,
     prefix="/api/v1",
 )
 

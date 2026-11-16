@@ -28,6 +28,7 @@ from app.models.auth_identity import AuthIdentity
 from app.models.beta_event import BetaEvent
 from app.models.guest_session import GuestSessionTransfer
 from app.models.inquiry import Inquiry, InquiryReply
+from app.models.notice import Notice
 from app.models.play_session import PlaySession
 from app.schemas.account_data import (
     AdminUserDetail,
@@ -88,6 +89,14 @@ from app.schemas.inquiry import (
     InquiryPatch,
     InquiryReplyCreate,
 )
+from app.schemas.notice import (
+    AdminNotice,
+    AdminNoticeItem,
+    AdminNoticeList,
+    NoticeAuthor,
+    NoticeCreate,
+    NoticeUpdate,
+)
 from app.services.admin_audit import (
     capture_audit_request,
     check_target,
@@ -131,6 +140,13 @@ from app.services.inquiry import (
     reply_counts,
 )
 from app.services.local_auth import utc_now
+from app.services.notice import (
+    ADMIN_ORDER,
+    not_deleted,
+    notice_status,
+    status_condition,
+    to_utc_naive,
+)
 from app.services.user_session import (
     THROTTLE_WINDOW,
     current_admin,
@@ -181,6 +197,10 @@ AUDIT_ACTIONS = frozenset(
         "update_inquiry",
         "update_setting",
         "list_admins",
+        # 공지(11/16 세진) — 생성 · 수정 · 삭제만. 공지 목록 · 상세 조회는 사람이 안 보여 남기지 않는다(콘텐츠 · 설정 읽기와 같은 기준)
+        "create_notice",
+        "update_notice",
+        "delete_notice",
     }
 )
 
@@ -1713,3 +1733,231 @@ async def read_content(
             headers={"Cache-Control": "no-store"},
         )
     return detail
+
+
+# --- 공지사항(11/16 세진, 계약 docs/contracts/notices_api_v0.2.md) ---
+# 관리자만. 초안 · 예약 · 게시를 함께 다루고, 삭제(soft)된 공지는 목록 · 상세 · 수정 · 삭제 모두 없는 것으로 본다(복구 없음).
+# 생성 · 수정 · 삭제는 감사 기록(target_type="notice", target_id=공지 UUID, target_user_id=None). 조회는 기록하지 않는다.
+
+NOTICE_PAGE_SIZE = 50
+NOTICE_STATUSES = frozenset({"draft", "scheduled", "published"})
+NOTICE_CATEGORIES = frozenset({"maintenance", "event", "update", "info"})
+
+
+def _notice_not_found() -> HTTPException:
+    return HTTPException(
+        status.HTTP_404_NOT_FOUND,
+        detail="Notice not found.",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+async def _notice_or_404(db: AsyncSession, notice_id: str) -> Notice:
+    row = await db.get(Notice, notice_id.lower())
+    if row is None or row.deleted_at is not None:
+        raise _notice_not_found()
+    return row
+
+
+def _notice_item(row: Notice, author_nickname: str | None, now: datetime) -> dict:
+    return {
+        "id": row.id,
+        "category": row.category,
+        "title": row.title,
+        "is_pinned": row.is_pinned,
+        "status": notice_status(row.published_at, now),
+        "published_at": row.published_at,
+        "created_by": (
+            NoticeAuthor(user_id=row.created_by, nickname=author_nickname)
+            if row.created_by is not None
+            else None
+        ),
+        "created_at": row.created_at,
+        "updated_at": row.updated_at,
+    }
+
+
+async def _author_nickname(db: AsyncSession, row: Notice) -> str | None:
+    if row.created_by is None:
+        return None
+    author = await db.get(AppUser, row.created_by)
+    return author.nickname if author is not None else None
+
+
+def _admin_notice(row: Notice, author_nickname: str | None) -> AdminNotice:
+    return AdminNotice(**_notice_item(row, author_nickname, utc_now()), body=row.body)
+
+
+@router.get(
+    "/notices",
+    response_model=AdminNoticeList,
+    responses=error_responses.ADMIN_NOTICE_LIST,
+)
+async def list_admin_notices(
+    response: Response,
+    offset: str | None = Query(default=None, description="0 이상, 기본 0"),
+    limit: str | None = Query(
+        default=None, description=f"1~{NOTICE_PAGE_SIZE}, 기본 {NOTICE_PAGE_SIZE}"
+    ),
+    status_filter: str | None = Query(
+        default=None, alias="status", description="draft · scheduled · published"
+    ),
+    category: str | None = Query(
+        default=None, description="maintenance · event · update · info"
+    ),
+    admin: AppUser = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminNoticeList:
+    """관리자 공지 목록 — 삭제 안 된 것 전부(초안 · 예약 · 게시), 최근 작성 먼저. 본문은 상세에서. 기록하지 않는다."""
+
+    response.headers["Cache-Control"] = "no-store"
+    start_at = parse_int(offset, "offset", default=0, low=0, high=10_000_000)
+    page_size = parse_int(
+        limit, "limit", default=NOTICE_PAGE_SIZE, low=1, high=NOTICE_PAGE_SIZE
+    )
+    if status_filter is not None and status_filter not in NOTICE_STATUSES:
+        raise invalid_query("status must be one of draft, scheduled, published.")
+    if category is not None and category not in NOTICE_CATEGORIES:
+        raise invalid_query("category must be one of maintenance, event, update, info.")
+    now = utc_now()
+    author = aliased(AppUser)
+    query = (
+        select(Notice, author.nickname)
+        .outerjoin(author, author.id == Notice.created_by)
+        .where(not_deleted())
+    )
+    if status_filter is not None:
+        query = query.where(status_condition(status_filter, now))
+    if category is not None:
+        query = query.where(Notice.category == category)
+    rows = (
+        await db.execute(
+            query.order_by(*ADMIN_ORDER).offset(start_at).limit(page_size + 1)
+        )
+    ).all()
+    return AdminNoticeList(
+        items=[
+            AdminNoticeItem(**_notice_item(row, nickname, now))
+            for row, nickname in rows[:page_size]
+        ],
+        next_offset=start_at + page_size if len(rows) > page_size else None,
+    )
+
+
+@router.post(
+    "/notices",
+    response_model=AdminNotice,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_same_origin)],
+    responses=error_responses.ADMIN_NOTICE_CREATE,
+)
+async def create_notice(
+    payload: NoticeCreate,
+    response: Response,
+    admin: AppUser = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminNotice:
+    """공지 작성 — published_at 이 없으면 초안, 미래면 예약, 지금 · 과거면 바로 게시. 기록 `create_notice`."""
+
+    response.headers["Cache-Control"] = "no-store"
+    now = utc_now()
+    row = Notice(
+        id=str(uuid4()),
+        category=payload.category,
+        title=payload.title,
+        body=payload.body,
+        is_pinned=payload.is_pinned,
+        published_at=to_utc_naive(payload.published_at),
+        created_by=admin.id,
+        created_at=now,
+        updated_at=now,
+        deleted_at=None,
+    )
+    db.add(row)
+    await db.commit()
+    await _audit(
+        db, admin, "create_notice", None, target_type="notice", target_id=row.id
+    )
+    return _admin_notice(row, admin.nickname)
+
+
+@router.get(
+    "/notices/{notice_id}",
+    response_model=AdminNotice,
+    responses=error_responses.ADMIN_NOTICE_DETAIL,
+)
+async def read_admin_notice(
+    notice_id: str,
+    response: Response,
+    admin: AppUser = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminNotice:
+    """관리자 공지 상세(초안 · 예약 포함). 삭제된 공지는 404. 기록하지 않는다."""
+
+    response.headers["Cache-Control"] = "no-store"
+    row = await _notice_or_404(db, notice_id)
+    return _admin_notice(row, await _author_nickname(db, row))
+
+
+@router.patch(
+    "/notices/{notice_id}",
+    response_model=AdminNotice,
+    dependencies=[Depends(require_same_origin)],
+    responses=error_responses.ADMIN_NOTICE_UPDATE,
+)
+async def update_notice(
+    notice_id: str,
+    payload: NoticeUpdate,
+    response: Response,
+    admin: AppUser = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminNotice:
+    """보낸 필드만 바꾼다. `published_at: null` 이면 초안으로(게시 내림). 바꿀 값이 없으면 422. 기록 `update_notice`."""
+
+    response.headers["Cache-Control"] = "no-store"
+    fields = payload.model_fields_set
+    if not fields:
+        raise invalid_query("바꿀 값이 하나도 없다.")
+    row = await _notice_or_404(db, notice_id)
+    if "category" in fields:
+        row.category = payload.category
+    if "title" in fields:
+        row.title = payload.title
+    if "body" in fields:
+        row.body = payload.body
+    if "is_pinned" in fields:
+        row.is_pinned = payload.is_pinned
+    if "published_at" in fields:
+        row.published_at = to_utc_naive(payload.published_at)
+    row.updated_at = utc_now()
+    await db.commit()
+    await _audit(
+        db, admin, "update_notice", None, target_type="notice", target_id=row.id
+    )
+    return _admin_notice(row, await _author_nickname(db, row))
+
+
+@router.delete(
+    "/notices/{notice_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_same_origin)],
+    responses=error_responses.ADMIN_NOTICE_DELETE,
+)
+async def delete_notice(
+    notice_id: str,
+    admin: AppUser = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """소프트 삭제 — deleted_at 만 적는다(행 · 본문은 남고, 공개 · 관리자 화면 어디에도 안 보인다). 복구 없음. 기록 `delete_notice`."""
+
+    row = await _notice_or_404(db, notice_id)
+    now = utc_now()
+    row.deleted_at = now
+    row.updated_at = now
+    await db.commit()
+    await _audit(
+        db, admin, "delete_notice", None, target_type="notice", target_id=row.id
+    )
+    return Response(
+        status_code=status.HTTP_204_NO_CONTENT, headers={"Cache-Control": "no-store"}
+    )

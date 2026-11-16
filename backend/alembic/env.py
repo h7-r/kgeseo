@@ -26,6 +26,7 @@ from app.models.content_review import ContentReview
 from app.models.guest_session import GuestSession, GuestSessionTransfer
 from app.models.inquiry import Inquiry, InquiryReply
 from app.models.interaction_event import InteractionEvent
+from app.models.notice import Notice
 from app.models.npc_approval_review import NpcApprovalReview, NpcApprovalTarget
 from app.models.npc_publication import (
     NpcContentVersion,
