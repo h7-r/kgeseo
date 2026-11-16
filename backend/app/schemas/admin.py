@@ -19,7 +19,7 @@ class AdminUserListItem(AdminUserSummary):
     region: str | None = None
     # `auth_identities.provider` 중복 제거 · 알파벳순. 연결이 없으면 []
     providers: list[str] = []
-    # 실제 로그인 시각 — 컬럼이 아직 없다(베타 이후, D4). 1단계는 키만 두고 늘 null
+    # 마지막으로 새 로그인 세션을 발급한 시각(app_users.last_login_at, 11/16). 기록이 없으면 null
     last_login_at: datetime | None = None
     # MAX(user_sessions.created_at) — 로그인 · 가입 때만 생기는 세션의 시작 시각(추정값, D4)
     last_session_started_at: datetime | None = None

@@ -32,6 +32,7 @@ from app.models.notice import Notice
 from app.models.play_session import PlaySession
 from app.schemas.account_data import (
     AdminUserDetail,
+    AdminUserDetailUser,
     AdminUserSummary,
     CharacterResponse,
 )
@@ -303,7 +304,7 @@ async def list_users(
             **_summary(user, save).model_dump(),
             region=user.region,
             providers=providers.get(user.id, []),
-            last_login_at=None,
+            last_login_at=user.last_login_at,
             last_session_started_at=last_sessions.get(user.id),
         )
         for user, save in page
@@ -360,9 +361,18 @@ async def read_user(
     save = await find_save(db, user.id)
     character = await db.get(UserCharacter, user.id)
     items = await list_owned_items(db, user.id)
+    # 목록(§3.1)과 같은 정의 — 로그인 수단은 auth_identities, 최근 세션은 user_sessions
+    providers = await _providers_by_user(db, [user.id])
+    last_sessions = await _last_session_by_user(db, [user.id])
     await _audit(db, admin, "read_user", user.id, target_type="user", target_id=user.id)
     return AdminUserDetail(
-        user=_summary(user, save),
+        user=AdminUserDetailUser(
+            **_summary(user, save).model_dump(),
+            region=user.region,
+            providers=providers.get(user.id, []),
+            last_login_at=user.last_login_at,
+            last_session_started_at=last_sessions.get(user.id),
+        ),
         save=to_save_response(save) if save else None,
         character=(
             CharacterResponse(
@@ -1689,7 +1699,7 @@ async def list_admins(
                 nickname=row.nickname,
                 email=mask_email(row.email),
                 created_at=row.created_at,
-                last_login_at=None,
+                last_login_at=row.last_login_at,
                 last_session_started_at=last_sessions.get(row.id),
             )
             for row in rows

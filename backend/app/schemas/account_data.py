@@ -63,8 +63,22 @@ class AdminUserList(BaseModel):
     next_offset: int | None
 
 
+class AdminUserDetailUser(AdminUserSummary):
+    """회원 상세의 `user` — 기존 필드는 그대로, 목록(`AdminUserListItem`)과 같은 정의의 네 값을 덧붙인다
+    (해랑 요청 · 미르 11/16, 계약 docs/contracts/admin_last_login.md)."""
+
+    # 회원이 가입 때 고른 지역(app_users.region). 없으면 null
+    region: str | None = None
+    # `auth_identities.provider` 중복 제거 · 알파벳순(local · google · naver). 연결이 없으면 []
+    providers: list[str] = []
+    # 마지막으로 새 로그인 세션을 발급한 시각(app_users.last_login_at). 기록이 없으면 null
+    last_login_at: datetime | None = None
+    # MAX(user_sessions.created_at) — 기존 추정값 그대로(목록과 같은 값)
+    last_session_started_at: datetime | None = None
+
+
 class AdminUserDetail(BaseModel):
-    user: AdminUserSummary
+    user: AdminUserDetailUser
     save: GameSaveResponse | None
     character: CharacterResponse | None
     items: list[OwnedItem]

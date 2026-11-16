@@ -3,11 +3,11 @@
 import hashlib
 import math
 import secrets
-from datetime import timedelta
+from datetime import datetime, timedelta
 from uuid import uuid4
 
 from fastapi import Depends, HTTPException, Request, Response, status
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -38,20 +38,49 @@ def _hash(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def last_login_update(user_id: str, now: datetime):
+    """최근 로그인 갱신(미르 11/16) — 더 최근 값만 쓴다. 동시 로그인에서 늦게 커밋된 이른 시각이 앞선 값을 되돌리지 않는다
+    (MySQL UPDATE 의 WHERE 는 잠금 읽기라 다른 트랜잭션이 커밋한 최신 값으로 다시 판단한다). 프로필 updated_at 은 적지 않는다."""
+
+    return (
+        update(AppUser)
+        .where(
+            AppUser.id == user_id,
+            or_(AppUser.last_login_at.is_(None), AppUser.last_login_at < now),
+        )
+        .values(last_login_at=now)
+        .execution_options(synchronize_session=False)
+    )
+
+
 async def start_session(db: AsyncSession, response: Response, user_id: str) -> None:
-    """세션을 새로 만들어 HttpOnly 쿠키로 내려 준다. 원문 토큰은 DB 에 남지 않는다."""
+    """세션을 새로 만들어 HttpOnly 쿠키로 내려 준다. 원문 토큰은 DB 에 남지 않는다.
+
+    새 세션 INSERT 와 회원의 `last_login_at` 갱신은 **한 트랜잭션**으로 커밋한다 — 둘 중 하나만 남는 일이 없다. 갱신이 실패하면
+    되돌리고 다시 던진다(세션도 남지 않고 쿠키도 내려가지 않는다). 이 함수는 로그인 성공 공통 처리(`auth._establish_login`)에서만
+    부른다: 이메일 가입 · 이메일 로그인 · Google · Naver · 소셜 가입 완료.
+
+    순서가 중요하다: **회원 행 UPDATE(배타 잠금)를 먼저, 세션 INSERT 를 뒤에**. 세션 INSERT 는 FK 확인으로 부모(app_users) 행에
+    공유 잠금을 거는데, 같은 회원이 동시에 로그인할 때 INSERT 를 먼저 하면 두 트랜잭션이 공유 잠금을 쥔 채 서로의 UPDATE 를
+    기다려 데드락(1213)이 난다. UPDATE 를 먼저 하면 둘째 로그인은 첫째가 커밋할 때까지 기다렸다가 차례로 처리된다.
+    """
     token = secrets.token_urlsafe(32)
     now = utc_now()
-    db.add(
-        UserSession(
-            id=str(uuid4()),
-            app_user_id=user_id,
-            token_hash=_hash(token),
-            created_at=now,
-            expires_at=now + SESSION_LIFETIME,
+    try:
+        await db.execute(last_login_update(user_id, now))
+        db.add(
+            UserSession(
+                id=str(uuid4()),
+                app_user_id=user_id,
+                token_hash=_hash(token),
+                created_at=now,
+                expires_at=now + SESSION_LIFETIME,
+            )
         )
-    )
-    await db.commit()
+        await db.commit()
+    except BaseException:
+        await db.rollback()
+        raise
     response.set_cookie(
         SESSION_COOKIE,
         token,
