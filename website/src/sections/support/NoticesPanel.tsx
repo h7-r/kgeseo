@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 
 import Modal from "@/components/Modal";
+import { SUPPORT_EMAIL } from "@/data/contact";
 import { ALL_CATEGORIES, NOTICE_FILTERS, type NoticeCategory } from "@/data/support";
 import { FONT } from "@/lib/style";
 import {
@@ -20,6 +21,9 @@ import Pager from "./Pager";
 import CategoryFilter, { CategoryBadge } from "./CategoryFilter";
 import PanelHeading from "./PanelHeading";
 import { emptyStyle, panelStyle, rowCardStyle } from "./supportStyles";
+
+/** 못 불러왔을 때 — 옛 공지로 되돌아가지 않고 안내 + 문의 메일(미르 11/16) */
+const LOAD_FAILED = `공지를 불러오지 못했어요. 잠시 후 다시 시도하거나 ${SUPPORT_EMAIL} 로 알려 주세요.`;
 
 type Filter = (typeof NOTICE_FILTERS)[number];
 type ListState = { status: "loading" } | { status: "ready"; page: PublicNoticePage } | { status: "error" };
@@ -73,8 +77,9 @@ export default function NoticesPanel() {
         <div style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "0 32px" }}>
           {list.status === "loading" && <div style={emptyStyle}>공지를 불러오는 중입니다…</div>}
           {list.status === "error" && (
+            // 실패해도 코드에 고정된 옛 공지로 돌아가지 않는다(미르 11/16) — 안내와 메일만
             <div style={emptyStyle} role="alert">
-              공지를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
+              {LOAD_FAILED}
             </div>
           )}
           {list.status === "ready" && list.page.items.length === 0 && (
@@ -146,7 +151,7 @@ function NoticeModal({ id, onClose }: { id: string; onClose: () => void }) {
       {state.status === "loading" && <p style={bodyTextStyle}>불러오는 중입니다…</p>}
       {state.status === "error" && (
         <p style={bodyTextStyle} role="alert">
-          공지를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
+          {LOAD_FAILED}
         </p>
       )}
       {state.status === "ready" && (
