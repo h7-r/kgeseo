@@ -1,17 +1,17 @@
 /**
- * 베타 전 시험 계정 거름(관리자 「베타 기록」 화면, 11/13) — 참가 번호 목록 모양과 계정 id 고르기를 확인한다.
+ * 팀 · 시험 계정 거름(관리자 「베타 기록」 화면, 11/13 · 11/16) — 참가 번호 목록 모양과 계정 id 고르기를 확인한다.
  *
  *   npm run web:test
  */
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const { PRE_BETA_TEST_KEYS, testAccountsIn } = await import("../../website/src/admin/lib/betaTestAccounts.ts");
+const { TEST_ACCOUNT_KEYS, testAccountsIn } = await import("../../website/src/admin/lib/betaTestAccounts.ts");
 const { shortKey } = await import("../../website/src/admin/lib/betaReport.ts");
 
-test("목록은 참가 번호(대문자 16진 8자리) 15개만 — 계정 id · 이메일이 아니다", () => {
-  assert.equal(PRE_BETA_TEST_KEYS.size, 15);
-  for (const key of PRE_BETA_TEST_KEYS) assert.match(key, /^[0-9A-F]{8}$/);
+test("목록은 참가 번호(대문자 16진 8자리) 28개만 — 계정 id · 이메일이 아니고 겹치지 않는다", () => {
+  assert.equal(TEST_ACCOUNT_KEYS.size, 28);
+  for (const key of TEST_ACCOUNT_KEYS) assert.match(key, /^[0-9A-F]{8}$/);
 });
 
 test("참가 번호가 목록에 든 계정만 고르고, 빈 값 · 겹친 id 는 건너뛴다", () => {
