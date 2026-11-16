@@ -115,7 +115,12 @@ class UserItem(Base):
 
 
 class AdminAuditLog(Base):
-    """관리자가 누구의 기록을 언제 봤는지 남긴다."""
+    """관리자가 누구의 기록을 언제 봤는지 남긴다.
+
+    확장 열(11/16, revision 63566bb6005b)은 모두 NULL 허용이다 — 그 전 기록은 NULL 로 남는다.
+    `client_ip` 는 원문(화면 · API 는 앞 두 자리만), `target_type` · `target_id` 는 대상 물건,
+    `target_user_id` 는 그와 별개로 개인정보가 보인 회원(계약 `docs/contracts/admin_audit_log_ext.md`).
+    """
 
     __tablename__ = "admin_audit_logs"
     __table_args__ = (Index("ix_admin_audit_logs_target", "target_user_id"),)
@@ -125,3 +130,7 @@ class AdminAuditLog(Base):
     action: Mapped[str] = mapped_column(VARCHAR(64), nullable=False)
     target_user_id: Mapped[str | None] = mapped_column(CHAR(36), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6), nullable=False)
+    client_ip: Mapped[str | None] = mapped_column(VARCHAR(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(VARCHAR(512), nullable=True)
+    target_type: Mapped[str | None] = mapped_column(VARCHAR(32), nullable=True)
+    target_id: Mapped[str | None] = mapped_column(VARCHAR(64), nullable=True)

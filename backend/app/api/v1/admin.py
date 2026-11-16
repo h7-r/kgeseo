@@ -88,6 +88,11 @@ from app.schemas.inquiry import (
     InquiryPatch,
     InquiryReplyCreate,
 )
+from app.services.admin_audit import (
+    capture_audit_request,
+    check_target,
+    current_request_info,
+)
 from app.services.admin_content import case_detail, list_cases
 from app.services.admin_query import (
     KST_NAME,
@@ -132,7 +137,10 @@ from app.services.user_session import (
     require_same_origin,
 )
 
-router = APIRouter(prefix="/admin", tags=["Admin"])
+# 감사 기록용 요청 정보(IP · User-Agent)를 요청마다 잡아 둔다 — `_audit()` 호출부는 따로 넘기지 않는다(services/admin_audit)
+router = APIRouter(
+    prefix="/admin", tags=["Admin"], dependencies=[Depends(capture_audit_request)]
+)
 
 PAGE_SIZE = 50
 ADMIN_ROLE = "admin"
@@ -190,14 +198,34 @@ def _summary(user: AppUser, save: GamePlaySave | None) -> AdminUserSummary:
 
 
 async def _audit(
-    db: AsyncSession, admin: AppUser, action: str, target_user_id: str | None
+    db: AsyncSession,
+    admin: AppUser,
+    action: str,
+    target_user_id: str | None,
+    *,
+    target_type: str | None = None,
+    target_id: str | None = None,
 ) -> None:
+    """감사 기록 한 행. 앞 네 인자는 예전 그대로다(호출부 호환).
+
+    - `target_user_id`: 개인정보가 보인 회원(있으면). 기존 의미 · `/audit-logs?target_user_id=` 필터 그대로.
+    - `target_type` · `target_id`(키워드만, 둘 다 주거나 둘 다 생략): 열람 · 변경한 대상 물건 —
+      `user`(회원 id) · `inquiry`(문의 id) · `setting`(설정 키) · `notice`(공지 UUID, 표준 표기만).
+      계약 `docs/contracts/admin_audit_log_ext.md`.
+    - `client_ip` · `user_agent` 는 라우터 의존성(`capture_audit_request`)이 잡아 둔 값을 쓴다 — 넘기지 않는다.
+    """
+    check_target(target_type, target_id)
+    info = current_request_info()
     db.add(
         AdminAuditLog(
             admin_user_id=admin.id,
             action=action,
             target_user_id=target_user_id,
             created_at=utc_now(),
+            client_ip=info.client_ip,
+            user_agent=info.user_agent,
+            target_type=target_type,
+            target_id=target_id,
         )
     )
     await db.commit()
@@ -312,7 +340,7 @@ async def read_user(
     save = await find_save(db, user.id)
     character = await db.get(UserCharacter, user.id)
     items = await list_owned_items(db, user.id)
-    await _audit(db, admin, "read_user", user.id)
+    await _audit(db, admin, "read_user", user.id, target_type="user", target_id=user.id)
     return AdminUserDetail(
         user=_summary(user, save),
         save=to_save_response(save) if save else None,
@@ -702,7 +730,8 @@ async def list_audit_logs(
     admin: AppUser = Depends(current_admin),
     db: AsyncSession = Depends(get_db),
 ) -> AuditLogList:
-    """관리자 감사 기록 조회(§3.4). 저장된 다섯 컬럼과 닉네임만 — 이메일 · IP · User-Agent 는 없다(컬럼도 없다).
+    """관리자 감사 기록 조회(§3.4). 저장된 열과 닉네임 — 이메일은 없다. IP 는 원문 대신 앞 두 자리(`client_ip_display`),
+    User-Agent · 대상 표기(`target_type` · `target_id`)는 그대로(11/16 확장 열, 그 전 기록은 null).
 
     이 조회도 기록한다(D5): 결과를 만든 뒤 `list_audit_logs` 한 행(대상 = 필터의 `target_user_id`). 그래서 방금 한 조회는
     다음 조회부터 보인다. 필터 값은 저장하지 않는다. 기록 쓰기가 실패하면 기존 관리자 조회처럼 응답도 실패한다(D5-a 미결 — 현행과 같게).
@@ -749,6 +778,10 @@ async def list_audit_logs(
                 if log.target_user_id is not None
                 else None
             ),
+            target_type=log.target_type,
+            target_id=log.target_id,
+            client_ip_display=ip_display(log.client_ip),
+            user_agent=log.user_agent,
         )
         for log, admin_nickname, target_nickname in rows[:page_size]
     ]

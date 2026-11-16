@@ -118,6 +118,18 @@ def _isolated_url():
     return url
 
 
+def _assert_revision_is_on_single_head_chain() -> None:
+    """is_test revision 이 지금의 단일 head 아래 한 줄 사슬에 있는지 — 뒤에 migration 이 붙어도 깨지지 않고,
+    사슬이 끊기거나(head 둘) is_test 가 head 에서 내려가는 길에서 빠지거나 부모가 바뀌면 실패한다.
+    (정확한 head 값은 test_play_session_content_pin 이 migration 마다 고쳐 적는다.)"""
+
+    heads = script().get_heads()
+    assert len(heads) == 1, f"alembic must have a single head: {heads}"
+    ancestors = [rev.revision for rev in script().iterate_revisions(heads[0], "base")]
+    assert REVISION in ancestors
+    assert script().get_revision(REVISION).down_revision == "a3f9c2e7b1d4"
+
+
 def _run_revisions(connection, *, stop_before: str | None) -> None:
     revisions = list(reversed(list(script().walk_revisions())))
     with Operations.context(MigrationContext.configure(connection)):
@@ -160,8 +172,7 @@ def test_migration_defaults_existing_and_legacy_inserts_to_false_and_downgrades_
                 assert database == url.database
                 assert Path(datadir).resolve() == expected
                 assert not (await connection.execute(text("SHOW TABLES"))).all()
-                assert script().get_heads() == [REVISION]
-                assert script().get_revision(REVISION).down_revision == "a3f9c2e7b1d4"
+                _assert_revision_is_on_single_head_chain()
                 initialized = True
                 # 바로 앞 head 까지 — is_test 열이 없던 때의 회원 둘
                 await connection.run_sync(_run_revisions, stop_before=REVISION)

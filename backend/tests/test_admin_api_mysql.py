@@ -444,9 +444,28 @@ def test_audit_logs_list_filter_and_record_their_own_reading():
         assert orphan["admin"] == {"user_id": gone, "nickname": None}
         assert orphan["target"] == {"user_id": gone, "nickname": None}
         for log in first["logs"]:
-            # 저장된 다섯 컬럼 + 닉네임만 — IP · User-Agent · 이메일 키가 없다
-            assert set(log) == {"id", "created_at", "action", "admin", "target"}
+            # 기존 다섯 필드 + 11/16 확장 넷(덧붙임) — IP 원문 · 이메일 키는 없다(IP 는 앞 두 자리 client_ip_display 만)
+            assert set(log) == {
+                "id",
+                "created_at",
+                "action",
+                "admin",
+                "target",
+                "target_type",
+                "target_id",
+                "client_ip_display",
+                "user_agent",
+            }
             assert set(log["admin"]) == {"user_id", "nickname"}
+        # 이 시험이 직접 넣은 확장 전 모양의 기록(사라진 사용자)은 새 필드가 모두 null
+        assert (
+            orphan["target_type"],
+            orphan["target_id"],
+            orphan["client_ip_display"],
+            orphan["user_agent"],
+        ) == (None, None, None, None)
+        # 실제 요청으로 남은 회원 열람은 대상 표기 user
+        assert (read["target_type"], read["target_id"]) == ("user", member.id)
         assert "member@example.com" not in str(first)
         assert first["next_offset"] is None
 

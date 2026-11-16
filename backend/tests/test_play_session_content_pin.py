@@ -252,9 +252,11 @@ def test_new_revision_is_single_head_after_previous_head() -> None:
     # 각 부모 관계는 그대로다.
     # 그 위의 계정 데이터(c1d2e3f4a5b6), 그 위의 게스트 세션 · Play Session 소유자(d8f2a6c4e1b9, 11/6 PM),
     # 그 위의 베타 분석 기록(a3f9c2e7b1d4, 11/11 — 새 표만), 그 위의 테스트 계정 표시(f3c8a1d6e2b7, 11/13 —
-    # app_users.is_test 열 하나), 그 위에 1:1 문의 · 관리자 설정(e7a1b2c3d4f5, 11/13 해랑 — 새 표만)이 지금 단일 head다.
-    # 세진 감사 로그 확장 · 공지 마이그레이션은 이 뒤에 붙는다(미르 11/13 「나중에 머지되는 쪽이 앞 revision 뒤로」).
-    assert script.get_heads() == ["e7a1b2c3d4f5"]
+    # app_users.is_test 열 하나), 그 위에 1:1 문의 · 관리자 설정(e7a1b2c3d4f5, 11/13 해랑 — 새 표만), 그 위에
+    # 관리자 감사 기록 확장(63566bb6005b, 11/16 세진 — admin_audit_logs 에 NULL 허용 열 넷)이 지금 단일 head다.
+    # 공지 마이그레이션은 이 뒤에 붙는다(미르 11/13 「나중에 머지되는 쪽이 앞 revision 뒤로」).
+    assert script.get_heads() == ["63566bb6005b"]
+    assert script.get_revision("63566bb6005b").down_revision == "e7a1b2c3d4f5"
     assert script.get_revision("e7a1b2c3d4f5").down_revision == "f3c8a1d6e2b7"
     assert script.get_revision("f3c8a1d6e2b7").down_revision == "a3f9c2e7b1d4"
     assert script.get_revision("a3f9c2e7b1d4").down_revision == "d8f2a6c4e1b9"

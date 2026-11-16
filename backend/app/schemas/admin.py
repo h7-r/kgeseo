@@ -96,7 +96,16 @@ class AuditLogEntry(BaseModel):
     created_at: datetime
     action: str
     admin: AuditActor
+    # 개인정보가 보인 회원(target_user_id). 기존 그대로
     target: AuditActor | None
+    # --- 11/16 확장(세진) — 모두 덧붙인 필드, 확장 전 기록은 null(계약 docs/contracts/admin_audit_log_ext.md) ---
+    # 대상 물건: user(회원 id) · inquiry(문의 id) · setting(설정 키) · notice(공지 UUID). 둘 다 있거나 둘 다 null
+    target_type: str | None = None
+    target_id: str | None = None
+    # IP 원문은 내보내지 않는다 — 앞 두 자리(IPv4 `203.0.*.*` · IPv6 `2001:db8:*`, 문의 화면과 같은 규칙)
+    client_ip_display: str | None = None
+    # 앞 512자, 제어 문자는 공백
+    user_agent: str | None = None
 
 
 class AuditLogList(BaseModel):
