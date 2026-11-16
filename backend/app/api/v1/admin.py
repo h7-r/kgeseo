@@ -51,6 +51,7 @@ from app.schemas.admin import (
     AuditLogEntry,
     AuditLogList,
     CountBucket,
+    EntryOnlyStageStats,
     FunnelStep,
     LoginThrottleSummary,
     MembersTotals,
@@ -1220,8 +1221,12 @@ async def stats_game(
         )
         for row in rows
     )
+    # 평균 · 중앙값은 같은 표본이라 함께 null 이다 — 같은 사유 코드를 두 키에 둔다(기존 키 · 코드 그대로, 중앙값 키는 덧붙임)
     unavailable = (
-        {"avg_completion_minutes": "no_completed_run"}
+        {
+            "avg_completion_minutes": "no_completed_run",
+            "median_completion_minutes": "no_completed_run",
+        }
         if aggregate.avg_completion_minutes is None
         else {}
     )
@@ -1244,6 +1249,12 @@ async def stats_game(
         puzzles=[PuzzleStats(**puzzle) for puzzle in aggregate.puzzles],
         avg_completion_minutes=aggregate.avg_completion_minutes,
         completed_runs=aggregate.completed_runs,
+        case_completed_people=aggregate.case_completed_people,
+        median_completion_minutes=aggregate.median_completion_minutes,
+        entry_only_stages=[
+            EntryOnlyStageStats(stage=stage, entered=entered)
+            for stage, entered in aggregate.entry_only_stages
+        ],
         unavailable=unavailable,
     )
 
