@@ -20,6 +20,10 @@ export const AUDIT_ACTION_FILTERS = [
   { id: "update_inquiry", label: "문의 상태 변경" },
   { id: "update_setting", label: "설정 변경" },
   { id: "list_admins", label: "관리자 목록 조회" },
+  // 공지(세진 11/16) — 등록 · 수정 · 삭제
+  { id: "create_notice", label: "공지 등록" },
+  { id: "update_notice", label: "공지 수정" },
+  { id: "delete_notice", label: "공지 삭제" },
 ] as const;
 
 export type AuditActionFilter = (typeof AUDIT_ACTION_FILTERS)[number]["id"];

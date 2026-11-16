@@ -93,9 +93,8 @@ const SCREEN_LIST = [
     id: "notices",
     path: "notices",
     label: "공지사항",
-    description: "웹 고객센터에 실리는 공지를 관리합니다.",
-    status: "pending",
-    pendingNote: "공지 API 가 생기면 열립니다. 지금 웹 고객센터 공지는 코드에 고정된 글입니다.",
+    description: "웹 고객센터에 실리는 공지를 등록 · 수정 · 삭제합니다(공지 API v0.2). 등록 · 수정 · 삭제는 활동 로그에 남습니다.",
+    status: "live",
   },
   {
     id: "contents",
