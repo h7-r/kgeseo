@@ -32,6 +32,7 @@ from app.models.notice import Notice
 from app.models.play_session import PlaySession
 from app.schemas.account_data import (
     AdminUserDetail,
+    AdminUserDetailUser,
     AdminUserSummary,
     CharacterResponse,
 )
@@ -50,6 +51,7 @@ from app.schemas.admin import (
     AuditLogEntry,
     AuditLogList,
     CountBucket,
+    EntryOnlyStageStats,
     FunnelStep,
     LoginThrottleSummary,
     MembersTotals,
@@ -303,7 +305,7 @@ async def list_users(
             **_summary(user, save).model_dump(),
             region=user.region,
             providers=providers.get(user.id, []),
-            last_login_at=None,
+            last_login_at=user.last_login_at,
             last_session_started_at=last_sessions.get(user.id),
         )
         for user, save in page
@@ -360,9 +362,18 @@ async def read_user(
     save = await find_save(db, user.id)
     character = await db.get(UserCharacter, user.id)
     items = await list_owned_items(db, user.id)
+    # 목록(§3.1)과 같은 정의 — 로그인 수단은 auth_identities, 최근 세션은 user_sessions
+    providers = await _providers_by_user(db, [user.id])
+    last_sessions = await _last_session_by_user(db, [user.id])
     await _audit(db, admin, "read_user", user.id, target_type="user", target_id=user.id)
     return AdminUserDetail(
-        user=_summary(user, save),
+        user=AdminUserDetailUser(
+            **_summary(user, save).model_dump(),
+            region=user.region,
+            providers=providers.get(user.id, []),
+            last_login_at=user.last_login_at,
+            last_session_started_at=last_sessions.get(user.id),
+        ),
         save=to_save_response(save) if save else None,
         character=(
             CharacterResponse(
@@ -1210,8 +1221,12 @@ async def stats_game(
         )
         for row in rows
     )
+    # 평균 · 중앙값은 같은 표본이라 함께 null 이다 — 같은 사유 코드를 두 키에 둔다(기존 키 · 코드 그대로, 중앙값 키는 덧붙임)
     unavailable = (
-        {"avg_completion_minutes": "no_completed_run"}
+        {
+            "avg_completion_minutes": "no_completed_run",
+            "median_completion_minutes": "no_completed_run",
+        }
         if aggregate.avg_completion_minutes is None
         else {}
     )
@@ -1234,6 +1249,12 @@ async def stats_game(
         puzzles=[PuzzleStats(**puzzle) for puzzle in aggregate.puzzles],
         avg_completion_minutes=aggregate.avg_completion_minutes,
         completed_runs=aggregate.completed_runs,
+        case_completed_people=aggregate.case_completed_people,
+        median_completion_minutes=aggregate.median_completion_minutes,
+        entry_only_stages=[
+            EntryOnlyStageStats(stage=stage, entered=entered)
+            for stage, entered in aggregate.entry_only_stages
+        ],
         unavailable=unavailable,
     )
 
@@ -1689,7 +1710,7 @@ async def list_admins(
                 nickname=row.nickname,
                 email=mask_email(row.email),
                 created_at=row.created_at,
-                last_login_at=None,
+                last_login_at=row.last_login_at,
                 last_session_started_at=last_sessions.get(row.id),
             )
             for row in rows

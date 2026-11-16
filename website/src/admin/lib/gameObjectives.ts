@@ -29,19 +29,49 @@ const OBJECTIVE_NAMES: Readonly<Record<string, string>> = {
   S3_SCALE: "눈물 자국",
   S3_KEY: "청동 열쇠와 함",
   S3_RIFT: "시공간 틈",
-  // 4 · 5스테이지 — 베타 기록 전용 ID(naju01/src/beta/lateObjectives.ts, 미르 11/16). CLIFF · GUT 는 11/11 부터의 굵은 표식
+  // 4 · 5스테이지 — 베타 기록 전용 ID(naju01/src/beta/lateObjectives.ts, 미르 11/16). 굵은 표식 CLIFF · GUT 는 아래 BETA_ONLY_NAMES
   P14: "정화수 세 그릇",
   P15: "끊긴 발자국",
   S4_POUCH: "아랑사의 주머니",
   S4_SERPENT: "구렁이상과 틈",
-  CLIFF: "바위 위(틈 지남)",
   S5_RINGS: "소반에 가락지",
   P16: "다섯 횃불",
-  GUT: "굿판(다섯 불)",
 };
 
 /** 모르는 ID(나중에 생긴 목표)는 ID 그대로. */
 export const objectiveName = (id: string): string => OBJECTIVE_NAMES[id] ?? id;
+
+/**
+ * 서버로 판정을 보낸 퍼즐의 대표 물건 코드 → 그 퍼즐 목표(naju01/src/progress/najuLocalIds.ts).
+ * 베타 기록의 서버 판정(puzzle_attempt · source server)은 목표 ID 대신 이 코드로 남는다 — 표에서 P 번호 줄과 따로 센다.
+ */
+const SERVER_PUZZLE_OBJECTIVES: Readonly<Record<string, string>> = {
+  "clam-holes": "P01",
+  "jar-slots": "P03",
+  "cave-big-clam": "P07",
+  "cave-door": "P09",
+};
+
+/** 베타 기록에만 나오는 목표 밖 ID — 끝 두 단계(najuBeta) · 이야기가 화면에 뜬 기록(story_exposure) */
+const BETA_ONLY_NAMES: Readonly<Record<string, string>> = {
+  CLIFF: "바위 위",
+  GUT: "굿판",
+  opening: "오프닝 영상",
+  abisa_request: "아비사 의뢰",
+  abisa_backstory: "아비사 옛이야기",
+  ending_film: "엔딩 필름",
+};
+
+/**
+ * 베타 기록 화면의 목표 칸 — 코드 옆 괄호에 한글(미르 11/16). 서버 판정 코드는 어느 퍼즐인지 P 번호와 함께.
+ * 모르는 코드 · 「(목표 없음)」은 그대로.
+ */
+export function betaObjectiveLabel(id: string): string {
+  const puzzle = SERVER_PUZZLE_OBJECTIVES[id];
+  if (puzzle) return `${id} (${puzzle} ${objectiveName(puzzle)} · 서버 판정)`;
+  const name = OBJECTIVE_NAMES[id] ?? BETA_ONLY_NAMES[id];
+  return name ? `${id} (${name})` : id;
+}
 
 export const STAGE_NAMES: Readonly<Record<number, string>> = {
   1: "나루터",

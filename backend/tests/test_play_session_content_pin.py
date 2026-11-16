@@ -254,8 +254,10 @@ def test_new_revision_is_single_head_after_previous_head() -> None:
     # 그 위의 베타 분석 기록(a3f9c2e7b1d4, 11/11 — 새 표만), 그 위의 테스트 계정 표시(f3c8a1d6e2b7, 11/13 —
     # app_users.is_test 열 하나), 그 위에 1:1 문의 · 관리자 설정(e7a1b2c3d4f5, 11/13 해랑 — 새 표만), 그 위에
     # 관리자 감사 기록 확장(63566bb6005b, 11/16 세진 — admin_audit_logs 에 NULL 허용 열 넷), 그 위에
-    # 공지사항(734021834040, 11/16 세진 — notices 새 표만)이 지금 단일 head다.
-    assert script.get_heads() == ["734021834040"]
+    # 공지사항(734021834040, 11/16 세진 — notices 새 표만), 그 위에 회원 최근 로그인(744dc740f81f, 11/16 세진 —
+    # app_users.last_login_at 열 하나 + 기존 회원 백필)이 지금 단일 head다.
+    assert script.get_heads() == ["744dc740f81f"]
+    assert script.get_revision("744dc740f81f").down_revision == "734021834040"
     assert script.get_revision("734021834040").down_revision == "63566bb6005b"
     assert script.get_revision("63566bb6005b").down_revision == "e7a1b2c3d4f5"
     assert script.get_revision("e7a1b2c3d4f5").down_revision == "f3c8a1d6e2b7"

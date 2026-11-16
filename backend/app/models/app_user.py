@@ -69,6 +69,14 @@ class AppUser(Base):
         default=False,
         server_default=false(),
     )
+    # 최근 로그인 = 마지막으로 새 로그인 세션을 발급한 시각(UTC naive, 미르 11/16). 마지막 활동 시각이 아니다.
+    # 갱신은 user_session.start_session 한 곳(세션 INSERT 와 같은 트랜잭션, 더 최근 값만). 쿠키 재접속 · /me · 로그아웃 ·
+    # 로그인 실패 · 소셜 가입 미완료는 바꾸지 않는다. 프로필 updated_at 은 함께 바꾸지 않는다. 기존 회원은 migration 이
+    # MAX(user_sessions.created_at) 로 한 번 채웠다(세션이 없던 회원은 NULL).
+    last_login_at: Mapped[datetime | None] = mapped_column(
+        DATETIME(fsp=6),
+        nullable=True,
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DATETIME(fsp=6),

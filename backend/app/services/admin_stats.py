@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from statistics import median
 from typing import Any, Iterable
 
 # 스테이지 묶음(objectives.ts STAGE_OF). 2 = 바위 아래 + 물굴(진행표의 2스테이지 기우제 · 물굴)
@@ -53,6 +54,16 @@ FUNNEL_PHASES: tuple[str, ...] = (
 # puzzle_attempt 중 「틀렸다」로 세는 phase. sent_back(숨 다함)은 시도로만 센다
 WRONG_PHASES: frozenset[str] = frozenset({"fail", "incorrect"})
 OBJECTIVE_SEEN_PHASES: frozenset[str] = frozenset({"available", "focus", "complete"})
+# 사건 완주(미르 11/16): 굿판 엔딩 run_state 둘 다. 정상 완주 한 번에 released → dawn 두 기록이 남으므로 회차 · 사람으로 묶는다.
+# S3_RIFT(시공간 틈) 완료는 3스테이지 끝일 뿐 사건 완주가 아니다(그 뒤 4스테이지 바위 위 · 5스테이지 굿판이 있다)
+ENDING_PHASES: frozenset[str] = frozenset({"released", "dawn"})
+# 목표표 밖의 4 · 5스테이지 — 지금은 진입만 센다(미르 · 해랑 11/16, 세부 완료 조건 미확정). naju01/src/beta/najuBeta.ts:
+#   4스테이지(바위 위): objective_state · phase=progress · objective_id=CLIFF (data.stage = 바위 위 단계)
+#   5스테이지(굿판):    objective_state · phase=rite · objective_id=GUT
+ENTRY_ONLY_STAGES: dict[int, tuple[str, str]] = {
+    4: ("CLIFF", "progress"),
+    5: ("GUT", "rite"),
+}
 
 
 def judge_of(objective_id: str) -> str:
@@ -118,6 +129,12 @@ class GameAggregate:
     puzzles: list[dict[str, Any]]
     avg_completion_minutes: float | None
     completed_runs: int
+    # (stage, entered) — 4 · 5스테이지, 진입만
+    entry_only_stages: list[tuple[int, int]] = field(default_factory=list)
+    # 사건 완주(released 또는 dawn)한 사람 수
+    case_completed_people: int = 0
+    # 평균과 같은 표본의 중앙값(분, 소수 첫째 자리). 표본이 없으면 None
+    median_completion_minutes: float | None = None
 
 
 def aggregate_game(events: Iterable[GameEvent]) -> GameAggregate:
@@ -130,9 +147,17 @@ def aggregate_game(events: Iterable[GameEvent]) -> GameAggregate:
     attempts: dict[str, int] = defaultdict(int)
     wrong: dict[str, int] = defaultdict(int)
     hints: dict[str, int] = defaultdict(int)
-    # run_id → (start, dawn)
+    # 4 · 5스테이지 진입한 사람
+    entry_only: dict[int, set[str]] = defaultdict(set)
+    entry_key = {
+        (objective, phase): stage
+        for stage, (objective, phase) in ENTRY_ONLY_STAGES.items()
+    }
+    # 사건 완주 — 사람 · 회차(run_id). 회차의 첫 시작(start · resume)과 가장 이른 엔딩
+    case_completed: set[str] = set()
+    ended_runs: set[str] = set()
     run_start: dict[str, datetime] = {}
-    run_dawn: dict[str, datetime] = {}
+    run_end: dict[str, datetime] = {}
 
     for event in events:
         people.add(event.person)
@@ -144,17 +169,27 @@ def aggregate_game(events: Iterable[GameEvent]) -> GameAggregate:
                 seen[objective].add(event.person)
             if phase == "complete" and event.data.get("origin", "live") == "live":
                 completed[objective].add(event.person)
+            stage = entry_key.get((objective, phase))
+            if stage is not None:
+                entry_only[stage].add(event.person)
         elif kind == "puzzle_attempt" and objective:
             attempts[objective] += 1
             if phase in WRONG_PHASES:
                 wrong[objective] += 1
         elif kind == "help_event" and objective and phase == "request":
             hints[objective] += 1
-        elif kind == "run_state" and event.run_id and event.at is not None:
-            if phase in ("start", "resume"):
+        elif kind == "run_state":
+            if phase in ENDING_PHASES and event.data.get("origin", "live") == "live":
+                # 엔딩 기록 자체가 완주의 근거 — 사람으로 센다. 회차 · 시간은 run_id · 시각이 있을 때만(기존 규칙)
+                case_completed.add(event.person)
+                if event.run_id:
+                    ended_runs.add(event.run_id)
+                    if event.at is not None:
+                        known = run_end.get(event.run_id)
+                        if known is None or event.at < known:
+                            run_end[event.run_id] = event.at
+            elif phase in ("start", "resume") and event.run_id and event.at is not None:
                 run_start.setdefault(event.run_id, event.at)
-            elif phase == "dawn":
-                run_dawn.setdefault(event.run_id, event.at)
 
     stages: list[tuple[int, int, int]] = []
     for stage, objectives in STAGE_OBJECTIVES.items():
@@ -179,19 +214,29 @@ def aggregate_game(events: Iterable[GameEvent]) -> GameAggregate:
         for objective in puzzle_ids
     ]
 
+    # 완주 시간 표본(평균 · 중앙값 공통): 시작(start · resume)과 엔딩이 둘 다 있는 회차(run_id 하나에 한 값),
+    # 시작 → 가장 이른 엔딩(released · dawn 중), 음수(엔딩이 시작보다 앞섬)는 뺀다. 단위 분, 둘 다 소수 첫째 자리로 반올림(round)
     durations = [
-        (run_dawn[run] - start).total_seconds() / 60
+        (run_end[run] - start).total_seconds() / 60
         for run, start in run_start.items()
-        if run in run_dawn and run_dawn[run] >= start
+        if run in run_end and run_end[run] >= start
     ]
     average = round(sum(durations) / len(durations), 1) if durations else None
+    # 홀수 개면 가운데 값, 짝수 개면 가운데 두 값의 산술평균(statistics.median)
+    middle = round(median(durations), 1) if durations else None
     return GameAggregate(
         people=len(people),
         funnel=[(phase, len(funnel[phase])) for phase in FUNNEL_PHASES],
         stages=stages,
         puzzles=puzzles,
         avg_completion_minutes=average,
-        completed_runs=len(durations),
+        # 엔딩(released · dawn)이 있는 회차 수 — 시작 기록이 없어도 엔딩이 있으면 완주한 회차다
+        completed_runs=len(ended_runs),
+        entry_only_stages=[
+            (stage, len(entry_only[stage])) for stage in ENTRY_ONLY_STAGES
+        ],
+        case_completed_people=len(case_completed),
+        median_completion_minutes=middle,
     )
 
 
