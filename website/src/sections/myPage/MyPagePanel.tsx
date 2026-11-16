@@ -1,13 +1,11 @@
 import { useEffect, useState, type CSSProperties } from "react";
 
-import Modal from "@/components/Modal";
-import { modalSecondaryStyle } from "@/components/modalButtonStyles";
 import TabBar from "@/components/TabBar";
 import { MY_PAGE_TABS, type AccountAction, type MyPageTabId } from "@/data/myPage";
 import { FONT } from "@/lib/style";
 import { QUERY, ROUTES, launchGame, useSiteNavigate, withQuery } from "@/navigation/routes";
 import type { AccountData } from "@/services/account/db";
-import { deleteAccount, exportMyData, readAccountData, writeAccountData } from "@/services/account/manageAccount";
+import { exportMyData, readAccountData, writeAccountData } from "@/services/account/manageAccount";
 import { fetchMyInquiries, type MyInquiry } from "@/services/inquiries";
 import { signOut, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
@@ -18,9 +16,8 @@ import PasswordModal from "./PasswordModal";
 import ProfileCard, { type ProfileStat } from "./ProfileCard";
 import { AchievementsTab, ItemsTab, ProgressGate, ProgressTab } from "./ProgressTabs";
 import { useMyProgress } from "./useMyProgress";
-import { modalDangerStyle } from "./myPageStyles";
 
-type OpenModal = "password" | "deleteAccount" | null;
+type OpenModal = "password" | null;
 
 interface MyPagePanelProps {
   tab: MyPageTabId;
@@ -48,11 +45,7 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
   ];
 
   const [openModal, setOpenModal] = useState<OpenModal>(null);
-  const [deleteWarning, setDeleteWarning] = useState("");
-  const closeModal = () => {
-    setOpenModal(null);
-    setDeleteWarning("");
-  };
+  const closeModal = () => setOpenModal(null);
 
   const [accountData, setAccountData] = useState<AccountData | null>(null);
   useEffect(() => {
@@ -89,7 +82,6 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
   const handleAccountAction = async (action: AccountAction) => {
     if (action === "signOut") handleSignOut();
     else if (action === "changePassword") setOpenModal("password");
-    else if (action === "deleteAccount") setOpenModal("deleteAccount");
     else if (!user) return;
     else if (action === "emailNotifications") {
       const saved = await writeAccountData(user.email, {
@@ -100,18 +92,6 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
       const data = await exportMyData(user.email);
       if (data) downloadJson(data, `escape-legend-내데이터-${new Date().toISOString().slice(0, 10)}.json`);
     }
-  };
-
-  // 계정과 그 데이터를 실제로 지운다. 동의 기록은 철회로 남는다. 못 지웠으면 로그인을 유지한 채 까닭을 보여 준다.
-  const handleDeleteAccount = async () => {
-    if (user?.email) {
-      const result = await deleteAccount(user.email);
-      if (!result.ok) {
-        setDeleteWarning(result.reason);
-        return;
-      }
-    }
-    handleSignOut();
   };
 
   return (
@@ -161,27 +141,6 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
       </div>
 
       <PasswordModal open={openModal === "password"} onClose={closeModal} user={user} />
-      <Modal
-        open={openModal === "deleteAccount"}
-        onClose={closeModal}
-        danger
-        title="정말 탈퇴할까요?"
-        description="탈퇴하면 플레이 기록과 보유 아이템이 모두 사라지고 되돌릴 수 없습니다. (관계 법령에 따라 보관해야 하는 기록은 정해진 기간 동안 따로 보관합니다.)"
-      >
-        {deleteWarning && (
-          <div role="alert" style={warningStyle}>
-            {deleteWarning}
-          </div>
-        )}
-        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-          <button type="button" className="button" style={modalSecondaryStyle} onClick={closeModal}>
-            <span className="button__label">취소</span>
-          </button>
-          <button type="button" className="button" style={modalDangerStyle} onClick={handleDeleteAccount}>
-            <span className="button__label">탈퇴하기</span>
-          </button>
-        </div>
-      </Modal>
     </section>
   );
 }
@@ -197,7 +156,6 @@ const rootStyle: CSSProperties = {
 };
 
 // 비밀번호 변경 창의 경고와 같은 모양
-const warningStyle: CSSProperties = { fontFamily: FONT.body, fontSize: "15px", color: COLOR.danger };
 
 const tabRowStyle: CSSProperties = { display: "flex", gap: "20px", alignItems: "center" };
 

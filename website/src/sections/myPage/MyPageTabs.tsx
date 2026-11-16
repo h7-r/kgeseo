@@ -20,11 +20,9 @@ export function AccountTab({ emailNotifications, onAction }: AccountTabProps) {
         <div key={group.title} style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%" }}>
           <span style={subheadingStyle}>{group.title}</span>
           {group.items.map(({ label, value, action: listedAction }) => {
-            // 비밀번호 변경·탈퇴는 백엔드가 준비될 때까지 「준비 중」으로 둔다
-            const isPending =
-              !IS_ACCOUNT_MANAGEMENT_READY && (listedAction === "changePassword" || listedAction === "deleteAccount");
+            // 비밀번호 변경은 백엔드가 준비될 때까지 「준비 중」으로 둔다(탈퇴는 목록에서부터 준비 중 — 세진 API 뒤 미르가 시점을 준다)
+            const isPending = !IS_ACCOUNT_MANAGEMENT_READY && listedAction === "changePassword";
             const action = isPending ? undefined : listedAction;
-            const isDanger = action === "deleteAccount";
             const isSwitch = action === "emailNotifications";
             return (
               <div
@@ -51,11 +49,7 @@ export function AccountTab({ emailNotifications, onAction }: AccountTabProps) {
                   ...(action ? { cursor: "pointer" } : { opacity: 0.72 }),
                 }}
               >
-                <span
-                  style={{ fontFamily: FONT.mono, fontSize: "16px", color: isDanger ? COLOR.danger : COLOR.textBright }}
-                >
-                  {label}
-                </span>
+                <span style={{ fontFamily: FONT.mono, fontSize: "16px", color: COLOR.textBright }}>{label}</span>
                 {isSwitch ? (
                   // 줄 전체가 눌림 판이라 스위치는 그림만 그린다.
                   <span style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -76,9 +70,7 @@ export function AccountTab({ emailNotifications, onAction }: AccountTabProps) {
                     />
                   </span>
                 ) : action ? (
-                  <span style={{ fontFamily: FONT.mono, fontSize: "16px", color: isDanger ? COLOR.danger : "#9aabd8" }}>
-                    {value} →
-                  </span>
+                  <span style={{ fontFamily: FONT.mono, fontSize: "16px", color: "#9aabd8" }}>{value} →</span>
                 ) : (
                   <ComingSoonChip label="준비 중" />
                 )}
