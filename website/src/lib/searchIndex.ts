@@ -2,7 +2,7 @@ import { SUPPORT_EMAIL } from "@/data/contact";
 import { ABOUT_CONTENT, ABOUT_TABS } from "@/data/about";
 import { MY_PAGE_CONTENT, MY_PAGE_TABS } from "@/data/myPage";
 import { PRICING } from "@/data/pricing";
-import { FAQ_ITEMS, NOTICES } from "@/data/support";
+import { FAQ_ITEMS } from "@/data/support";
 import { TERMS_CONTENT, TERMS_TABS } from "@/data/terms";
 import { stripEmphasis } from "@/lib/emphasis";
 import { QUERY, ROUTES, withQuery, type NavTarget } from "@/navigation/routes";
@@ -103,7 +103,8 @@ function buildIndex(): IndexEntry[] {
   }
 
   entries.push(
-    entry("고객센터 · 공지사항", "고객센터", ROUTES.support, NOTICES),
+    // 공지는 서버(공지 API)에 있어 정적 색인에 넣지 않는다(미르 11/16) — 고객센터 입구만 찾히게 한 줄
+    entry("고객센터 · 공지사항", "고객센터", ROUTES.support, "공지사항 점검 이벤트 업데이트 안내"),
     entry("고객센터 · 자주 묻는 질문", "고객센터", ROUTES.support, FAQ_ITEMS),
     entry(
       "고객센터 · 1:1 문의",

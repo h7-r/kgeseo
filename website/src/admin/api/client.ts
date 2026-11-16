@@ -43,21 +43,32 @@ export async function adminGet<T>(path: string, signal?: AbortSignal): Promise<T
   }
 }
 
-/** 관리자 쓰기(답변 · 상태 · 설정) — JSON 본문으로 보낸다. 브라우저가 Origin 을 붙이고 서버가 같은 출처인지 본다. */
-export async function adminSend<T>(method: "POST" | "PATCH" | "PUT", path: string, body: unknown): Promise<T> {
+/**
+ * 관리자 쓰기(답변 · 상태 · 설정 · 공지) — JSON 본문으로 보낸다. 브라우저가 Origin 을 붙이고 서버가 같은 출처인지 본다.
+ * DELETE 처럼 본문이 없으면 body 를 비우고, 서버가 204 로 답하면 빈 값을 돌려준다.
+ */
+export async function adminSend<T>(
+  method: "POST" | "PATCH" | "PUT" | "DELETE",
+  path: string,
+  body?: unknown,
+): Promise<T> {
   let response: Response;
   try {
     response = await fetch(apiUrl(path), {
       method,
       credentials: "include",
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      headers:
+        body === undefined
+          ? { Accept: "application/json" }
+          : { Accept: "application/json", "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
     throw new AdminApiError("offline", 0);
   }
   if (!response.ok)
     throw new AdminApiError(response.status === 409 ? "conflict" : kindOf(response.status), response.status);
+  if (response.status === 204) return undefined as T;
   try {
     return (await response.json()) as T;
   } catch {

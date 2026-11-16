@@ -585,6 +585,15 @@ html[data-admin] :focus-visible {
   font: inherit;
   font-size: 16px;
 }
+/* 여러 줄 입력(문의 답변 · 공지 본문)은 줄 수(rows)만큼 높이를 갖고 세로로 늘릴 수 있다 */
+textarea.adm-input {
+  height: auto;
+  min-height: 120px;
+  padding: 12px 16px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
 .adm-input:focus {
   border-color: var(--admin-blue);
   outline: none;
@@ -755,6 +764,16 @@ td.adm-cell.is-mono {
   font-family: var(--font-mono);
   font-size: 12px;
   letter-spacing: 0.04em;
+}
+
+/* 라디오 · 체크 한 줄(공지 작성의 게시 방식 · 고정) */
+.adm-check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--admin-text);
+  cursor: pointer;
 }
 
 .adm-switch-row {
