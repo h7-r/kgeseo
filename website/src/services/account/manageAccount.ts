@@ -31,7 +31,6 @@ interface ExportedAccountData {
   계정: { 아이디: string; 이메일: string; 이름: string; 지역?: string; 가입때?: number; 테스트: boolean };
   설정: Record<string, unknown>;
   플레이기록: unknown[];
-  로그인기록: { 때: string; 기기: string }[];
   동의기록: { 종류: string; 판: string; 동의: boolean; 동의때: string; 철회때: string | null }[];
 }
 
@@ -205,7 +204,6 @@ export async function exportMyData(email: string): Promise<ExportedAccountData |
       Object.entries(data?.settings ?? {}).map(([name, value]) => [SETTING_LABEL_MAP.get(name) ?? name, value]),
     ),
     플레이기록: data?.records ?? [],
-    로그인기록: (data?.logins ?? []).map((entry) => ({ 때: new Date(entry.at).toISOString(), 기기: entry.device })),
     동의기록: consents.map(({ kind, version, agreed, agreedAt, withdrawnAt }) => ({
       종류: CONSENT_LABELS[kind],
       판: version,

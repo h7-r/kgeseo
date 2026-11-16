@@ -12,7 +12,6 @@ import { fetchMyInquiries, type MyInquiry } from "@/services/inquiries";
 import { signOut, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
-import LoginHistoryModal from "./LoginHistoryModal";
 import { InquiriesTab } from "./InquiriesTab";
 import { AccountTab, SubscriptionTab } from "./MyPageTabs";
 import PasswordModal from "./PasswordModal";
@@ -21,7 +20,7 @@ import { AchievementsTab, ItemsTab, ProgressGate, ProgressTab } from "./Progress
 import { useMyProgress } from "./useMyProgress";
 import { modalDangerStyle } from "./myPageStyles";
 
-type OpenModal = "password" | "loginHistory" | "deleteAccount" | null;
+type OpenModal = "password" | "deleteAccount" | null;
 
 interface MyPagePanelProps {
   tab: MyPageTabId;
@@ -90,7 +89,6 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
   const handleAccountAction = async (action: AccountAction) => {
     if (action === "signOut") handleSignOut();
     else if (action === "changePassword") setOpenModal("password");
-    else if (action === "loginHistory") setOpenModal("loginHistory");
     else if (action === "deleteAccount") setOpenModal("deleteAccount");
     else if (!user) return;
     else if (action === "emailNotifications") {
@@ -163,7 +161,6 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
       </div>
 
       <PasswordModal open={openModal === "password"} onClose={closeModal} user={user} />
-      <LoginHistoryModal open={openModal === "loginHistory"} onClose={closeModal} logins={accountData?.logins ?? []} />
       <Modal
         open={openModal === "deleteAccount"}
         onClose={closeModal}
