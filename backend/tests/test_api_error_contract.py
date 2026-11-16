@@ -69,6 +69,14 @@ EXPECTED_ERRORS = {
     ("GET", "/api/v1/admin/admins"): {401, 403},
     ("GET", "/api/v1/admin/contents"): {401, 403},
     ("GET", "/api/v1/admin/contents/{case_id}"): {401, 403, 404, 422},
+    # 11/16 공지사항: 공개 조회는 인증 없음(쿼리 오류 422 · 없음 404), 관리자는 기존 관리자 규칙
+    ("GET", "/api/v1/notices"): {422},
+    ("GET", "/api/v1/notices/{notice_id}"): {404, 422},
+    ("GET", "/api/v1/admin/notices"): {401, 403, 422},
+    ("POST", "/api/v1/admin/notices"): {401, 403, 422},
+    ("GET", "/api/v1/admin/notices/{notice_id}"): {401, 403, 404, 422},
+    ("PATCH", "/api/v1/admin/notices/{notice_id}"): {401, 403, 404, 422},
+    ("DELETE", "/api/v1/admin/notices/{notice_id}"): {401, 403, 404, 422},
     # 11/11 베타 분석 기록: 쿠키 없이도 받는다(401 없음). 형식 오류 422, 64KB 초과 413.
     ("POST", "/api/v1/beta-events"): {403, 413, 422, 429},
     ("POST", "/api/v1/auth/email-exists"): {403, 422, 429},
@@ -127,8 +135,10 @@ EXPECTED_ERRORS = {
 NO_CONTENT = {
     ("POST", "/api/v1/me/logout"),
     ("DELETE", "/api/v1/me/game-save"),
+    ("DELETE", "/api/v1/admin/notices/{notice_id}"),
 }
 CREATED = {
+    ("POST", "/api/v1/admin/notices"),
     ("POST", "/api/v1/inquiries"),
     ("POST", "/api/v1/admin/inquiries/{inquiry_id}/replies"),
     ("POST", "/api/v1/auth/register"),
@@ -246,6 +256,7 @@ def _source_literals(text: str) -> set[str]:
         "hints.py",
         "interactions.py",
         "lobby.py",
+        "notices.py",
         "npc.py",
         "play_sessions.py",
         "../../services/social_onboarding.py",

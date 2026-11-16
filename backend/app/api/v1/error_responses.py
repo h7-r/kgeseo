@@ -501,6 +501,51 @@ ADMIN_CONTENT_DETAIL = {
     ),
 }
 
+# --- 공지사항(11/16 세진, docs/contracts/notices_api_v0.2.md) ---
+_NOTICE_NOT_FOUND = {
+    404: error(
+        ErrorMessage,
+        "없는 공지다(삭제된 공지도 같다)." + _NO_STORE,
+        "Notice not found.",
+    )
+}
+_NOTICE_INVALID_QUERY = "쿼리 값(page · page_size · offset · limit · category · status) 오류. 입력값을 되돌려 보내지 않는다."
+NOTICE_PUBLIC_LIST = {
+    422: error(CodedError, _NOTICE_INVALID_QUERY + _NO_STORE, "invalid_query"),
+}
+NOTICE_PUBLIC_DETAIL = {
+    404: error(
+        ErrorMessage,
+        "없거나 아직 게시 전(초안 · 예약)이거나 삭제된 공지 — 모두 같은 404."
+        + _NO_STORE,
+        "Notice not found.",
+    ),
+}
+ADMIN_NOTICE_LIST = {
+    **ADMIN_LIST,
+    422: error(CodedError, _NOTICE_INVALID_QUERY, "invalid_query"),
+}
+ADMIN_NOTICE_DETAIL = {**ADMIN_LIST, **_NOTICE_NOT_FOUND}
+_NOTICE_BODY_VALIDATION = (
+    _VALIDATION
+    + " 분류 넷(maintenance · event · update · info) · 제목 1~200자 · 본문 1~20,000자 · "
+    "`published_at` 은 timezone 필수(없으면 `timezone_aware`) · 모르는 필드 거절."
+)
+ADMIN_NOTICE_CREATE = {
+    **_ADMIN_WRITE,
+    422: error(ValidationErrorResponse, _NOTICE_BODY_VALIDATION),
+}
+ADMIN_NOTICE_UPDATE = {
+    **_ADMIN_WRITE,
+    **_NOTICE_NOT_FOUND,
+    422: error(
+        ValidationErrorResponse | CodedError,
+        _NOTICE_BODY_VALIDATION + " / 바꿀 값이 하나도 없다.",
+        "invalid_query",
+    ),
+}
+ADMIN_NOTICE_DELETE = {**_ADMIN_WRITE, **_NOTICE_NOT_FOUND}
+
 
 # --- 플레이 API 쿠키 · Origin(11/6 PM: Play Session 소유권 · 게스트 세션) ---
 # 남의 Play Session · 소유자 없는(레거시) 세션은 없는 세션과 같은 404(위 각 404 그대로)라 따로 적지 않는다.
