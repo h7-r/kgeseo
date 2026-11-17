@@ -68,8 +68,8 @@ data(JSON 2048바이트 이하).
 | beta_entry | open · blocked | 본편 · 나주 엔트리(브라우저 · OS · 화면 대략) | L01 · L16 |
 | stage_reached | character_open · character_done(캐릭터 생성 화면) · tutorial · headquarters · train · naju(gameSave.setGameStage) · naju_ready(시작 카드) · naju_controllable(첫 조작) · load_done(로딩 막 준비 · 시간 초과) | 본편 · 나주 | L01 · L14 |
 | run_state | start · resume · new_run · restart · released · dawn · quit · lobby | 나주 App · restartNaju · gutState · exitGame · leaveToLobby | L02 · L17 |
-| objective_state | available(그 회차에서 처음 지금 목표) · focus · complete(실시간만) · progress(바위 위) · rite | najuBeta 1초 확인 | L03 · L04 |
-| puzzle_attempt | fail(알림 · 안내판 추정) · sent_back · correct · incorrect · already_completed · send_failed(서버 판정) | gameObserver · progressRuntime | L07 |
+| objective_state | available(그 회차에서 처음 지금 목표) · focus · complete(실시간만) · progress(바위 위 CLIFF 단계 · 다섯 횃불 P16 켠 수) · rite(GUT) | najuBeta 1초 확인 | L03 · L04 |
+| puzzle_attempt | fail(알림 · 안내판 추정 · 횃불 차례 어긋남 blow_out) · sent_back · correct · incorrect · already_completed · send_failed(서버 판정) | gameObserver · progressRuntime | L07 |
 | help_event | request(보기 고름) · received(helpLog) · answer_seen | director · helpLog | L08 · L09 |
 | npc_turn | request · response(has_reply · reply_source · fallback_reason · rtt_ms) · error | companionApi.postNpcTurn | L11a · L11b |
 | story_exposure | heard(의뢰 · 인연 이야기 줄, 근거 줄 evidence) · skipped | FirstSceneActors | L10a |
@@ -77,6 +77,20 @@ data(JSON 2048바이트 이하).
 | activity_snapshot | interval(15초) · hidden · restart · quit · lobby | najuBeta | L04 · L06 · L17 |
 | client_error | uncaught · unhandled_rejection · webgl_lost · save_failed · submit_failed | betaBoot · gameSave · progressRuntime | L13 |
 | survey_link | shown · opened · dismissed_done · dismissed_later | 설문 카드 · 멈춤 메뉴 | L19 |
+
+4 · 5스테이지 목표 ID(11/16 미르 결정, `naju01/src/beta/lateObjectives.ts`) — 목표표(objectives.ts) 밖이라 바위 위 · 굿판 단계로 읽어 남긴다.
+퍼즐은 설계 1106 의 제안 번호, 걸음은 대응표 v1.1 규칙(S<스테이지>_<이름>). 서버 집계는 4 = P14 · P15 · S4_POUCH · S4_SERPENT(끝 S4_SERPENT),
+5 = S5_RINGS · P16(끝 P16)으로 묶고, 사건 완주는 run_state released · dawn 으로 센다. 11/11 부터 남긴 CLIFF(progress · complete) ·
+GUT(rite · complete)는 그대로 남는다 — 4 · 5스테이지 진입 인원을 셀 때 같이 보면 그 전 기록도 이어진다.
+
+| ID | 뜻 | 끝났다고 보는 단계 |
+|---|---|---|
+| P14 | 정화수 세 그릇(사발 셋) | cliff ≥ vision |
+| P15 | 끊긴 발자국 | cliff ≥ traced |
+| S4_POUCH | 아랑사의 주머니(편지 읽음) | cliff ≥ done |
+| S4_SERPENT | 구렁이상을 세워 틈을 지남 | cliff ≥ crossed |
+| S5_RINGS | 소반에 가락지(굿 열기) | gut ≠ waiting(도로 집으면 풀린다) |
+| P16 | 다섯 횃불 | gut released · dawn |
 
 모든 나주 기록에 `run_id` · `run_index`(처음부터 다시가 성공하면 +1)와 `data.active_ms`(조사 시계 — 창 · 멈춤 · 게임 밖 제외)를 붙인다.
 오류 문장은 주소 · 긴 토큰 모양을 지우고 160자로 자른다. 대화 원문 · 정답 원문 · 계정 정보는 보내지 않는다.

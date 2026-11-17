@@ -6,6 +6,8 @@
  *       퍼즐 시간은 같은 회차의 「처음 지금 목표가 된 때(available)」와 「완료(complete)」의 active_ms 차이로 본다.
  * 목표: 1초마다 퍼즐 상태로 본 완료 목록 · 지금 목표를 읽어 바뀐 것만 남긴다. 페이지를 연 때 이미 끝나 있던 것(이어 하기 복원)은
  *       완료로 다시 세지 않고 시작 기록(completed_at_start)에 적는다.
+ * 4 · 5스테이지: 목표표 밖이라 바위 위(cliff) · 굿판(gut) 단계로 읽는다(lateObjectives, 미르 11/16) — P14 · P15 · S4_POUCH ·
+ *       S4_SERPENT · S5_RINGS · P16. 11/11 부터 남긴 CLIFF(progress · complete) · GUT(rite · complete)는 그대로 둔다(이전 기록과 이어 보게).
  */
 import { droppedLookSpikes } from "@/engine/input/lookGuard";
 import { betaLog } from "@/beta/betaLog";
@@ -13,6 +15,7 @@ import { onBetaHidden, trackError } from "@/beta/betaBoot";
 
 import { completedObjectives, currentObjective } from "../dialogue/gameObserver";
 import { betaSignals } from "./betaSignals";
+import { lateCompleted, lateFocus } from "./lateObjectives";
 import { cliff } from "../puzzles/cliff/cliffState";
 import { gut } from "../puzzles/gut/gutState";
 import { attemptCount } from "../progress/attemptCount";
@@ -31,6 +34,7 @@ let lastCompleted = new Set<string>();
 let lastFocus: string | null = null;
 let availableSeen = new Set<string>();
 let lastGut: string | null = null;
+let lastLit = 0;
 let lastCliff: string | null = null;
 let isReadyNoted = false;
 
@@ -67,9 +71,10 @@ function saveAvailable() {
 
 function readCompleted(): Set<string> {
   const done = new Set<string>(completedObjectives());
-  // 바위 위 · 굿판은 목표표 밖 — 단계로 덧붙인다
+  // 바위 위 · 굿판은 목표표 밖 — 단계로 덧붙인다(CLIFF · GUT 는 11/11 부터의 굵은 표식, 아래는 퍼즐 · 걸음 하나씩)
   if (cliff.isAtLeast("crossed")) done.add("CLIFF");
   if (gut.stage() === "released" || gut.stage() === "dawn") done.add("GUT");
+  for (const id of lateCompleted(cliff.stage(), gut.stage())) done.add(id);
   return done;
 }
 
@@ -78,16 +83,21 @@ function tick() {
     const completed = readCompleted();
     for (const id of completed) {
       if (lastCompleted.has(id)) continue;
-      betaLog.track("objective_state", "complete", { objective_id: id, data: { active_ms: activeMs(), origin: "live" } });
+      betaLog.track("objective_state", "complete", {
+        objective_id: id,
+        data: { active_ms: activeMs(), origin: "live" },
+      });
     }
     lastCompleted = completed;
-    // 목표표 밖의 끝 두 단계 — 능선 틈을 지났으면 바위 위, 바위 위를 건넜으면 굿판
-    const tail = completed.has("S3_RIFT") ? (!completed.has("CLIFF") ? "CLIFF" : !completed.has("GUT") ? "GUT" : null) : null;
-    const focus = currentObjective(null, completedObjectives()) ?? tail;
+    // 목표표 밖의 4 · 5스테이지 — 능선 틈을 지났으면 사발 셋부터 다섯 횃불까지 차례로
+    const focus = currentObjective(null, completedObjectives()) ?? lateFocus(completed);
     if (focus && !availableSeen.has(focus) && !completed.has(focus)) {
       availableSeen.add(focus);
       saveAvailable();
-      betaLog.track("objective_state", "available", { objective_id: focus, data: { active_ms: activeMs(), basis: "first_focus" } });
+      betaLog.track("objective_state", "available", {
+        objective_id: focus,
+        data: { active_ms: activeMs(), basis: "first_focus" },
+      });
     }
     if (focus !== lastFocus) {
       lastFocus = focus;
@@ -135,8 +145,18 @@ export function initNajuBeta() {
     onBetaHidden(() => snapshot("hidden"));
     gut.subscribe(() =>
       safe(() => {
-        const stage = gut.stage();
-        if (stage === lastGut) return;
+        const { stage, lit } = gut.state();
+        const litBefore = lastLit;
+        lastLit = lit;
+        if (stage === lastGut) {
+          // 단계는 그대로다 — 다섯 횃불(P16) 차례 중. 하나 더 켰으면 progress, 켠 불이 0 이면 차례가 어긋나 꺼진 것(첫 불부터 틀린
+          // 0 → 0 도 — 굿이 열린 채 단계 · 불 수가 안 바뀌고 알림만 오는 건 blowOut 뿐이다)
+          if (!hasStarted || stage !== "rite") return;
+          if (lit > litBefore)
+            betaLog.track("objective_state", "progress", { objective_id: "P16", data: { lit, active_ms: activeMs() } });
+          else if (lit === 0) notePuzzleAttempt("P16", "fail", "inferred", { how: "blow_out", lit_before: litBefore });
+          return;
+        }
         const before = lastGut;
         lastGut = stage;
         // 페이지를 열 때 저장에서 되살아난 단계(restore)는 엔딩으로 세지 않는다 — 첫 조작 뒤에 바뀐 것만
@@ -156,7 +176,8 @@ export function initNajuBeta() {
               look_spikes: droppedLookSpikes(),
             },
           });
-        else if (stage === "rite") betaLog.track("objective_state", "rite", { objective_id: "GUT", data: { active_ms: activeMs() } });
+        else if (stage === "rite")
+          betaLog.track("objective_state", "rite", { objective_id: "GUT", data: { active_ms: activeMs() } });
       }),
     );
     cliff.subscribe(() =>
@@ -164,7 +185,11 @@ export function initNajuBeta() {
         const stage = cliff.stage();
         if (stage === lastCliff) return;
         lastCliff = stage;
-        if (hasStarted) betaLog.track("objective_state", "progress", { objective_id: "CLIFF", data: { stage, active_ms: activeMs() } });
+        if (hasStarted)
+          betaLog.track("objective_state", "progress", {
+            objective_id: "CLIFF",
+            data: { stage, active_ms: activeMs() },
+          });
       }),
     );
   });
@@ -185,6 +210,7 @@ export function noteNajuStart(mode: "full" | "resume", isCleared: boolean) {
     if (hasStarted || !betaLog.isActive()) return;
     hasStarted = true;
     lastGut = gut.stage();
+    lastLit = gut.state().lit;
     lastCliff = cliff.stage();
     availableSeen = loadAvailable();
     lastCompleted = readCompleted();
@@ -229,19 +255,36 @@ export function noteNajuLeave(kind: "quit" | "lobby") {
 }
 
 /** 퍼즐 판정 — 서버 판정 결과(server) · 알림 문장 · 안내판으로 알아챈 틀림(inferred) */
-export function notePuzzleAttempt(objective: string, result: string, source: "server" | "local" | "inferred", extra: Record<string, unknown> = {}) {
+export function notePuzzleAttempt(
+  objective: string,
+  result: string,
+  source: "server" | "local" | "inferred",
+  extra: Record<string, unknown> = {},
+) {
   safe(() => {
-    betaLog.track("puzzle_attempt", result, { objective_id: objective, data: { source, active_ms: activeMs(), ...extra } });
+    betaLog.track("puzzle_attempt", result, {
+      objective_id: objective,
+      data: { source, active_ms: activeMs(), ...extra },
+    });
   });
 }
 
 /** 숨이 다해 되돌려졌다 */
 export function noteSentBack() {
-  safe(() => betaLog.track("puzzle_attempt", "sent_back", { objective_id: lastFocus, data: { source: "inferred", active_ms: activeMs() } }));
+  safe(() =>
+    betaLog.track("puzzle_attempt", "sent_back", {
+      objective_id: lastFocus,
+      data: { source: "inferred", active_ms: activeMs() },
+    }),
+  );
 }
 
 /** 직접 청한 도움 — request(보기를 골랐다) · received(대답 · 힌트 글을 받았다) */
-export function noteHelp(phase: "request" | "received" | "answer_seen", kind: string, objective: string | null = lastFocus) {
+export function noteHelp(
+  phase: "request" | "received" | "answer_seen",
+  kind: string,
+  objective: string | null = lastFocus,
+) {
   safe(() => betaLog.track("help_event", phase, { objective_id: objective, data: { kind, active_ms: activeMs() } }));
 }
 
@@ -251,8 +294,14 @@ export function noteNpcTurn(phase: "request" | "response" | "error", data: Recor
 }
 
 /** 설화 근거 줄 · 의뢰 대사가 화면에 떴다(L10a) */
-export function noteStory(passage: string, phase: "heard" | "skipped" | "completed", data: Record<string, unknown> = {}) {
-  safe(() => betaLog.track("story_exposure", phase, { objective_id: passage, data: { active_ms: activeMs(), ...data } }));
+export function noteStory(
+  passage: string,
+  phase: "heard" | "skipped" | "completed",
+  data: Record<string, unknown> = {},
+) {
+  safe(() =>
+    betaLog.track("story_exposure", phase, { objective_id: passage, data: { active_ms: activeMs(), ...data } }),
+  );
 }
 
 /** 알려진 실패(저장 · 판정 제출 · 로딩) — 게임이 이미 처리한 실패를 기록만. code 는 정해 둔 값 */
