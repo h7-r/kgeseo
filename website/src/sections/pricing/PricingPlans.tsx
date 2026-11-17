@@ -392,9 +392,9 @@ const waveBoxStyle: CSSProperties = {
   flexShrink: 0,
 };
 
+// 높이는 HeartbeatLine 의 height 가 정한다 — 여기서 다시 못 박으면 봉우리 여유만큼 키운 svg 가 눌려 선이 납작해진다(11/17)
 const waveStyle: CSSProperties = {
   position: "absolute",
-  height: "16px",
   maxWidth: "none",
   display: "block",
 };

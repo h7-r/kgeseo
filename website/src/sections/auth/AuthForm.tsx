@@ -100,6 +100,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
           } else if (mode === "login") {
             setAlertMessage(describeBlockedSubmit("로그인", fieldErrors));
           }
+          focusFirstInvalidField();
           return;
         }
 
@@ -117,7 +118,10 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
             consents: consent.consents,
           });
           if (!result.ok) {
+            // 「이미 가입된 이메일」처럼 칸이 분명하면 그 칸 옆에도 띄운다 — 아래 안내만 보고 어느 칸인지 찾게 하지 않는다
+            if (result.field) form.setRemoteError(result.field, result.reason);
             setAlertMessage(result.reason);
+            focusFirstInvalidField();
             return;
           }
           form.clearFields(["password", "passwordConfirm"]);
@@ -199,6 +203,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
               label="닉네임"
               placeholder="이름"
               grow
+              autoFocus
               autoComplete="nickname"
               {...bind("nickname")}
             />
@@ -223,6 +228,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
           placeholder="explorer@escape.kr"
           dimmed={mode === "resetPassword"}
           autoComplete={mode === "login" ? "username" : "email"}
+          autoFocus={mode === "login" || mode === "forgotPassword" || mode === "verifyCode"}
           inputMode="email"
           typo={typo}
           onFixTypo={() => form.setField("email", typo.replace(/^혹시 | 인가요\?$/g, ""))}
@@ -293,6 +299,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
               label="새 비밀번호"
               placeholder="8자 이상"
               type="password"
+              autoFocus
               autoComplete="new-password"
               {...bind("newPassword")}
             />
@@ -389,6 +396,13 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
       </div>
     </div>
   );
+}
+
+/** 막힌 제출 뒤 첫 틀린 칸(aria-invalid)에 커서를 둔다. 칸 오류 표시가 렌더된 다음 프레임에 */
+function focusFirstInvalidField() {
+  requestAnimationFrame(() => {
+    document.querySelector<HTMLInputElement>('input[aria-invalid="true"]')?.focus();
+  });
 }
 
 // 비밀번호 찾기는 백엔드가 준비될 때까지 누를 수 없는 「준비 중」 표시로 둔다

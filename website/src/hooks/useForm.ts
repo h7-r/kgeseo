@@ -51,6 +51,8 @@ interface UseFormResult {
   /** 모든 칸을 검사한다. 비동기 검사까지 끝까지 기다리고, 통과했으면 true */
   /** 모든 칸을 검사해 걸린 칸과 이유만 돌려준다. 비어 있으면 통과다. */
   validateAll: () => Promise<FieldErrors>;
+  /** 서버가 짚어 준 칸 오류(「이미 가입된 이메일」)를 그 칸에 띄운다. 값이 바뀌면 다시 검사하며 지워진다 */
+  setRemoteError: (name: FieldName, message: string) => void;
   /** 비밀번호처럼 남겨 두면 안 되는 칸을 비운다. */
   clearFields: (names: readonly FieldName[]) => void;
   /** 한 칸만 밖에서 바꾼다(「혹시 gmail.com 인가요?」를 눌러 고칠 때). */
@@ -183,7 +185,12 @@ export function useForm({
     runAsyncCheck(name, nextValues);
   };
 
-  return { values, fieldProps, validateAll, clearFields, setField, submitted };
+  const setRemoteError = (name: FieldName, message: string) => {
+    setTouched((prev) => ({ ...prev, [name]: true }));
+    setRemoteErrors((prev) => ({ ...prev, [name]: message }));
+  };
+
+  return { values, fieldProps, validateAll, clearFields, setField, setRemoteError, submitted };
 }
 
 interface CapsLockState {
