@@ -23,8 +23,7 @@ type Pair = readonly [label: string, value: string];
  * 계정 설정에서 실제로 동작하는 항목.
  * 나머지(2단계 인증·계정 연동 등)는 서버가 있어야 해서 action 없이 「준비 중」으로 둔다.
  */
-export type AccountAction =
-  "changePassword" | "loginHistory" | "emailNotifications" | "exportData" | "signOut" | "deleteAccount";
+export type AccountAction = "changePassword" | "emailNotifications" | "exportData" | "signOut";
 
 interface SettingsItem {
   label: string;
@@ -52,7 +51,8 @@ export const MY_PAGE_CONTENT: MyPageContent = {
         items: [
           { label: "비밀번호 변경", value: "변경하기", action: "changePassword" },
           { label: "2단계 인증", value: "활성화" },
-          { label: "로그인 기록", value: "확인하기", action: "loginHistory" },
+          // 실제 로그인 기록은 서버에 아직 없다 — 브라우저 시연용 가짜 기록을 보여 주던 창은 뺐다(미르 11/16). 보여 줄지는 나중에 정한다
+          { label: "로그인 기록", value: "준비 중" },
         ],
       },
       {
@@ -77,7 +77,8 @@ export const MY_PAGE_CONTENT: MyPageContent = {
           { label: "데이터 관리", value: "내보내기", action: "exportData" },
           { label: "로그아웃", value: "로그아웃하기", action: "signOut" },
           { label: "개인정보 처리 정지", value: "요청하기" },
-          { label: "회원 탈퇴", value: "탈퇴 진행", action: "deleteAccount" },
+          // 탈퇴 API 는 세진이 만드는 중 — 연동 시점은 미르가 따로 알려 준다(11/16). 그전까지 준비 중
+          { label: "회원 탈퇴", value: "준비 중" },
         ],
       },
     ],

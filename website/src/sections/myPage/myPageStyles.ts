@@ -1,15 +1,8 @@
 import type { CSSProperties } from "react";
 
-import { BUTTON_GRADIENT, modalPrimaryStyle } from "@/components/modalButtonStyles";
+import { BUTTON_GRADIENT } from "@/components/modalButtonStyles";
 import { FONT } from "@/lib/style";
 import { COLOR } from "@/styles/tokens";
-
-export const modalDangerStyle: CSSProperties = {
-  ...modalPrimaryStyle,
-  backgroundImage: "none",
-  background: "#7f1d1d",
-  borderColor: "#b91c1c",
-};
 
 export const profileStartStyle: CSSProperties = {
   padding: "14px 28px",

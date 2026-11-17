@@ -35,12 +35,6 @@ export interface AccountRecord {
   isTest: boolean;
 }
 
-interface LoginEntry {
-  at: number;
-  /** "Chrome · macOS" 같은 브라우저·기기 이름 */
-  device: string;
-}
-
 export interface AccountSettings {
   emailNotifications?: boolean;
   /** 오픈 알림을 신청한 플랜 이름 */
@@ -66,8 +60,6 @@ export interface AccountData {
   email: string;
   records: unknown[];
   settings: AccountSettings;
-  /** 최근 로그인 10번 */
-  logins?: LoginEntry[];
   /** 접수한 1:1 문의 — 최근 것이 앞 */
   inquiries?: InquiryRecord[];
 }
