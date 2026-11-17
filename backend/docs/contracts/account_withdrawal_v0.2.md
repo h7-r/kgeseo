@@ -1,0 +1,197 @@
+# 회원 탈퇴 API 계약 v0.2 — Phase 1 (이메일 회원)
+
+- 작성: 세진 11/17. 근거: 미르 WD-01~14 확정(11/16) · Phase 1 구현 승인 · 남은 정책 최종 확정(11/17).
+- 마이그레이션: `93fb40166c08` (← `744dc740f81f`). 코드: `app/services/account_withdrawal.py`, `app/api/v1/me.py` `POST /me/withdrawal`,
+  설문 참가 번호 조회 `scripts/withdrawn_survey_codes.py`(`app/services/withdrawn_survey.py`).
+- 이 문서가 저장소의 기준본이다(팀이 공유한 계약 v0.2 원문은 저장소에 없었다 — 원문과 다른 곳이 보이면 이 문서와 코드를 함께 고친다).
+
+## 1. 정책(WD-01~14)과 반영
+
+| 번호 | 정책 | 반영 |
+|---|---|---|
+| WD-01 | 소프트 삭제 + 개인정보 제거 | `app_users` 행은 남기고 `deleted_at` 기록, 개인정보 열은 치환 · NULL(§4) |
+| WD-02 | 이메일 · 닉네임 비가역 임의 값, 지역 제거, auth_identities 삭제 | §4 · §5 |
+| WD-03 | 같은 이메일 · 소셜 즉시 재가입, 과거 기록 복원 금지 | 새 가입은 새 `id` — 옛 회차 · 베타 기록 · 승계와 이어지지 않는다 |
+| WD-04 | 게임 저장 · 캐릭터 · 아이템 즉시 삭제 | 삭제 |
+| WD-05~07 | 플레이 원본 · beta_events 2026-12-31 까지 가명 보존, 자유 입력은 즉시 삭제 | 보존(회원 id = 가명 키). 사용자 입력에서 나온 값은 탈퇴 때 삭제(§5) — NPC 대화 해시 · **퍼즐 입력 answer** · 설문(§8) |
+| WD-08 | 탈퇴 회원 문의 즉시 삭제 | 로그인한 채 접수한 문의(`inquiries.app_user_id`)를 삭제. **비로그인 문의는 별도 수동 처리**(§5) |
+| WD-09 | 감사 로그 1년 보존 | 그대로 둔다(`target_user_id` 유지). 1년 파기는 12월 후속(§10) |
+| WD-10 | 이메일 비밀번호 재확인만, 소셜 전용은 `reauth_required` | §3. 소셜 10분 재로그인 확인은 OAuth 작업 때 |
+| WD-11 | 모든 세션 삭제 · 쿠키 만료 · 로그인 차단 | §3 · §5 |
+| WD-12 | 관리자 본인 탈퇴 금지 · 테스트 계정 허용 | §3 |
+| WD-13 | `deleted_at` 만 남기고 동의 원문 · 기록은 남기지 않음 | 동의 열 NULL, 탈퇴 감사 행은 만들지 않는다 |
+| WD-14 | RDS 자동 백업 30일(미르 완료) · 11/9 수동 스냅샷 삭제(미르 담당) | 코드 범위 밖. 백업 안의 사본은 30일 뒤 사라진다 |
+
+## 2. API
+
+`POST /api/v1/me/withdrawal` — 로그인 쿠키 세션 필수, Same-Origin 검사(다른 사이트 Origin 은 403).
+
+요청(`Content-Type: application/json`, 다른 필드는 거부):
+
+```json
+{ "password": "이메일 로그인 비밀번호" }
+```
+
+- 이메일 비밀번호 수단이 있는 회원은 **필수**(이메일 + 소셜 복수 연결이어도 이메일 비밀번호로 확인). 1~128자.
+- 소셜 전용 회원은 보내도 쓰지 않는다(`{}` 로 보내면 된다) → 403 `reauth_required`.
+
+성공: **204 No Content**, `Cache-Control: no-store`, 로그인 쿠키 만료(`Max-Age=0`). 쿠키는 **커밋이 끝난 뒤에만** 지운다.
+
+오류(거절 · 실패면 아무것도 바뀌지 않고 쿠키도 그대로):
+
+| 상태 | 본문 | 경우 |
+|---|---|---|
+| 401 | `{"detail": "Login required."}` | 쿠키 없음 · 만료 · 이미 탈퇴(같은 계정의 탈퇴가 먼저 끝난 동시 요청 포함) |
+| 401 | `{"detail": {"code": "invalid_password", "message"}}` | 비밀번호가 틀리거나 비어 있음. **로그인 실패 집계(이메일 · IP)에 더한다** |
+| 403 | `{"detail": "Origin not allowed."}` | 다른 사이트에서 온 요청 |
+| 403 | `{"detail": {"code": "admin_cannot_withdraw", "message"}}` | 관리자 계정 |
+| 403 | `{"detail": {"code": "reauth_required", "message"}}` | 이메일 비밀번호 수단이 없는 소셜 전용 회원 |
+| 422 | `{"detail": {"code": "invalid_password" \| "invalid_input", "message"}}` | 형식 오류. **입력값을 되돌려 보내지 않는다**(로그인 · 가입과 같은 처리) |
+| 429 | `{"detail": {"code": "login_locked", "message"}}` + `Retry-After` | 이 계정 이메일(또는 IP)의 비밀번호 실패가 많아 잠김(로그인과 같은 집계 · 15분) |
+
+판정 순서: 세션(401) → 잠김(429) → 회원 행 잠금 · 이미 탈퇴(401) → 관리자(403) → 소셜 전용(403) → 비밀번호(401).
+
+탈퇴와 겹친 다른 요청(§3): 게임 저장 · 캐릭터 저장 · 로그인한 문의 접수는 401 `Login required.`(문의 접수 `POST /inquiries` 에 401 이 새로
+생겼다 — 비로그인 접수에는 없다), 이메일 로그인 401 `Invalid email or password.`, 소셜 로그인 409 `Social account login could not be completed.`.
+
+## 3. 인증 · 세션 · 동시성
+
+- 비밀번호 확인은 기존 `verify_password`(이메일 로그인과 같은 함수) — 탈퇴 창구로 비밀번호를 대입하지 못하게 로그인 실패 집계를 함께 쓴다.
+- 탈퇴하면 그 회원의 `user_sessions` 를 모두 지운다(다른 기기 포함). 세션 조회(`_find_session_user`)는 `deleted_at IS NULL` 도 본다.
+- 탈퇴 뒤 로그인: 수단 행이 없어 이메일 로그인은 401, 소셜은 새 가입 흐름(새 계정)으로 간다.
+- **로그인과 겹칠 때**: 비밀번호 확인을 탈퇴 커밋 전에 마친 로그인도 세션 발급(`start_session`)이 회원 행 잠금에서 탈퇴를 기다렸다가 탈퇴한 행을
+  보고 되돌린다 — 세션 · 쿠키 · 최근 로그인이 남지 않는다. 잠그는 행 · 순서(회원 행 UPDATE → 세션 INSERT)는 #167 그대로라 교착이 새로 생기지 않는다.
+- **게임 저장 · 캐릭터 · 로그인 문의 접수와 겹칠 때**: 쓰기 전에 회원 행을 공유 잠금으로 읽어 탈퇴했으면 401 — 탈퇴가 지운 데이터를 바로 다시 만들지
+  않는다(`ensure_member_for_write`).
+- 같은 계정의 탈퇴 두 번이 겹치면 하나만 204, 다른 하나는 401.
+
+## 4. 회원 행 비식별화
+
+| 열 | 탈퇴 뒤 |
+|---|---|
+| `email` | `deleted+<128비트 난수 hex>@withdrawn.invalid` — 원래 값 · id 와 무관, 되돌릴 수 없음, UNIQUE 충돌 없음(난수가 보장) |
+| `nickname` | `탈퇴#<64비트 난수 hex>` — 가입 닉네임 규칙(`[가-힣A-Za-z0-9_]` 2~12자)이 받지 않는 꼴이라 새 가입과 겹치지 않음 |
+| `region` · `terms_version` · `terms_accepted_at` · `privacy_accepted_at` · `age_confirmed_at` · `last_login_at` | NULL |
+| `deleted_at` · `updated_at` | 탈퇴 시각(UTC) |
+| `id` · `role` · `is_test` · `created_at` | **그대로** — 가명 키 · 내부 계정 판정 · 가입 시점 통계에 쓴다 |
+
+## 5. 데이터 처리 범위
+
+| 데이터 | 처리 | 회원 연결 |
+|---|---|---|
+| `auth_identities` (이메일 · 소셜) | 삭제 | `app_user_id` |
+| `user_sessions` | 전부 삭제 | `app_user_id` |
+| `game_play_saves` · `user_characters`(직접 입력한 조사관 이름) · `user_items` | 삭제 | `app_user_id` |
+| `inquiries`(제목 · 본문 · 이메일 · IP) · `inquiry_replies` | 로그인 접수분 삭제(답변은 FK CASCADE) | `app_user_id` |
+| 같은 이메일로 **로그인 없이** 낸 문의 | 탈퇴 API 는 지우지 않는다(이메일이 같다고 본인으로 단정하지 않는다). 본인이 요청하면 운영자가 관리자 화면에서 확인해 **별도 수동 처리** | — |
+| `interaction_events` NPC 턴 `payload_json.message_sha256`(자유 대화 원문의 SHA-256) | **null** — 행 · 다른 키는 남김 | 회차 `owner_user_id` |
+| `interaction_events` 퍼즐 `submit_answer` 의 `payload_json.answer`(퍼즐 입력 문자열) | **null**(미르 11/17) — 행 · 다른 키 · `result_type` · `response_json` 은 남김 | 회차 `owner_user_id` |
+| `npc_turn_requests`(대화 원문이 든 요청의 HMAC) · `npc_turn_response_bodies` | 삭제(본문은 FK CASCADE) | 회차 `owner_user_id` |
+| 그 밖의 `interaction_events`(조사 · 이동 · 선택 · 힌트) · `play_sessions`(`state_json` 은 ID 목록뿐) | 가명 보존(2026-12-31) | `owner_user_id` 유지 |
+| `beta_events` | 가명 보존(2026-12-31) | `app_user_id` 유지 |
+| `guest_session_transfers` | 보존(게스트 기록을 그 회원으로 묶는 키) | `app_user_id` |
+| `admin_audit_logs` | 1년 보존 | `target_user_id` |
+| `social_onboarding_pendings`(그 회원 소셜 subject 의 가입 대기 · 이메일 포함) | 삭제 | provider + subject |
+| `login_throttles` 이메일 키(이메일 해시) | 삭제(IP 키는 남김) | 이메일 해시 |
+| Google Forms 베타 설문 응답 | DB 밖 — §8 수동 삭제(탈퇴 뒤 7일 안) | 참가 번호 |
+
+자유 입력 정책: 서버는 NPC 자유 대화 원문을 저장하지 않는다. 원문에서 나온 해시(솔트 없는 SHA-256 · HMAC)와 퍼즐 입력 문자열을 탈퇴 때 지운다.
+직접 입력한 조사관 이름 · 문의 글은 그 데이터째 지운다. 퍼즐 판정 결과(`result_type`)와 베타 기록(`puzzle_attempt` 등)은 남아 정답 · 오답
+통계와 #168 게임 집계는 바뀌지 않는다(지운 값을 읽는 집계는 없다).
+
+## 6. 통계 정합성
+
+- 탈퇴 회원의 과거 플레이는 **그 회원으로 계속 센다** — `play_sessions.owner_user_id` · `beta_events.app_user_id` · 승계 기록이 그대로라
+  게스트로 바뀌지 않는다(게임 집계 `person_key`, DAU · MAU 의 플레이 당시 기준 모두). #168 사건 완주 인원 · 회차 · 평균 · 중앙값도 그대로.
+- 내부 계정 제외(`include_internal=false`)는 지금 `role` · `is_test` 로 판정하므로, 탈퇴한 테스트 계정의 과거 기록도 계속 빠진다.
+- 재가입은 새 `id` — 옛 기록과 이어지지 않는다. 게스트 세션은 승계 때 폐기되므로 다시 승계되지 않는다.
+- **월별 회원 통계(미르 11/17 확정)**
+  - 현재 회원 수(`stats/summary` `members.total`, `stats/members` `totals.total`)에서 탈퇴 회원을 뺀다.
+  - 과거 월말 회원 수(`totals.total_at_prev_month_end`)는 **그 월말 당시 기준** — 그때까지 가입했고 그때 아직 탈퇴하지 않은 회원
+    (`created_at < 월말 경계 AND (deleted_at IS NULL OR deleted_at >= 월말 경계)`). 월말 경계 = 다음 달 1일 00:00 KST. 탈퇴 전 월말에는
+    들고, 탈퇴한 달의 월말부터 빠진다.
+  - 신규 가입 수(일 · 달 · `monthly_signups` · traffic `signups` · `signups_in_month`)는 **가입 사실 그대로**(탈퇴해도 줄지 않는다).
+  - 관리자 · 테스트 계정 필터(`include_internal`)는 위 모든 값에 그대로 적용된다.
+- **현재 목록 · 분포에서 뺀다:** `excluded.test_accounts`, `by_region`, `by_provider`, `signups_on_date`, `recent_signups`, `GET /admin/users`.
+- **관리자 회원 상세** `GET /api/v1/admin/users/{id}` 의 `user` 에 `deleted_at: string | null` 을 더했다(기존 필드 · 의미 그대로). 회원이면 null,
+  탈퇴 회원은 탈퇴 시각 — 목록에는 없지만 id 로 직접 열면(활동 로그의 대상 링크 등) 이 값으로 탈퇴를 알 수 있다. 그때 이메일 · 닉네임은
+  비식별화된 값, `region` · `last_login_at` · `last_session_started_at` 은 null, `providers` 는 `[]`.
+
+## 7. 트랜잭션
+
+한 세션 · 한 COMMIT. 어느 단계든 실패하면 전부 되돌리고(쿠키도 그대로) 오류를 낸다.
+
+1. 회원 행 `SELECT … FOR UPDATE` → 이미 탈퇴면 401
+2. 관리자 403 → 수단 조회 → 소셜 전용 403 → 비밀번호 확인(틀리면 되돌린 뒤 실패 집계 커밋, 401)
+3. 그 회원 회차 id 잠금 읽기 → NPC 턴 `message_sha256` · 퍼즐 `answer` null → `npc_turn_requests` 삭제
+4. 로그인 문의 삭제 → 저장 · 캐릭터 · 아이템 삭제 → 소셜 가입 대기 · 이메일 실패 집계 삭제
+5. `auth_identities` · `user_sessions` 삭제
+6. 회원 행 비식별화 + `deleted_at` (`WHERE deleted_at IS NULL`, 정확히 1행이 아니면 실패)
+7. COMMIT → 쿠키 만료 → 204
+
+회원 행을 지우지 않으므로 FK `ON DELETE` 동작(SET NULL · CASCADE)은 일어나지 않는다. 지우는 자식 표끼리의 FK 는 문의 → 답변, NPC 요청 → 본문 두
+쌍뿐이고 둘 다 CASCADE 다.
+
+## 8. 베타 설문(Google Forms) 응답 수동 삭제 — 탈퇴 뒤 7일 안
+
+설문 응답은 DB 밖이라 탈퇴 트랜잭션이 지우지 못한다. 폼에는 이름 · 이메일 대신 **참가 번호**가 미리 채워진다(`src/beta/betaSurvey.ts`).
+
+**참가 번호**
+- 로그인한 채 연 설문: 계정 id(`/me` 의 `user_id`)의 FNV-1a 32비트 지문, 16진 대문자 8자(`src/beta/betaLog.ts` `shortKey`). 스크립트는
+  같은 계산을 한다(UTF-16 코드 단위 · 32비트 곱 — 클라이언트 함수를 직접 돌린 값과 대조하는 시험이 있고, 클라이언트 계산이 바뀌면 시험이 깨진다).
+- 로그인하지 않은 때 연 설문: 운영자가 나눠 준 참여 코드(`XXXX-XXXX`, 하이픈 포함이라 계정 번호와 겹칠 수 없다). 그 사람이 탈퇴 계정으로
+  로그인한 채 남긴 베타 기록에 이 코드가 함께 찍혀 있으면 스크립트가 `code` 줄로 함께 보여 준다.
+
+**스크립트** `python -m scripts.withdrawn_survey_codes [--since YYYY-MM-DD]` (backend 폴더, `python scripts/withdrawn_survey_codes.py` 도 같다)
+- `deleted_at` 이 있는 회원만, `--since` KST 날짜 00:00 부터(그날 포함 · 경계 정각 포함) 탈퇴한 회원을 **탈퇴 시각 순**으로 낸다.
+  없으면 최근 14일(주 1회 실행에서 한 번 빠뜨려도 이어진다).
+- 출력: `탈퇴 시각(KST) · 종류(account/code) · 번호 · 겹침`. 계정 id · 이메일 · 닉네임 · 비밀번호 · 세션은 읽지도 내지도 않는다(계정 id 는 번호
+  계산에만 쓴다). 화면에만 내고 파일을 쓰지 않는다.
+- 읽기 전용 트랜잭션(`SET TRANSACTION READ ONLY`)으로 읽고 되돌린다 — DB 를 바꾸지 않는다(쓰기 문장이 섞여도 MySQL 이 거절한다).
+- **필요 권한**: 운영 DB 에 읽기 전용 계정을 만들어 그 계정으로 실행한다(앱 계정은 쓰기 권한이 있다). 최소 권한:
+  `GRANT SELECT (id, deleted_at) ON <db>.app_users TO <ro>; GRANT SELECT (app_user_id, participant_code) ON <db>.beta_events TO <ro>;`
+  실행은 `DB_USER` · `DB_PASSWORD` 를 그 계정으로 바꿔서. **이 계정은 아직 없다 — 운영 담당(미르 · 세진)이 만든 뒤 쓴다.** 그 전에는 운영 DB 에
+  이 스크립트로 접속하지 않는다.
+
+**운영 절차(미르, 주 1회 이상)**
+1. 스크립트를 실행한다(기본 14일 창 — 지난 실행과 겹치게 보는 것이 정상이다. 실행을 2주 넘게 걸렀으면 `--since` 를 마지막 실행일로 준다).
+2. 설문 응답 시트(사전 · 사후 A/B · 중단 — 모든 폼)에서 각 번호로 응답을 찾는다. **한 번호의 응답이 여러 개일 수 있다**(폼마다 · 다시 응답) —
+   그 번호의 응답은 모두 지운다.
+3. 겹침이 「다른 계정 n개와 같은 번호 — 확인 필요」인 번호는 그 번호만으로 사람을 정할 수 없다(32비트 지문이라 드물게 다른 계정과 같다).
+   응답 시각이 탈퇴 시각보다 늦은 응답은 남은 다른 계정의 것이다 — 지우지 않는다. 탈퇴 전 응답은 세진에게 문의해 베타 기록(회차 · 시각)으로
+   누구의 것인지 확인한 뒤 같은 7일 안에 처리한다. 그래도 정할 수 없는 응답은 7일 기한 안에 미르가 지울지 결정한다(이 문서는 정하지 않는다).
+4. **탈퇴 뒤 7일 안**에 삭제하고, 시트에서 다시 검색해 남지 않았는지 확인한다.
+5. 처리 기록에는 「실행 날짜 · 지운 응답 수」만 남긴다. 번호 · 계정 정보는 시트나 기록에 적지 않는다. 스크립트 출력은 화면에서만 보고, 복사했다면
+   처리가 끝난 뒤 바로 지운다.
+
+## 9. 서버 로그 · 백업 보존
+
+| 대상 | 기간 | 상태 |
+|---|---|---|
+| 서버 로그 · syslog 사본 | 30일 안 자동 삭제 | 미르 운영 설정 변경 완료(11/17 보고). Caddy 접속 로그 · CloudWatch 전송 없음(보고 기준). 이 PR 은 운영 설정을 바꾸지 않는다 |
+| RDS 자동 백업 | 30일 | 미르 변경 · 재확인 완료(WD-14). 11/9 수동 스냅샷 삭제는 미르 담당 |
+
+## 10. 12월 후속 작업(이 PR 범위 밖)
+
+- **분석 원본 파기(2026-12-31)**: `beta_events` · 플레이 원본(`play_sessions` · `interaction_events`) 파기 작업. 범위(탈퇴 회원분 / 베타 기록 전체)와
+  방법은 12월에 정해 실행.
+- **감사 로그 1년 파기**: `admin_audit_logs` 만든 날 + 1년 지난 행 정리(v0.3 계약의 문의 · 감사 IP 1년 규칙과 같은 배치).
+- **문의 처리 완료 30일 자동 삭제**(처리방침 「문의 처리 완료일로부터 30일」):
+  - 마이그레이션: `inquiries.closed_at DATETIME(6) NULL` + 색인 `(status, closed_at)`. 기존 `closed` 문의는 `updated_at` 으로 초기값(실제 종료
+    시각보다 같거나 늦다 — 일찍 지우는 일은 없다).
+  - 관리자 PATCH 가 `closed` 로 바꿀 때 `closed_at = now`, `closed` 가 아닌 값으로 바꾸면 NULL.
+  - `status = 'closed'` 이고 `closed_at` 이 있을 때만 30일 보존 기간을 계산한다. 미처리 문의(open · answered)는 자동 삭제하지 않는다.
+  - 답변은 FK CASCADE 로 함께 지워진다. 배치는 실행 시작 때 기준 시각 고정 · PK 묶음 삭제 · 삭제 문장에서 조건 재확인(다시 열린 문의 보호) ·
+    dry-run 기본.
+  - 처리방침의 「소비자 불만 · 분쟁처리 기록 3년」 · 「접속에 관한 기록 3개월」 조항과의 관계는 **미르가 별도 검토**.
+- 공통 실행 구조: `scripts/cleanup_social_onboarding_pendings.py` 처럼 dry-run · `--execute` · 건수만 출력하는 관리 스크립트 + 운영 주기 실행.
+
+## 11. 프론트 연동 조건
+
+- 마이페이지 「회원 탈퇴」는 **이 API 의 운영 검증 전까지 「준비 중」 유지**(#174). 연동 시점은 미르가 정한다.
+- 연동할 때: 비밀번호 입력 창(소셜 전용 회원은 `reauth_required` 안내 — 이번 단계에서는 탈퇴 불가), 실패 code 별 문구(`invalid_password` ·
+  `login_locked` + `Retry-After` · `admin_cannot_withdraw`), 204 뒤 로그아웃 상태로 전환하고 **브라우저 저장소의 계정 관련 값**(캐릭터 초안 이름 ·
+  저장 캐시 · 베타 회차 등)을 지운다. 탈퇴 전 안내: 「설문 응답은 7일 안에 별도로 지운다」 · 「같은 이메일로 바로 다시 가입할 수 있지만 기록은
+  이어지지 않는다」 · 「로그인 없이 낸 문의는 따로 요청」.
+- 관리자 회원 상세: `user.deleted_at` 이 있으면 「탈퇴 회원(시각)」으로 표시.
+- 쓰기 경합 401(`Login required.`)은 기존 「로그인 필요」 처리 그대로.

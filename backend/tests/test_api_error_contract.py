@@ -44,6 +44,8 @@ EXPECTED_ERRORS = {
     ("GET", "/api/v1/me/character"): {401},
     ("PUT", "/api/v1/me/character"): {401, 403, 413, 422},
     ("GET", "/api/v1/me/items"): {401},
+    # 11/17 회원 탈퇴 Phase 1 — 세션 · 비밀번호(401), Origin · 관리자 · 소셜 전용(403), 형식(422), 잠금(429)
+    ("POST", "/api/v1/me/withdrawal"): {401, 403, 422, 429},
     ("POST", "/api/v1/lobby/ticket"): {401, 403, 429, 503},
     ("GET", "/api/v1/admin/users"): {401, 403, 422},
     ("GET", "/api/v1/admin/users/{user_id}"): {401, 403, 404, 422},
@@ -57,7 +59,8 @@ EXPECTED_ERRORS = {
     ("GET", "/api/v1/admin/stats/game"): {401, 403, 422},
     ("GET", "/api/v1/admin/security/summary"): {401, 403},
     # 3단계(11/13 해랑) — 1:1 문의 · 설정 · 관리자 목록 · 콘텐츠
-    ("POST", "/api/v1/inquiries"): {403, 422, 429},
+    # 401 은 로그인 접수 도중 그 계정이 탈퇴했을 때뿐(11/17)
+    ("POST", "/api/v1/inquiries"): {401, 403, 422, 429},
     ("GET", "/api/v1/me/inquiries"): {401},
     ("GET", "/api/v1/site/status"): set(),
     ("GET", "/api/v1/admin/inquiries"): {401, 403, 422},
@@ -134,6 +137,7 @@ EXPECTED_ERRORS = {
 
 NO_CONTENT = {
     ("POST", "/api/v1/me/logout"),
+    ("POST", "/api/v1/me/withdrawal"),
     ("DELETE", "/api/v1/me/game-save"),
     ("DELETE", "/api/v1/admin/notices/{notice_id}"),
 }
@@ -255,7 +259,9 @@ def _source_literals(text: str) -> set[str]:
         "health.py",
         "hints.py",
         "interactions.py",
+        "inquiries.py",
         "lobby.py",
+        "me.py",
         "notices.py",
         "npc.py",
         "play_sessions.py",

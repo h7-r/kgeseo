@@ -390,7 +390,10 @@ def test_user_search_is_nickname_partial_and_email_exact_only():
             "providers",
             "last_login_at",
             "last_session_started_at",
+            # 회원 탈퇴 Phase 1(11/17) — 탈퇴 시각, 회원이면 null
+            "deleted_at",
         }
+        assert detail["user"]["deleted_at"] is None
         # 로그인 수단 · 지역은 목록과 같은 값(auth_identities · app_users.region)
         listed_minsoo = next(u for u in body["users"] if u["user_id"] == minsoo.id)
         assert detail["user"]["providers"] == ["google", "local"]

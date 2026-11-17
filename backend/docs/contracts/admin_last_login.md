@@ -65,3 +65,8 @@
 
 - 마이페이지 「로그인 기록 10건」 은 브라우저 로컬 시연 데이터다 — 서버 로그인 이력 표는 없다(별도 설계).
 - 회원 탈퇴(삭제 · 비식별화)와 이 열의 처리는 탈퇴 설계에서 정한다.
+
+## 회원 탈퇴 뒤(11/17, `account_withdrawal_v0.2.md`)
+
+- 상세 `user` 에 `deleted_at`(회원이면 null)을 더했다. 탈퇴 회원은 `last_login_at` 이 NULL 로 지워지고 세션 행도 지워져 `last_session_started_at` 도 null, `providers` 는 `[]`.
+- 탈퇴 회원은 회원 목록(`GET /admin/users`)에 나오지 않는다.
