@@ -17,8 +17,8 @@ export const REPEAT_NUDGE_MS = 60_000;
 const NUDGE_SHOW_MS = 6000;
 
 /** 문이 열려 있으면 빛나는 밸브가 보인다 · 닫혀 있으면 빛이 문 뒤에 가린다(Codex 01회차) */
-export const VALVE_NUDGE_OPEN = "빛나는 소화전 밸브로 돌아가 [E]로 열자";
-export const VALVE_NUDGE_CLOSED = "소화전함 문을 열고 안쪽 밸브를 [E]로 열자";
+export const VALVE_NUDGE_OPEN = "빛나는 소화전 핸들로 돌아가 [E]로 돌리자";
+export const VALVE_NUDGE_CLOSED = "소화전함 문을 열고 안쪽 핸들을 [E]로 돌리자";
 const NUDGES = [VALVE_NUDGE_OPEN, VALVE_NUDGE_CLOSED] as const;
 
 /** 소화전함 문 id — HoseValve 가 알려 준다(문 상태로 글을 고른다) */

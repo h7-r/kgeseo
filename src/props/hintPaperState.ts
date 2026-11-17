@@ -1,5 +1,5 @@
 /**
- * 밸브 힌트 쪽지가 지금 어디 있나.
+ * 자물쇠 힌트 쪽지(자판기 캔과 함께 나온 메모)가 지금 어디 있나.
  * 버려도 사라지지 않는다 — 잘못 누른 사람이 되돌릴 수 있어야 하고, 동전·관창처럼
  * 내려놓으면 그 자리에 남아야 같은 세계의 물건으로 읽힌다.
  */
@@ -19,7 +19,7 @@ type HintPaperLocation = "vending" | "hand" | "floor" | "stored";
 export const VALVE_HINT = {
   id: "valveHint",
   name: "힌트 메모",
-  description: "자판기 배출구에서 캔과 함께 나온 낡은 메모.\n돌리는 손잡이 그림 아래 다섯 칸이 비어 있다.",
+  description: "자판기 배출구에서 캔과 함께 나온 낡은 메모.\n색칠한 캔 다섯 개 아래 작은 번호가 하나씩 적혀 있다.",
 } as const;
 
 interface HintPaperState {

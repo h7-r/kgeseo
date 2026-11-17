@@ -1,3 +1,4 @@
+import { HYDRANT_LOCK_ANSWER } from "@/props/hydrantCabinet/hydrantLockClue";
 import { useSavedControls } from "@/engine/leva/savedControls";
 
 // 복도 벽함 두 개의 속 — 소화전함·배전반, 소화전 번호 자물쇠. 함 바깥(색·크기·자리)은 「비밀 복도」 폴더에 있다.
@@ -178,7 +179,7 @@ export function usePadlockControls() {
     digit3: { value: 0, min: 0, max: 11, step: 1, label: "맞춤3" },
     digit4: { value: 3, min: 0, max: 11, step: 1, label: "맞춤4" },
     digit5: { value: 4, min: 0, max: 11, step: 1, label: "맞춤5" },
-    answer: { value: "VALVE", label: "정답" },
+    answer: { value: HYDRANT_LOCK_ANSWER, label: "정답" },
     handleDistance: { value: 0.8, min: 0.3, max: 2.5, step: 0.05, label: "조작거리" },
     metalColor: { value: "#888f96", label: "쇠색" },
     dialColor: { value: "#b7b7b7", label: "다이얼색" },

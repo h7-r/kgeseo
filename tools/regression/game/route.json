@@ -2214,7 +2214,7 @@
     {
       "op": "checkpoint",
       "name": "46-drink-dispensed-blue",
-      "desc": "파란 캔 + 밸브 힌트 쪽지 배출",
+      "desc": "파란 캔 + 자물쇠 힌트 쪽지 배출",
       "expect": []
     },
     {
@@ -2256,7 +2256,7 @@
     {
       "op": "checkpoint",
       "name": "48-hint-paper-held",
-      "desc": "밸브 힌트 쪽지를 든 화면",
+      "desc": "자물쇠 힌트 쪽지를 든 화면",
       "expect": []
     },
     {
@@ -2469,17 +2469,22 @@
     },
     {
       "op": "key",
-      "code": "ArrowDown",
+      "code": "ArrowUp",
       "after": 150
     },
     {
       "op": "key",
-      "code": "ArrowDown",
+      "code": "ArrowUp",
       "after": 150
     },
     {
       "op": "key",
-      "code": "ArrowDown",
+      "code": "ArrowUp",
+      "after": 150
+    },
+    {
+      "op": "key",
+      "code": "ArrowUp",
       "after": 150
     },
     {
@@ -2548,7 +2553,7 @@
     {
       "op": "checkpoint",
       "name": "55-hydrant-open",
-      "desc": "소화전함 문 열림 — 관창·밸브",
+      "desc": "소화전함 문 열림 — 관창·핸들",
       "expect": []
     },
     {
@@ -3065,7 +3070,7 @@
     {
       "op": "checkpoint",
       "name": "61-valve-cutscene-start",
-      "desc": "밸브 [E] — 자판기 쪽으로 컷신 시작",
+      "desc": "핸들 [E] — 자판기 쪽으로 컷신 시작",
       "expect": []
     },
     {

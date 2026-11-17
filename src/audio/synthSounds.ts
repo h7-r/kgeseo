@@ -89,6 +89,87 @@ export function setElectricSound(level: number, surge = 0) {
   crackle.source.playbackRate.setTargetAtTime(1 + surge * 0.3, now, 0.08);
 }
 
+/** 물 한 바퀴(초) — 전류와 같이 이어 틀어도 박자가 안 들리게 길게 */
+const WATER_SECONDS = 3.1;
+
+let waterBuffer: AudioBuffer | null = null;
+
+/** 전류 버퍼는 웅웅대는 네모파라 낮게 걸러도 물이 안 된다 — 부드러운 잡음을 따로 만든다 */
+function buildWaterBuffer(ctx: AudioContext) {
+  if (waterBuffer) return waterBuffer;
+  const length = Math.floor(ctx.sampleRate * WATER_SECONDS);
+  const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  const random = createLehmerRandom(26113);
+  let smooth = 0;
+  for (let i = 0; i < length; i++) {
+    const time = i / ctx.sampleRate;
+    // 쏟아지는 물 — 거친 잡음을 조금 눌러 쉬익 소리로, 느린 울렁임 둘을 겹쳐 콸콸거리게
+    smooth += ((random() - 0.5) * 2 - smooth) * 0.35;
+    const gurgle = 0.7 + 0.18 * Math.sin(time * Math.PI * 2 * 2.3) + 0.12 * Math.sin(time * Math.PI * 2 * 0.7 + 1.1);
+    data[i] = smooth * gurgle * 0.6;
+  }
+  waterBuffer = buffer;
+  return buffer;
+}
+
+interface WaterVoice {
+  source: AudioBufferSourceNode;
+  gain: GainNode;
+  filter: BiquadFilterNode;
+  /** 재생 속도를 느리게 흔드는 저주파 — 물살이 고르지 않게 */
+  wobble: OscillatorNode;
+  level: number;
+  surge: number;
+  audibleAt: number;
+}
+let water: WaterVoice | null = null;
+
+/** 물소리 세기 0~1 · 자판기에 닿는 순간처럼 세질 때 surge 0~1. 전류 소리와 같은 뼈대로, 매 프레임 불러도 된다 */
+export function setWaterSound(level: number, surge = 0) {
+  if (level <= SILENT_LEVEL && !water) return;
+  const graph = getSfxGraph();
+  if (!graph) return;
+  const { ctx, output } = graph;
+  const now = ctx.currentTime;
+  if (!water) {
+    const source = ctx.createBufferSource();
+    source.buffer = buildWaterBuffer(ctx);
+    source.loop = true;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.Q.value = 0.7;
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    source.connect(filter).connect(gain).connect(output);
+    // 0.9Hz 로 재생 속도를 ±6% 흔든다 — 한 줄기로 고르게 나면 바람 소리로 들린다
+    const wobble = ctx.createOscillator();
+    wobble.frequency.value = 0.9;
+    const depth = ctx.createGain();
+    depth.gain.value = 0.06;
+    wobble.connect(depth).connect(source.playbackRate);
+    wobble.start();
+    source.start();
+    water = { source, gain, filter, wobble, level: -1, surge: -1, audibleAt: now };
+  }
+  if (level > SILENT_LEVEL) {
+    water.audibleAt = now;
+  } else if (now - water.audibleAt >= CRACKLE_RELEASE_SECONDS) {
+    water.source.stop();
+    water.wobble.stop();
+    water.gain.disconnect();
+    water = null;
+    return;
+  }
+  if (level === water.level && surge === water.surge) return;
+  water.level = level;
+  water.surge = surge;
+  water.gain.gain.setTargetAtTime(level * (0.5 + surge * 0.6), now, 0.08);
+  // 닿으면 높은 쪽까지 열려 물이 쏟아지는 소리가 되고 조금 빨라진다. 600~1400Hz
+  water.filter.frequency.setTargetAtTime(600 + surge * 800, now, 0.12);
+  water.source.playbackRate.setTargetAtTime(1 + surge * 0.15, now, 0.12);
+}
+
 let sipBuffer: AudioBuffer | null = null;
 
 function buildSipBuffer(ctx: AudioContext) {

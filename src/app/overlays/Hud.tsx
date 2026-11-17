@@ -14,8 +14,7 @@ import {
   useHintOffering,
   useRoamHintOffering,
   useValveHintsDelivered,
-  VALVE_ANSWER_LINE,
-  VALVE_HINT_LINE,
+  VALVE_HINT_LINES,
 } from "@/game/valveHelp";
 import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
 import { useIsHologramAimed } from "@/trainInterior/hologramAim";
@@ -272,12 +271,12 @@ export function LockDialPanel({ covered = false }: { covered?: boolean }) {
   const control = useLockControl();
   const lock = useLock(control?.id);
   const labels = useKeyLabels();
-  // 밸브 자물쇠에서 오래 막히면 단계별 한 줄(game/valveHelp) — 「예」로 받은 것만(12회차)
+  // 소화전 자물쇠에서 오래 막히면 단계별 한 줄(game/valveHelp) — 「예」로 받은 것만(12회차). 세 단이 됐으니 마지막 두 줄만(자리가 두 줄)
   const delivered = useValveHintsDelivered();
   const isOffering = useHintOffering();
   const valveLines =
     isValveLockId(control?.id) && lock && !lock.unlocked
-      ? [delivered >= 1 && VALVE_HINT_LINE, delivered >= 2 && VALVE_ANSWER_LINE].filter(Boolean)
+      ? VALVE_HINT_LINES.slice(Math.max(0, delivered - 2), delivered)
       : [];
   if (!control || !lock) return null;
   // 터치 다이얼은 조작 화면 위(z 950)라 창(설정 등)이 뜨면 창을 가린다 — 창이 떠 있거나 나가는 중(카메라 복귀)이면 숨긴다(코덱스 구현 10회차).

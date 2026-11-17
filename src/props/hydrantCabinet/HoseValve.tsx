@@ -152,7 +152,7 @@ export default function HoseValve({
           id={valveId}
           radius={0.28}
           reach={5}
-          label="[E] 밸브 열기"
+          label="[E] 핸들 돌리기"
           // 눌러도 아무 일 없으면 고장으로 읽힌다 — 돌 수 있을 때만 뜬다
           disabled={() => !canHandle || !canTurnValve()}
           position={() => getWorldPositionOf(handleRef)}
