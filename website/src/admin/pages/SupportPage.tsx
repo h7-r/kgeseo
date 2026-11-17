@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { toAdminError } from "../api/client";
 import {
@@ -39,9 +40,13 @@ const STATUS_TONE: Record<InquiryStatus, BadgeTone> = { open: "red", answered: "
 
 type Run = (work: () => Promise<InquiryDetail>, done: string) => Promise<void>;
 
+/** 주소의 ?open=<문의 id> — 상세 창 */
+const OPEN_PARAM = "open";
+
 /**
  * CS 관리 — 1:1 문의 목록 · 상세 · 답변 · 상태(관리자 API v0.3 P3-1).
  * 목록을 열 때마다 서버가 「문의 목록 조회」를, 상세를 열면 「문의 열람」을 남긴다. 이메일은 목록에선 서버가 가리고 상세에서만 전체다.
+ * 열린 문의는 주소의 ?open=<id> — 활동 로그의 대상에서 바로 오고, 새로고침해도 그 창이 유지된다.
  */
 export default function SupportPage() {
   const [filter, setFilter] = useQueryChoice("filter", FILTERS, "all");
@@ -50,7 +55,18 @@ export default function SupportPage() {
   const [resource, retry] = useAdminResource(`inquiries:${key}`, (signal) => fetchInquiryPage(filter, 0, signal));
   // 「더 보기」로 이어 받은 쪽들 — 필터 · 새로고침이 바뀌면 버린다
   const [more, setMore] = useState<{ key: string; items: InquiryListItem[]; next: number | null } | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [params, setParams] = useSearchParams();
+  const openId = params.get(OPEN_PARAM);
+  const setOpenId = (id: string | null) =>
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        if (id) next.set(OPEN_PARAM, id);
+        else next.delete(OPEN_PARAM);
+        return next;
+      },
+      { replace: true },
+    );
 
   const refresh = () => {
     setMore(null);

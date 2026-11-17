@@ -254,14 +254,14 @@ function userColumns(listPath: string): Column<AdminUserListItem>[] {
     {
       key: "nickname",
       header: "닉네임",
-      width: "16%",
+      width: "18%",
       truncate: (user) => user.nickname,
       render: (user) => <b>{user.nickname}</b>,
     },
     {
       key: "email",
       header: "이메일",
-      width: "20%",
+      width: "22%",
       mono: true,
       truncate: (user) => maskEmail(user.email),
       render: (user) => maskEmail(user.email),
@@ -269,13 +269,13 @@ function userColumns(listPath: string): Column<AdminUserListItem>[] {
     {
       key: "role",
       header: "역할",
-      width: "88px",
+      width: "72px",
       render: (user) => (user.role === "admin" ? <Badge tone="blue">관리자</Badge> : <Badge tone="gray">회원</Badge>),
     },
     {
       key: "providers",
       header: "로그인 수단",
-      width: "112px",
+      width: "88px",
       render: (user) =>
         user.providers.length ? user.providers.map(providerLabel).join(" · ") : <span className="adm-muted">—</span>,
     },
@@ -283,7 +283,7 @@ function userColumns(listPath: string): Column<AdminUserListItem>[] {
     {
       key: "stage",
       header: "진행 단계",
-      width: "120px",
+      width: "96px",
       render: (user) => <span className={user.stage ? undefined : "adm-muted"}>{stageLabel(user.stage)}</span>,
     },
     {
@@ -307,17 +307,18 @@ function userColumns(listPath: string): Column<AdminUserListItem>[] {
       },
     },
     {
+      // 날짜만 — 분 단위는 회원 상세에서 본다. 목록은 닉네임 · 이메일에 폭을 준다
       key: "saved",
       header: "마지막 저장",
       mono: true,
-      width: "160px",
-      render: (user) => formatDateTime(user.save_updated_at),
+      width: "112px",
+      render: (user) => formatDate(user.save_updated_at),
     },
     {
       key: "manage",
       header: "관리",
       align: "end",
-      width: "88px",
+      width: "72px",
       render: (user) => (
         <Link
           to={ADMIN_PATHS.userDetail(user.user_id)}

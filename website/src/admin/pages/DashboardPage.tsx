@@ -12,6 +12,7 @@ import {
 import { useAdminResource, type Resource } from "../api/useAdminResource";
 import ResourceView from "../auth/ResourceView";
 import { formatDateTime, formatNumber, percent } from "../lib/format";
+import { providerLabel } from "../lib/memberSearch";
 import { useQueryChoice } from "../lib/useQueryChoice";
 import { ADMIN_PATHS } from "../paths";
 import BarChart from "../ui/BarChart";
@@ -346,7 +347,8 @@ function MembersDetail({ members }: { members: StatsMembers }) {
           { label: "활성(MAU)", value: `${formatNumber(totals.mau)}명` },
           {
             label: "로그인 수단",
-            value: members.by_provider.map((b) => `${b.label} ${formatNumber(b.count)}`).join(" · ") || "—",
+            value:
+              members.by_provider.map((b) => `${providerLabel(b.label)} ${formatNumber(b.count)}`).join(" · ") || "—",
           },
         ]}
       />

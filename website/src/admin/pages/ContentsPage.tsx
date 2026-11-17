@@ -91,16 +91,25 @@ function ContentModal({ caseId, onClose }: { caseId: string; onClose: () => void
     <Modal title={caseId} meta="읽기 전용 — 정답 · 런타임 · 대사 원문은 서버가 주지 않습니다" onClose={onClose} wide>
       <ResourceView resource={resource} retry={retry} loadingText="사건을 불러오는 중…" notFoundText="없는 사건입니다.">
         {(detail: ContentCaseDetail) => (
-          <div className="adm-grid adm-grid--two">
+          // 표가 다섯 열이라 반폭으로 나누지 않고 위아래로 둔다
+          <div className="adm-grid">
             <Panel title="존" meta={countsText(detail.counts)}>
               <DataTable
                 caption="존 목록"
                 rows={detail.zones}
                 rowKey={(zone) => zone.zone_id}
                 emptyText="client 콘텐츠를 읽을 수 없어 존 목록이 없습니다."
+                minWidth={0}
                 columns={[
-                  { key: "id", header: "존 ID", mono: true, width: "140px", render: (zone) => zone.zone_id },
-                  { key: "name", header: "이름", render: (zone) => zone.zone_name },
+                  {
+                    key: "id",
+                    header: "존 ID",
+                    mono: true,
+                    width: "28%",
+                    truncate: (zone) => zone.zone_id,
+                    render: (zone) => zone.zone_id,
+                  },
+                  { key: "name", header: "이름", truncate: (zone) => zone.zone_name, render: (zone) => zone.zone_name },
                   { key: "type", header: "종류", width: "100px", render: (zone) => zone.zone_type },
                   {
                     key: "objects",
@@ -136,8 +145,9 @@ function ContentModal({ caseId, onClose }: { caseId: string; onClose: () => void
                 rows={detail.versions}
                 rowKey={(version) => String(version.content_version)}
                 emptyText="등록된 판이 없습니다."
+                minWidth={0}
                 columns={[
-                  { key: "v", header: "판", width: "56px", render: (version) => `v${version.content_version}` },
+                  { key: "v", header: "판", width: "48px", render: (version) => `v${version.content_version}` },
                   {
                     key: "fp",
                     header: "fingerprint",
@@ -150,7 +160,7 @@ function ContentModal({ caseId, onClose }: { caseId: string; onClose: () => void
                   {
                     key: "status",
                     header: "게시 상태",
-                    width: "100px",
+                    width: "88px",
                     render: (version) =>
                       version.publication_status === "published" ? (
                         <Badge tone="blue">게시중</Badge>
@@ -162,7 +172,7 @@ function ContentModal({ caseId, onClose }: { caseId: string; onClose: () => void
                     key: "at",
                     header: "등록",
                     mono: true,
-                    width: "168px",
+                    width: "140px",
                     render: (version) => formatDateTime(version.registered_at),
                   },
                 ]}
@@ -172,25 +182,26 @@ function ContentModal({ caseId, onClose }: { caseId: string; onClose: () => void
                 rows={detail.events}
                 rowKey={(event) => `${event.content_version}:${event.at}:${event.to_status}`}
                 emptyText="게시 이력이 없습니다."
+                minWidth={0}
                 columns={[
                   {
                     key: "at",
                     header: "시각",
                     mono: true,
-                    width: "168px",
+                    width: "140px",
                     render: (event) => formatDateTime(event.at),
                   },
-                  { key: "v", header: "판", width: "56px", render: (event) => `v${event.content_version}` },
+                  { key: "v", header: "판", width: "48px", render: (event) => `v${event.content_version}` },
                   {
                     key: "change",
                     header: "변경",
-                    width: "160px",
+                    truncate: (event) => `${event.from_status ?? "—"} → ${event.to_status}`,
                     render: (event) => `${event.from_status ?? "—"} → ${event.to_status}`,
                   },
                   {
                     key: "actor",
                     header: "실행",
-                    width: "120px",
+                    width: "88px",
                     truncate: (event) => event.actor,
                     render: (event) => event.actor,
                   },

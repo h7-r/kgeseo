@@ -79,21 +79,22 @@ const SCREEN_LIST = [
     id: "activity",
     path: "activity",
     label: "활동 로그",
-    description: "관리자가 언제 누구의 기록을 열람했는지 봅니다.",
+    description: "관리자가 언제 누구의 기록을 열람했고, 문의 · 설정 · 공지를 무엇으로 바꿨는지 봅니다.",
     status: "live",
   },
   {
     id: "security",
     path: "security",
     label: "보안",
-    description: "로그인 잠김 · 관리자 로그인 · 관리자 기록을 봅니다. 429 · IP 는 원천이 생기면 열립니다.",
+    description: "로그인 잠김 · 관리자 로그인 · 관리자 기록을 봅니다. 429 · 로그인 IP 는 원천이 생기면 열립니다.",
     status: "live",
   },
   {
     id: "notices",
     path: "notices",
     label: "공지사항",
-    description: "웹 고객센터에 실리는 공지를 등록 · 수정 · 삭제합니다(공지 API v0.2). 등록 · 수정 · 삭제는 활동 로그에 남습니다.",
+    description:
+      "웹 고객센터에 실리는 공지를 등록 · 수정 · 삭제합니다(공지 API v0.2). 등록 · 수정 · 삭제는 활동 로그에 남습니다.",
     status: "live",
   },
   {

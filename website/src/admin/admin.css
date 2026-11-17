@@ -255,6 +255,30 @@ html[data-admin] :focus-visible {
   }
 }
 
+/* 폰 폭 — 상단바가 넘치지 않게 브랜드 글자 · 역할 글자를 숨기고 여백을 줄인다 */
+@media (max-width: 639.98px) {
+  .adm-topbar {
+    gap: 8px;
+    padding: 0 12px;
+  }
+  .adm-topbar__end {
+    gap: 8px;
+    min-width: 0;
+  }
+  .adm-topbar__who {
+    min-width: 0;
+  }
+  .adm-topbar__who b {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .adm-brand__name,
+  .adm-topbar__role {
+    display: none;
+  }
+}
+
 /* 움직임 줄이기를 켠 사람에게는 사이드바가 미끄러지지 않고 바로 열리고 닫힌다 */
 @media (prefers-reduced-motion: reduce) {
   .adm-sidebar {
@@ -756,6 +780,10 @@ td.adm-cell.is-mono {
   margin: 0;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+/* 셋 칸 패널(회원 상세 계정 · 설정 사이트)은 좁아 이름 칸을 줄인다 — 이메일 · 회원 ID 가 글자 중간에서 덜 꺾인다 */
+.adm-grid--three .adm-field-row {
+  grid-template-columns: 112px minmax(0, 1fr);
 }
 .adm-field-row__key {
   display: block;
@@ -1334,12 +1362,16 @@ td.adm-cell.is-mono {
   cursor: not-allowed;
 }
 
+/* 본문(adm-main)은 세로 flex 라 여기서 flex: 1 을 주면 남는 높이를 다 차지해 입력칸이 아래로 밀린다(기록이 한두 줄일 때 드러남) */
 .adm-searchfield {
   display: flex;
-  flex: 1;
+  flex: 0 0 auto;
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+}
+.adm-filters .adm-searchfield {
+  flex: 1;
 }
 .adm-search--icon {
   position: relative;

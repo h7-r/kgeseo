@@ -14,7 +14,12 @@ interface BarChartProps {
   height?: number;
 }
 
-/** 막대. 값은 막대 위에 늘 적고, 마우스를 올린 막대는 진하게 한다. */
+/** 글자 하나의 어림 폭(px, 12px 글꼴 한글 기준). 이름이 칸보다 길면 기울여 쓴다 */
+const CHAR_WIDTH = 12;
+/** 기울인 이름이 들어갈 아래 여백 */
+const TILT_EXTRA = 44;
+
+/** 막대. 값은 막대 위에 늘 적고, 마우스를 올린 막대는 진하게 한다. 이름이 칸보다 길면 기울여 겹치지 않게 한다. */
 export default function BarChart({ label, bars, unit, xAxisLabel, fixedTop, height = 240 }: BarChartProps) {
   const boxRef = useRef<HTMLDivElement>(null);
   const width = useElementWidth(boxRef);
@@ -27,13 +32,17 @@ export default function BarChart({ label, bars, unit, xAxisLabel, fixedTop, heig
   const innerHeight = height - MARGIN.top - MARGIN.bottom;
   const slot = innerWidth / Math.max(1, bars.length);
   const barWidth = Math.min(48, slot * 0.5);
-  const y = (value: number) => MARGIN.top + innerHeight - (value / top) * innerHeight;
+  const longest = Math.max(0, ...bars.map((bar) => bar.label.length));
+  const tilted = bars.length > 1 && longest * CHAR_WIDTH > slot - 8;
+  const svgHeight = height + (tilted ? TILT_EXTRA : 0);
+  const baseline = MARGIN.top + innerHeight;
+  const y = (value: number) => baseline - (value / top) * innerHeight;
   const summary = `${label}. ${bars.map((bar) => `${bar.label} ${formatNumber(bar.value)}${unit}`).join(", ")}`;
 
   return (
     <div ref={boxRef} className="adm-chart">
       {width > 0 && (
-        <svg width={width} height={height} role="img" aria-label={summary} className="adm-chart__svg">
+        <svg width={width} height={svgHeight} role="img" aria-label={summary} className="adm-chart__svg">
           <text x={MARGIN.left - 8} y={14} className="adm-chart__axis-name" textAnchor="end">
             ({unit})
           </text>
@@ -62,13 +71,25 @@ export default function BarChart({ label, bars, unit, xAxisLabel, fixedTop, heig
                 <text x={center} y={y(bar.value) - 8} textAnchor="middle" className="adm-chart__value">
                   {formatNumber(bar.value)}
                 </text>
-                <text x={center} y={height - MARGIN.bottom + 18} textAnchor="middle" className="adm-chart__tick">
-                  {bar.label}
-                </text>
+                {tilted ? (
+                  <text
+                    x={center}
+                    y={baseline + 16}
+                    textAnchor="end"
+                    transform={`rotate(-32 ${center} ${baseline + 16})`}
+                    className="adm-chart__tick"
+                  >
+                    {bar.label}
+                  </text>
+                ) : (
+                  <text x={center} y={baseline + 18} textAnchor="middle" className="adm-chart__tick">
+                    {bar.label}
+                  </text>
+                )}
               </g>
             );
           })}
-          <text x={MARGIN.left + innerWidth / 2} y={height - 6} textAnchor="middle" className="adm-chart__axis-name">
+          <text x={MARGIN.left + innerWidth / 2} y={svgHeight - 6} textAnchor="middle" className="adm-chart__axis-name">
             {xAxisLabel}
           </text>
         </svg>

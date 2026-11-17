@@ -44,7 +44,7 @@ function readCustomRange(params: URLSearchParams): DateRange | null {
 }
 
 /**
- * 관리자 감사 기록(admin_audit_logs). 서버에 남는 다섯 칸과 닉네임만 보인다 — 이메일 · IP · 브라우저 정보는 기록에 없다.
+ * 관리자 감사 기록(admin_audit_logs). 이메일 · IP 원문은 기록에 없다 — IP 는 서버가 앞 두 자리만 남긴다(감사 기록 확장 11/16).
  * 기간은 빠른 탭 또는 달력(직접 고르기), 한 일은 탭, 찾기는 받은 기록 안에서 닉네임 · id 로 거른다(서버에 검색어를 보내지 않는다).
  */
 export default function ActivityLogPage() {
@@ -168,6 +168,7 @@ function AuditLogTable({ range, action, find }: { range: DateRange; action: stri
               caption="활동 로그"
               rows={logs}
               rowKey={logIdOf}
+              minWidth={1080}
               emptyText={
                 find
                   ? `「${find}」 에 맞는 기록이 받아 둔 ${formatNumber(all.length)}건 안에 없습니다.`
@@ -253,25 +254,32 @@ function AuditLogTable({ range, action, find }: { range: DateRange; action: stri
   );
 }
 
-/**
- * 열람 · 변경한 대상 물건 — 종류 이름표와 id. 회원이면 상세로 잇고, 문의 · 설정 · 공지는 id 만(문의 화면엔 아직 바로 가는 주소가 없다).
- * 확장 전 기록은 비어 있다.
- */
+/** 대상 물건을 여는 주소 — 회원은 상세, 문의 · 공지는 그 화면의 ?open= 창, 설정은 설정 화면. 모르는 종류는 없다 */
+function targetHref(targetType: string, targetId: string): string | null {
+  if (targetType === "user") return ADMIN_PATHS.userDetail(targetId);
+  if (targetType === "inquiry") return `${ADMIN_PATHS.support}?open=${encodeURIComponent(targetId)}`;
+  if (targetType === "notice") return `${ADMIN_PATHS.notices}?open=${encodeURIComponent(targetId)}`;
+  if (targetType === "setting") return ADMIN_PATHS.settings;
+  return null;
+}
+
+/** 열람 · 변경한 대상 물건 — 종류 이름표와 id. 누르면 그 물건으로 간다(지워진 문의 · 공지는 그 화면이 「없음」을 보인다). 확장 전 기록은 비어 있다. */
 function TargetObject({ log }: { log: AuditLogEntry }) {
   if (!log.target_type || !log.target_id) return <span className="adm-muted">—</span>;
   const label = auditTargetLabel(log.target_type);
   // UUID 꼴(36자)만 앞 8자로 줄이고, 설정 키 같은 짧은 id 는 그대로 보인다
   const shortId = log.target_id.length >= 32 ? `${log.target_id.slice(0, 8)}…` : log.target_id;
-  if (log.target_type === "user") {
-    return (
-      <span>
-        {label} · <Link to={ADMIN_PATHS.userDetail(log.target_id)}>{shortId}</Link>
-      </span>
-    );
-  }
+  const href = targetHref(log.target_type, log.target_id);
   return (
     <span>
-      {label} · <span className="is-mono">{shortId}</span>
+      {label} ·{" "}
+      {href ? (
+        <Link to={href} className="is-mono">
+          {shortId}
+        </Link>
+      ) : (
+        <span className="is-mono">{shortId}</span>
+      )}
     </span>
   );
 }
