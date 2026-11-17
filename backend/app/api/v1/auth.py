@@ -53,6 +53,7 @@ from app.services.social_onboarding import (
     complete_onboarding,
 )
 from app.services.user_session import (
+    WithdrawnAccountError,
     clear_login_failures,
     login_lock_remaining_seconds,
     record_login_failure,
@@ -61,14 +62,31 @@ from app.services.user_session import (
 )
 
 
+def _social_login_refused() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="Social account login could not be completed.",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 async def _establish_login(
-    db: AsyncSession, http_request: Request, response: Response, user_id: str
+    db: AsyncSession,
+    http_request: Request,
+    response: Response,
+    user_id: str,
+    refused: HTTPException | None = None,
 ) -> None:
     """로그인 성공 공통 처리(11/6 PM): 로그인 세션 쿠키를 주고, 유효한 게스트 쿠키가 있으면 그 진행을 계정으로 옮긴다.
 
     승계가 실패해도 로그인은 성공으로 두고 게스트 진행은 지우지 않는다(transfer_guest_to_user).
+    인증을 마친 바로 그 사이에 계정이 탈퇴했으면(11/17) 세션을 주지 않고 `refused` 로 답한다 — 그 경로가 이미 쓰는 오류라 탈퇴 여부를
+    따로 드러내지 않는다(이메일 로그인 = 401 `Invalid email or password.`, 그 밖 = 409 문장).
     """
-    await start_session(db, response, user_id)
+    try:
+        await start_session(db, response, user_id)
+    except WithdrawnAccountError as error:
+        raise (refused or _social_login_refused()) from error
     await transfer_guest_to_user(db, http_request, response, user_id)
 
 
@@ -279,7 +297,17 @@ async def login_local_account(
         ) from error
 
     await clear_login_failures(db, http_request, request.email)
-    await _establish_login(db, http_request, response, user.id)
+    await _establish_login(
+        db,
+        http_request,
+        response,
+        user.id,
+        refused=HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password.",
+            headers={"Cache-Control": "no-store"},
+        ),
+    )
     return LocalAuthResponse(user=local_auth.user_to_payload(user))
 
 

@@ -277,9 +277,14 @@ async def list_users(
     """
     page_size = parse_int(limit, "limit", default=PAGE_SIZE, low=1, high=PAGE_SIZE)
     search = parse_user_search(q)
-    query = select(AppUser, GamePlaySave).outerjoin(
-        GamePlaySave,
-        and_(GamePlaySave.app_user_id == AppUser.id, GamePlaySave.slot == 0),
+    query = (
+        select(AppUser, GamePlaySave)
+        .outerjoin(
+            GamePlaySave,
+            and_(GamePlaySave.app_user_id == AppUser.id, GamePlaySave.slot == 0),
+        )
+        # 탈퇴 회원은 회원 목록에 없다(11/17). 상세(`/users/{id}`)는 id 로 직접 열면 비식별화된 행 그대로 보인다
+        .where(_current_member())
     )
     if search is not None and search.email is not None:
         # 이메일은 완전 일치만 — 부분 검색으로 이메일을 알아내지 못하게(§5.3)
@@ -373,6 +378,7 @@ async def read_user(
             providers=providers.get(user.id, []),
             last_login_at=user.last_login_at,
             last_session_started_at=last_sessions.get(user.id),
+            deleted_at=user.deleted_at,
         ),
         save=to_save_response(save) if save else None,
         character=(
@@ -463,6 +469,16 @@ def _internal_excluded(include_internal: bool):
     return and_(AppUser.role != ADMIN_ROLE, AppUser.is_test.is_(false()))
 
 
+def _current_member():
+    """지금 회원(탈퇴하지 않음) — 회원 탈퇴 Phase 1(11/17). 「현재 회원 수」 · 회원 목록 · 지금 분포(지역 · 로그인 수단)에만 건다.
+
+    과거 시점 값은 당시 기준이다(미르 11/17): 기간 가입 수(일 · 달 · 30일 · 달별)는 탈퇴 회원도 가입한 때에 그대로 세고, 전월 말 회원 수는
+    그 시점에 탈퇴하지 않았던 회원을 센다(`stats_members`). 활동(DAU · MAU) · 게임 집계는 탈퇴 회원의 과거 플레이를 그대로 그 회원으로
+    센다(게스트로 바뀌지 않는다)."""
+
+    return AppUser.deleted_at.is_(None)
+
+
 def _transferred_to_internal_account():
     """이 플레이 세션의 익명 세션(게스트)이 내부 계정(관리자 · 테스트 계정)으로 승계됐다(미르 11/13 — 게스트 통계에서도 뺀다).
 
@@ -500,6 +516,9 @@ async def _count_members(
         query = query.where(condition)
     if start is not None and end is not None:
         query = query.where(AppUser.created_at >= start, AppUser.created_at < end)
+    else:
+        # 기간 없음 = 지금 회원 수 — 탈퇴 회원을 뺀다. 기간 가입 수는 그대로(위 `_current_member`)
+        query = query.where(_current_member())
     return await _count(db, query)
 
 
@@ -679,7 +698,11 @@ async def stats_summary(
             db,
             select(func.count())
             .select_from(AppUser)
-            .where(AppUser.role != ADMIN_ROLE, AppUser.is_test.is_(true())),
+            .where(
+                AppUser.role != ADMIN_ROLE,
+                AppUser.is_test.is_(true()),
+                _current_member(),
+            ),
         )
     by_member = await _play_sessions_by_member(db, internal, *day_range)
     by_guest = await _play_sessions_by_guest(db, internal, *day_range)
@@ -1035,6 +1058,7 @@ async def _signups_between(
             GamePlaySave,
             and_(GamePlaySave.app_user_id == AppUser.id, GamePlaySave.slot == 0),
         )
+        .where(_current_member())
         .order_by(AppUser.created_at.desc())
         .limit(limit)
     )
@@ -1103,8 +1127,14 @@ async def stats_members(
         total_query = total_query.where(condition)
     totals = MembersTotals(
         total=await _count_members(db, internal),
+        # 전월 말 당시 회원 — 그때까지 가입했고 그때 아직 탈퇴하지 않은 회원(미르 11/17). 그 뒤 탈퇴해도 과거 달 값은 그대로,
+        # 탈퇴한 달의 월말부터 빠진다
         total_at_prev_month_end=await _count(
-            db, total_query.where(AppUser.created_at < month_end_cut)
+            db,
+            total_query.where(
+                AppUser.created_at < month_end_cut,
+                or_(AppUser.deleted_at.is_(None), AppUser.deleted_at >= month_end_cut),
+            ),
         ),
         signups_this_month=await _count_members(db, internal, *this_month),
         signups_prev_month=await _count_members(db, internal, *prev_month),
@@ -1121,12 +1151,17 @@ async def stats_members(
             )
         )
 
-    region_query = select(AppUser.region, func.count()).group_by(AppUser.region)
+    region_query = (
+        select(AppUser.region, func.count())
+        .where(_current_member())
+        .group_by(AppUser.region)
+    )
     provider_query = (
         select(
             AuthIdentity.provider, func.count(func.distinct(AuthIdentity.app_user_id))
         )
         .join(AppUser, AppUser.id == AuthIdentity.app_user_id)
+        .where(_current_member())
         .group_by(AuthIdentity.provider)
     )
     if condition is not None:

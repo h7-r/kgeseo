@@ -424,6 +424,37 @@ GAME_SAVE_WRITE = {
     ),
 }
 GAME_SAVE_DELETE = {**_LOGIN_REQUIRED, **FOREIGN_ORIGIN}
+# 회원 탈퇴(계약 account_withdrawal_v0.2, 11/17). 거절이면 아무것도 바꾸지 않고 쿠키도 그대로다.
+ME_WITHDRAWAL = {
+    401: error(
+        ErrorMessage | CodedError,
+        "로그인 세션이 없거나 끝났다(이미 탈퇴한 계정 포함) · 비밀번호가 틀렸다(`invalid_password`, 로그인 실패 집계에 더한다)."
+        + _NO_STORE,
+        "Login required.",
+        "invalid_password",
+    ),
+    403: error(
+        ErrorMessage | CodedError,
+        "다른 사이트에서 온 요청 · 관리자 본인 탈퇴(`admin_cannot_withdraw`) · 이메일 비밀번호 수단이 없는 소셜 전용 회원"
+        "(`reauth_required`, 소셜 재로그인 확인은 후속)." + _NO_STORE,
+        "Origin not allowed.",
+        "admin_cannot_withdraw",
+        "reauth_required",
+    ),
+    422: error(
+        CodedError,
+        "요청 형식 오류. 입력값을 되돌려 보내지 않는다(비밀번호 1~128자 = `invalid_password`, 그 밖 = `invalid_input`)."
+        + _NO_STORE,
+        "invalid_password",
+        "invalid_input",
+    ),
+    429: error(
+        CodedError,
+        "이 계정 이메일의 비밀번호 실패가 많아 잠시 막혔다(로그인과 같은 집계). `Retry-After` 헤더가 남은 초다."
+        + _NO_STORE,
+        "login_locked",
+    ),
+}
 CHARACTER_WRITE = {
     **_LOGIN_REQUIRED,
     **FOREIGN_ORIGIN,
@@ -454,6 +485,12 @@ ADMIN_QUERY = {
 
 # --- 관리자 API v0.3 3단계(11/13 해랑): 1:1 문의 · 설정 · 콘텐츠 ---
 INQUIRY_CREATE = {
+    # 로그인 쿠키로 접수하는 사이에 그 계정이 탈퇴했다(11/17) — 문의를 만들지 않는다. 비로그인 접수에는 없다
+    401: error(
+        ErrorMessage,
+        "접수 도중 로그인한 계정이 탈퇴했다." + _NO_STORE,
+        "Login required.",
+    ),
     **FOREIGN_ORIGIN,
     422: error(
         ValidationErrorResponse | CodedError,

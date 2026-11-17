@@ -38,6 +38,34 @@ def _hash(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+class WithdrawnAccountError(Exception):
+    """탈퇴한 계정에 세션을 내주거나 데이터를 쓰려 했다(탈퇴와 겹친 요청). 호출한 경로가 자기 오류 응답으로 바꾼다."""
+
+
+def _active_flag(user_id: str, *, share: bool):
+    """회원 행을 잠그고 「탈퇴 안 함」 여부를 읽는다 — 1/True = 회원, 0/False = 탈퇴, None = 행 없음.
+
+    잠금 읽기라 이 트랜잭션의 스냅숏이 아니라 다른 트랜잭션이 커밋한 최신 값을 본다. 탈퇴 트랜잭션은 같은 행을 배타 잠금으로
+    먼저 쥐므로, 겹친 요청은 탈퇴가 끝날 때까지 기다렸다가 `deleted_at` 이 채워진 행을 읽는다(그 반대 순서면 탈퇴가 기다린다)."""
+
+    statement = select(AppUser.deleted_at.is_(None)).where(AppUser.id == user_id)
+    return statement.with_for_update(read=share)
+
+
+def _is_withdrawn(flag) -> bool:
+    return flag is not None and not flag
+
+
+async def ensure_member_for_write(db: AsyncSession, user_id: str) -> None:
+    """회원 데이터(게임 저장 · 캐릭터 · 문의)를 쓰기 전에 부른다 — 회원 행 공유 잠금 + 탈퇴 여부 확인.
+
+    탈퇴 트랜잭션이 저장을 지운 바로 뒤에, 그 전에 세션 확인을 마친 요청이 저장을 다시 만드는 경합을 막는다(공유 잠금이라
+    같은 회원의 쓰기끼리는 서로 막지 않는다). 탈퇴했으면 `WithdrawnAccountError`."""
+
+    if _is_withdrawn(await db.scalar(_active_flag(user_id, share=True))):
+        raise WithdrawnAccountError
+
+
 def last_login_update(user_id: str, now: datetime):
     """최근 로그인 갱신(미르 11/16) — 더 최근 값만 쓴다. 동시 로그인에서 늦게 커밋된 이른 시각이 앞선 값을 되돌리지 않는다
     (MySQL UPDATE 의 WHERE 는 잠금 읽기라 다른 트랜잭션이 커밋한 최신 값으로 다시 판단한다). 프로필 updated_at 은 적지 않는다."""
@@ -63,11 +91,17 @@ async def start_session(db: AsyncSession, response: Response, user_id: str) -> N
     순서가 중요하다: **회원 행 UPDATE(배타 잠금)를 먼저, 세션 INSERT 를 뒤에**. 세션 INSERT 는 FK 확인으로 부모(app_users) 행에
     공유 잠금을 거는데, 같은 회원이 동시에 로그인할 때 INSERT 를 먼저 하면 두 트랜잭션이 공유 잠금을 쥔 채 서로의 UPDATE 를
     기다려 데드락(1213)이 난다. UPDATE 를 먼저 하면 둘째 로그인은 첫째가 커밋할 때까지 기다렸다가 차례로 처리된다.
+
+    탈퇴(11/17): UPDATE 로 회원 행을 쥔 다음 같은 행을 잠금 읽기로 다시 읽어 탈퇴 여부를 본다. 비밀번호 확인이 탈퇴 커밋 전에
+    끝났더라도 UPDATE 가 탈퇴 트랜잭션을 기다린 뒤 최신 행을 보므로, 탈퇴한 계정이면 되돌리고 `WithdrawnAccountError` 를 던진다
+    (세션 · 쿠키 · 최근 로그인 모두 남지 않는다). 잠그는 행 · 순서는 그대로라 교착이 새로 생기지 않는다.
     """
     token = secrets.token_urlsafe(32)
     now = utc_now()
     try:
         await db.execute(last_login_update(user_id, now))
+        if _is_withdrawn(await db.scalar(_active_flag(user_id, share=False))):
+            raise WithdrawnAccountError
         db.add(
             UserSession(
                 id=str(uuid4()),
@@ -109,6 +143,8 @@ async def _find_session_user(db: AsyncSession, token: str) -> AppUser | None:
             UserSession.token_hash == _hash(token),
             UserSession.revoked_at.is_(None),
             UserSession.expires_at > utc_now(),
+            # 탈퇴하면 세션 행을 지우지만, 한 겹 더 — 탈퇴한 계정의 세션은 어떤 경우에도 로그인으로 보지 않는다
+            AppUser.deleted_at.is_(None),
         )
     )
     return await db.scalar(statement)

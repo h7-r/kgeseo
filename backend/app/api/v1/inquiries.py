@@ -25,7 +25,12 @@ from app.services.request_rate_limit import (
     enforce_rate_limit,
     get_request_rate_limiter,
 )
-from app.services.user_session import optional_current_user, require_same_origin
+from app.services.user_session import (
+    WithdrawnAccountError,
+    ensure_member_for_write,
+    optional_current_user,
+    require_same_origin,
+)
 
 router = APIRouter(
     prefix="/inquiries", tags=["Inquiries"], dependencies=[Depends(require_same_origin)]
@@ -59,6 +64,17 @@ async def create_inquiry_endpoint(
             headers={"Cache-Control": "no-store"},
         ) from None
     enforce_rate_limit(limiter, INQUIRY_CREATE, request)
+    if user is not None:
+        # 로그인 확인 뒤 그 계정이 탈퇴했으면 문의를 만들지 않는다(탈퇴는 로그인 회원 문의를 지운다 — 11/17)
+        try:
+            await ensure_member_for_write(db, user.id)
+        except WithdrawnAccountError as error:
+            await db.rollback()
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED,
+                detail="Login required.",
+                headers={"Cache-Control": "no-store"},
+            ) from error
     row = await create_inquiry(
         db,
         category=payload.category,

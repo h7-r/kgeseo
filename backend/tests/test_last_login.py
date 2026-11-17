@@ -431,7 +431,10 @@ def test_admin_user_detail_adds_four_fields(client, cleanup):
         "providers",
         "last_login_at",
         "last_session_started_at",
+        # 회원 탈퇴 Phase 1(11/17) — 탈퇴 시각, 회원이면 null
+        "deleted_at",
     }
+    assert user["deleted_at"] is None
     assert user["region"] == "naju"
     assert user["providers"] == [
         "google",

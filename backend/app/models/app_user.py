@@ -78,6 +78,13 @@ class AppUser(Base):
         nullable=True,
     )
 
+    # 회원 탈퇴 시각(회원 탈퇴 Phase 1, 11/17). NULL = 회원. 값이 있으면 탈퇴한 계정이다 — 행은 남기고(플레이 · 베타 기록의
+    # 가명 키) 이메일 · 닉네임은 무작위 값, 지역 · 동의 · 최근 로그인은 NULL 로 바꾼다(`services/account_withdrawal.py`).
+    # 로그인 세션 조회 · 새 세션 발급 · 현재 회원 수 · 회원 목록에서 뺀다. role · is_test 는 그대로 둔다(통계 내부 계정 판정).
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DATETIME(fsp=6),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DATETIME(fsp=6),
         nullable=False,

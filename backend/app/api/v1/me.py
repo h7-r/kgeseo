@@ -20,13 +20,21 @@ from app.schemas.account_data import (
     GameSaveWrite,
     MeResponse,
     OwnedItem,
+    WithdrawalRequest,
 )
 from app.schemas.inquiry import MyInquiry, MyInquiryList, MyInquiryReply
+from app.services.account_withdrawal import WithdrawalRefused, withdraw_member
 from app.services.inquiry import replies_of
 from app.services.local_auth import utc_now
 from app.services.user_session import (
+    SESSION_COOKIE,
+    SESSION_COOKIE_OPTIONS,
+    WithdrawnAccountError,
     current_user,
     end_session,
+    ensure_member_for_write,
+    login_lock_remaining_seconds,
+    record_login_failure,
     require_same_origin,
 )
 
@@ -71,6 +79,24 @@ def to_save_response(save: GamePlaySave) -> GameSaveResponse:
         state=save.state_json,
         updated_at=save.updated_at,
     )
+
+
+def login_required() -> HTTPException:
+    return HTTPException(
+        status.HTTP_401_UNAUTHORIZED,
+        detail="Login required.",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+async def ensure_member(db: AsyncSession, user_id: str) -> None:
+    """쓰기 직전 — 세션 확인 뒤 탈퇴가 끝났으면 쓰지 않고 401(회원 행 공유 잠금, `ensure_member_for_write`)."""
+
+    try:
+        await ensure_member_for_write(db, user_id)
+    except WithdrawnAccountError as error:
+        await db.rollback()
+        raise login_required() from error
 
 
 async def find_save(db: AsyncSession, user_id: str) -> GamePlaySave | None:
@@ -122,6 +148,67 @@ async def logout(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     await end_session(db, request, response)
+
+
+_WITHDRAWAL_REFUSALS = {
+    "admin_cannot_withdraw": "관리자 계정은 탈퇴할 수 없습니다.",
+    "reauth_required": "소셜 로그인 계정 탈퇴는 아직 지원하지 않습니다. 다시 로그인 확인이 필요합니다.",
+}
+
+
+@router.post(
+    "/withdrawal",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=error_responses.ME_WITHDRAWAL,
+)
+async def withdraw(
+    body: WithdrawalRequest,
+    request: Request,
+    response: Response,
+    user: AppUser = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """회원 탈퇴(계약 account_withdrawal_v0.2). 성공하면 204 와 로그인 쿠키 만료 — 커밋이 끝난 뒤에만 쿠키를 지운다.
+
+    비밀번호 실패는 로그인과 같은 이메일 집계에 더한다(탈퇴 창구로 비밀번호를 대입해 보지 못하게). 거절 · 실패면 바뀌는 것이 없다.
+    """
+    response.headers["Cache-Control"] = "no-store"
+    email = user.email
+    retry_after = await login_lock_remaining_seconds(db, request, email)
+    if retry_after is not None:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "login_locked",
+                "message": "비밀번호 실패가 많아 잠시 막혔습니다. 15분 뒤 다시 시도해 주세요.",
+            },
+            headers={"Cache-Control": "no-store", "Retry-After": str(retry_after)},
+        )
+    try:
+        await withdraw_member(db, user.id, body.password)
+    except WithdrawalRefused as refusal:
+        if refusal.code == "invalid_password":
+            await record_login_failure(db, request, email)
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "code": "invalid_password",
+                    "message": "비밀번호가 맞지 않습니다.",
+                },
+                headers={"Cache-Control": "no-store"},
+            ) from refusal
+        if refusal.code == "already_withdrawn":
+            # 같은 계정의 탈퇴가 먼저 끝났다(동시 요청)
+            raise login_required() from refusal
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": refusal.code,
+                "message": _WITHDRAWAL_REFUSALS[refusal.code],
+            },
+            headers={"Cache-Control": "no-store"},
+        ) from refusal
+    response.delete_cookie(SESSION_COOKIE, **SESSION_COOKIE_OPTIONS)
 
 
 @router.get(
@@ -189,6 +276,7 @@ async def write_game_save(
     db: AsyncSession = Depends(get_db),
 ) -> GameSaveResponse:
     _check_json(body.state, MAX_STATE_BYTES)
+    await ensure_member(db, user.id)
     now = utc_now()
     save = await find_save(db, user.id)
     # 다른 창이 먼저 저장했으면 덮어쓰지 않고 최신값을 알려 준다.
@@ -269,6 +357,7 @@ async def write_character(
     db: AsyncSession = Depends(get_db),
 ) -> CharacterResponse:
     _check_json(body.appearance, MAX_APPEARANCE_BYTES)
+    await ensure_member(db, user.id)
     now = utc_now()
     character = await db.get(UserCharacter, user.id)
     if character is None:

@@ -66,6 +66,11 @@ Query: `date`(기준, 기본 오늘) · `months`(1~24, 기본 6) · `include_int
 ```
 - `total_at_prev_month_end` = 이번 달 1일 00:00 KST 전에 가입한 수(「지난달 대비」 증감의 분모). `mau_prev_30_days` = 기준일 −59 ~ −30일.
 - `by_provider` 는 회원 수(한 회원이 두 수단이면 둘 다 센다). `by_region` 의 null 은 `(미입력)`.
+- **탈퇴 회원(11/17, `account_withdrawal_v0.2.md` §6 · 미르 확정):** 현재 값 — `total`(여기 · `stats/summary` 의 `members.total`) ·
+  `excluded.test_accounts` · `by_region` · `by_provider` · `signups_on_date` · `recent_signups` · 1단계 `GET /admin/users` 목록에서 뺀다.
+  과거 값은 당시 기준 — `total_at_prev_month_end` 는 그 월말에 아직 탈퇴하지 않은 회원(`deleted_at IS NULL OR deleted_at >= 이번 달 1일 00:00 KST`),
+  기간 가입 수(`signups_*` · `monthly_signups` · traffic `signups`)는 가입 사실 그대로. DAU · MAU · 게임 집계는 탈퇴 회원의 과거 활동을 그 회원으로
+  계속 센다. `unavailable.withdrawals` · `churn_rate` 는 그대로. 회원 상세 `user.deleted_at`(회원이면 null)을 더했다.
 - 가입자 목록 이메일은 1단계 목록처럼 **전체** — 화면이 maskEmail 로 가린다. **적용 시점(세진 11/12):** 1단계 `users` 목록을 §2.5 서버 가림(`mask_email`) + 정확 검색(`q=이메일`)으로 바꾸는 그 PR 에서 `signups_on_date` · `recent_signups` 도 같이 가린다 — 베타 뒤, 이 2단계 머지 다음. 그 전까지는 두 API 가 같은 규칙(전체 반환 · 화면 가림). `stage` 는 저장 slot 0 의 단계.
 - **기록: `view_member_stats`**.
 
