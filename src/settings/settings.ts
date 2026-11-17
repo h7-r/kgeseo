@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import { isFrameLimit, type FrameLimit } from "@/engine/frameLimit";
 import { readMigratedStorage, writeStorage } from "@/engine/storage";
 import { createChangeSignal } from "@/lib/changeSignal";
 
@@ -29,6 +30,11 @@ export interface Settings {
    * 짧은 알림 · 주변 한마디는 켜든 끄든 제 시간에 지나간다
    */
   autoAdvance: boolean;
+  /**
+   * 프레임 제한 — 0 은 화면 주사율 그대로. 기본 60: 144 · 240Hz 화면에서 주사율만큼 그려 GPU 를 다 쓰던 것을 막는다(베타 11/16).
+   * 주사율이 60 의 배수가 아니면 가까운 값으로 고르게 건너뛴다(engine/frameLimit)
+   */
+  frameLimit: FrameLimit;
 }
 
 export const FOV_RANGE = { min: 60, max: 75 } as const;
@@ -43,6 +49,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fov: 60,
   reduceMotion: true,
   autoAdvance: false,
+  frameLimit: 60,
 };
 
 export const RESOLUTION_OPTIONS: readonly Resolution[] = ["auto", "low", "medium", "high", "max"];
@@ -101,6 +108,8 @@ function parseSettings(raw: unknown): Partial<Settings> {
       result.fov = Math.min(FOV_RANGE.max, Math.max(FOV_RANGE.min, value));
     } else if ((field === "reduceMotion" || field === "autoAdvance") && typeof value === "boolean") {
       result[field] = value;
+    } else if (field === "frameLimit" && isFrameLimit(value)) {
+      result.frameLimit = value;
     }
   }
   return result;

@@ -52,7 +52,8 @@ export function isLightFishInView(camera: THREE.Camera): boolean {
     at.copy(fish.position).multiplyScalar(M);
     if (at.distanceTo(eye) > SEE_METERS * M) continue;
     at.project(camera);
-    if (at.z < -1 || at.z > 1) continue;
+    // 거꾸로 깊이면 화면 깊이가 0 ~ 1 이다(보통은 −1 ~ 1) — 뒤쪽을 안쪽으로 치지 않게
+    if (at.z < ((camera as THREE.PerspectiveCamera).reversedDepth ? 0 : -1) || at.z > 1) continue;
     if (Math.abs(at.x) > SCREEN_MARGIN || Math.abs(at.y) > SCREEN_MARGIN) continue;
     return true;
   }

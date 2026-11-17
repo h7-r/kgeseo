@@ -7,6 +7,7 @@ import { assetUrl } from "@/config/env";
 import { IS_LOW_QUALITY } from "@/engine/quality";
 import * as THREE from "three";
 
+import { IS_REVERSED_DEPTH } from "../../app/runtimeFlags";
 import { POUCH_MODEL, RING_MODEL } from "../itemLooks";
 import { loadModel } from "../itemModel";
 import { getLetterCanvas, loadLetterFont } from "./letters";
@@ -155,7 +156,8 @@ export async function renderPouchView(gl: THREE.WebGLRenderer) {
   moon.shadow.camera.near = 0.1;
   moon.shadow.camera.far = 4;
   moon.shadow.radius = 6;
-  moon.shadow.bias = -0.0004;
+  // 거꾸로 깊이에서는 보정값의 방향이 반대다(SkyAndLighting 과 같은 까닭)
+  moon.shadow.bias = IS_REVERSED_DEPTH ? 0.0004 : -0.0004;
   moon.shadow.normalBias = 0.004;
   const warm = new THREE.PointLight("#FFD9A8", 0.9, 2, 1.6);
   warm.position.set(0.45, 0.3, 0.55);

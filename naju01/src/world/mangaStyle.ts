@@ -12,7 +12,7 @@
  *          먼 강물을 낮은 각도로 보면 물결 마루 뒤 골이 가려져 깊이가 끊기고, 그게 물결마다 가로줄로 그어지기 때문이다.
  *   ② 색   쨍한 빨강·자홍(옻칠·붉은 천)만 골라 채도를 누르고 · 전체 밝기 ×0.86 · 어두운 곳은 차갑게 · 밝은 곳은 따뜻하게.
  *          나무 갈색(초록이 빨강의 절반 이상)은 건드리지 않는다.
- *   로그 깊이(logarithmicDepthBuffer)는 postprocessing 의 readDepth 가 풀어 준다.
+ *   로그 깊이(logarithmicDepthBuffer)는 postprocessing 의 readDepth 가 풀어 준다. 거꾸로 깊이는 viewZOf 가 따로 푼다.
  *
  * [같이 바뀌는 것] 만화를 켜면 NajuScene 의 세계 껍데기 외곽선(drei <Outlines>)을 끈다 — 선이 두 겹이 되므로.
  * ※ 셰이더 문자열에는 ASCII 만 (windShader.ts 와 같은 이유).
@@ -35,7 +35,16 @@ uniform float uInkBlack;
 uniform vec2 uTanHalf;
 uniform vec3 uUpView;
 
-float distAt(const in vec2 p) { return -getViewZ(readDepth(p)); }
+// readDepth already un-reverses a reversed depth buffer, but getViewZ (three's perspectiveDepthToViewZ) expects the raw
+// reversed value there -> flipped twice, lines vanish. Convert the un-reversed depth ourselves in that mode.
+float viewZOf(const in float d) {
+#ifdef USE_REVERSED_DEPTH_BUFFER
+  return (cameraNear * cameraFar) / ((cameraFar - cameraNear) * d - cameraFar);
+#else
+  return getViewZ(d);
+#endif
+}
+float distAt(const in vec2 p) { return -viewZOf(readDepth(p)); }
 vec3 viewPosAt(const in vec2 p, const in float dist) { return vec3((p * 2.0 - 1.0) * uTanHalf * dist, -dist); }
 
 // 0 = flat sheet seen edge-on (water ripples, flat ground), 1 = real step (rock, boat, wall)
@@ -65,7 +74,7 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth,
   vec3 col = mix(inputColor.rgb, mangaGrade(inputColor.rgb), uGrade);
   float e = 0.0;
   if (depth < 0.99999) {
-    float d0 = -getViewZ(depth);
+    float d0 = -viewZOf(depth);
     vec2 px = texelSize * uWidth;
     float l = distAt(uv - vec2(px.x, 0.0));
     float r = distAt(uv + vec2(px.x, 0.0));

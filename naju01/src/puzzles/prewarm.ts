@@ -10,6 +10,8 @@
  */
 import * as THREE from "three";
 
+import { dressForBake, prepareForBake } from "./lightBudgetEnforce";
+
 const warmTargets = new WeakMap<THREE.WebGLRenderer, THREE.WebGLRenderTarget>();
 
 export function prewarmShaders(
@@ -26,6 +28,8 @@ export function prewarmShaders(
     });
     warmTargets.set(gl, target);
   }
+  // 굽는 순간의 점조명 수가 실제 그릴 때와 같아야 한다 — 방금 붙은 조명이 켜진 채면 그 수의 판으로 구워져 헛돈다
+  prepareForBake();
   const previous = gl.getRenderTarget();
   gl.setRenderTarget(target);
   try {
@@ -44,6 +48,8 @@ export function prewarmShaders(
           }
         });
       try {
+        // 아직 장면에 안 붙은 물체도 붙은 뒤와 같은 판으로 굽게 — 덧댐(젖음 · 바람)을 먼저 붙인다
+        dressForBake(object);
         void gl.compileAsync(object, camera, scene).catch(() => {});
         // 큰 그림판 텍스처는 처음 그릴 때 올리느라 멈춘다 — 지금 올려 둔다
         object.traverse((node) => {

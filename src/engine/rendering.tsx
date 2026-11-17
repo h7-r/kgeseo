@@ -53,6 +53,8 @@ interface ShaderWarmupProps {
    * 없으면 지금 보이는 빛 구성으로만 구워, 처음 들어가는 구역에서 그 구역의 빛 수로 또 굽느라 수백 ms 멈췄다.
    */
   zoneStates?: readonly (readonly string[])[];
+  /** 굽기 직전에 부른다 — 굽는 순간의 장면 상태(조명 수 등)를 실제 그릴 때와 맞추는 자리 */
+  beforeWarm?: () => void;
 }
 
 /** 두 번째 예열까지 기다리는 시간 — GLB 가 늦게 붙는다 */
@@ -152,7 +154,7 @@ function bakeZoneStates(
  * 재질을 처음 그리는 프레임의 셰이더 컴파일(수백 ms)을 게임 전에 미리 끝낸다.
  * 늦게 붙는 GLB·구역·상태 부품 때문에 되풀이하되, 바뀐 것이 없으면 건너뛰고 점점 뜸해진다.
  */
-export function ShaderWarmup({ enabled = true, zoneStates }: ShaderWarmupProps) {
+export function ShaderWarmup({ enabled = true, zoneStates, beforeWarm }: ShaderWarmupProps) {
   const { gl, scene, camera } = useThree();
   useEffect(() => {
     if (!enabled) return;
@@ -168,6 +170,7 @@ export function ShaderWarmup({ enabled = true, zoneStates }: ShaderWarmupProps) 
     const warm = () => {
       if (!alive) return;
       try {
+        beforeWarm?.();
         const stale = oven.findStale();
         if (stale.length === 0) {
           wait = Math.min(MAX_INTERVAL_MS, wait * IDLE_GROWTH);
@@ -195,6 +198,6 @@ export function ShaderWarmup({ enabled = true, zoneStates }: ShaderWarmupProps) 
       clearTimeout(second);
       if (next) clearTimeout(next);
     };
-  }, [gl, scene, camera, enabled, zoneStates]);
+  }, [gl, scene, camera, enabled, zoneStates, beforeWarm]);
   return null;
 }

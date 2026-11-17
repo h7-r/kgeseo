@@ -7,6 +7,7 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
+import { FRAME_LIMIT_LABELS, FRAME_LIMIT_OPTIONS } from "@/engine/frameLimit";
 import { useTouchMode } from "@/engine/input";
 import { QUALITY, readQualityChoice, saveQualityChoice, type QualityChoice } from "@/engine/quality";
 import { CloseIcon } from "@/game/gameIcons";
@@ -215,6 +216,27 @@ function SettingsDialog({ onClose, leaveToLobby, onShowGuide, guideLabel }: Sett
                 style={settings.resolution === resolution ? choiceActiveStyle : choiceStyle}
               >
                 {RESOLUTION_LABELS[resolution]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={rowStyle}>
+          <span style={labelStyle}>
+            프레임 제한
+            <span style={descriptionStyle}>낮추면 그래픽 카드를 덜 쓴다</span>
+          </span>
+          <div style={choicesStyle} role="radiogroup" aria-label="프레임 제한">
+            {FRAME_LIMIT_OPTIONS.map((frameLimit) => (
+              <button
+                key={frameLimit}
+                type="button"
+                role="radio"
+                aria-checked={settings.frameLimit === frameLimit}
+                onClick={() => updateSettings({ frameLimit })}
+                style={settings.frameLimit === frameLimit ? choiceActiveStyle : choiceStyle}
+              >
+                {FRAME_LIMIT_LABELS[frameLimit]}
               </button>
             ))}
           </div>

@@ -15,6 +15,8 @@ import { _roots } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { prepareForBake } from "../puzzles/lightBudgetEnforce";
+
 /** 전환 영상이 있는 public 폴더. 영상 표와 감시 제외가 같은 값을 써야 한다. */
 export const TRANSITION_VIDEO_DIR = "/transitions/";
 
@@ -189,6 +191,10 @@ function findLoadingBlocker(isLoading: () => boolean): string | null {
   return null;
 }
 
+/** 후처리가 켜진 화면(?fx=off 가 아니면)은 장면을 선형 색 공간의 판에 그린다 — 미리 구울 때도 같은 판을 건다 */
+const USES_LINEAR_TARGET =
+  typeof location === "undefined" || new URLSearchParams(location.search).get("fx") !== "off";
+
 /** 셰이더 미리 컴파일에 주는 최대 시간(ms) — 남은 시간이 더 짧으면 그만큼만 */
 const COMPILE_LIMIT_MS = 15000;
 
@@ -220,14 +226,27 @@ async function warmUp(compileLimitMs: number) {
     // 숨은 것까지 전부. 병렬 컴파일 확장이 있으면 끝날 때까지 기다리되, 한도를 넘기면 그냥 간다 —
     //   compileAsync 가 안 끝나는 기계(11/4 팀원 맥, 첫 진입)에서 최대 시간까지 통째로 묶였다.
     try {
-      if (gl.compileAsync) {
+      // 굽는 순간의 조명 수 · 출력 색 공간이 실제 그릴 때와 같아야 한다. 타깃 없이 구우면 sRGB 판이 구워지는데,
+      // 후처리가 켜진 화면은 선형 판에 그리므로 통째로 헛돈다(11/16 실측: 77개가 한 번도 안 쓰였다).
+      // 판(program)은 compileAsync 가 부르는 순간 정해지므로 타깃은 부르는 동안만 건다
+      prepareForBake();
+      const compileTarget = gl.getRenderTarget();
+      if (USES_LINEAR_TARGET) gl.setRenderTarget(target);
+      let compiling: Promise<unknown> | null = null;
+      try {
+        if (gl.compileAsync) compiling = gl.compileAsync(scene, camera);
+        else gl.compile(scene, camera);
+      } finally {
+        gl.setRenderTarget(compileTarget);
+      }
+      if (compiling) {
         const compiled = await Promise.race([
-          gl.compileAsync(scene, camera).then(() => true),
+          compiling.then(() => true),
           sleep(compileLimitMs).then(() => false),
         ]);
         if (!compiled)
           console.warn(`[로딩검사] 셰이더 미리 컴파일이 ${Math.round(compileLimitMs / 1000)}초 안에 안 끝나 넘어간다`);
-      } else gl.compile(scene, camera);
+      }
     } catch (error) {
       console.warn("[로딩검사] 셰이더 미리 컴파일 실패 — 계속 간다", error);
     }

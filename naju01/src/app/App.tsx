@@ -72,6 +72,8 @@ import { IS_REVIEW_REQUESTED, ReviewHud } from "../review/ReviewBridge";
 import { najuCaseProgress } from "../progress/caseProgress";
 import { readSavedSection } from "@/save/gameSave";
 import CaseStartCard from "./CaseStartCard";
+import { FrameLimiter } from "@/engine/FrameLimiter";
+import { activeFrameLimit, frameloopFor } from "@/engine/frameLimit";
 import { requestGameLock } from "@/engine/input/lookGuard";
 import NajuPauseMenu from "./NajuPauseMenu";
 import PlayTimeHud from "./PlayTimeHud";
@@ -90,9 +92,13 @@ import { canLeaveToLobby, leaveToLobbyAction } from "./leaveToLobby";
 import { PuzzleHud, PuzzleWorld } from "./PuzzleLayer";
 import { prefetchNajuAssets } from "./prefetch";
 import { waitForSessionBeforeAssets } from "./sessionGate";
+import { ReversedDepthSort } from "./ReversedDepthSort";
 import { ShaderPreload } from "./ShaderPreload";
+import { SceneSettledSignal } from "../transition/SceneSettledSignal";
 import {
   ALLOW_VIEW_TOGGLE,
+  autoMaxDpr,
+  DEPTH_MODE,
   IS_ARRIVING_FROM_HUB,
   IS_BLOOM_DISABLED,
   IS_DPR_AUTO,
@@ -138,7 +144,7 @@ const COVER_REMOVE_MS = 450;
 export default function App() {
   // 동적 해상도 — dpr 을 못 박으면 가장 나쁜 자리(Z1 마을)에 맞춰야 해서 한가한 곳의 성능을 버린다.
   // 배율이 바뀌면 프레임버퍼를 다시 잡으므로 0.25 눈금으로만 움직인다.
-  const [dpr, setDpr] = useState(IS_DPR_AUTO ? START_DPR : MAX_DPR);
+  const [dpr, setDpr] = useState(IS_DPR_AUTO ? Math.min(START_DPR, autoMaxDpr()) : MAX_DPR);
 
   // 본편과 같은 설정(같은 저장 열쇠) — 본편에서 줄인 소리가 여기서도 그대로다
   const settings = useSettings();
@@ -153,7 +159,11 @@ export default function App() {
     settings.resolution === "auto"
       ? null
       : // 저사양 모드는 해상도 설정이 「높음 · 최고」여도 상한(1)을 넘기지 않는다(Codex 리뷰 10)
-        Math.min(RESOLUTION_DPR[settings.resolution], window.devicePixelRatio || 1, IS_LOW_QUALITY ? MAX_DPR : Infinity);
+        Math.min(
+          RESOLUTION_DPR[settings.resolution],
+          window.devicePixelRatio || 1,
+          IS_LOW_QUALITY ? MAX_DPR : Infinity,
+        );
 
   const controlsRef = useRef<PointerLockControlsImpl>(null);
   const reportRef = useRef<NajuSceneReport | null>(null); // 씬 → 검수 도구(리렌더 없이)
@@ -185,6 +195,7 @@ export default function App() {
   });
   const [isSceneReady, setIsSceneReady] = useState(false); // 다 받아서 씬을 붙여도 된다
   const [isSceneDrawn, setIsSceneDrawn] = useState(false);
+  const [warmRound, setWarmRound] = useState(0);
   const [isCoverMounted, setIsCoverMounted] = useState(true);
 
   useEffect(() => {
@@ -246,6 +257,7 @@ export default function App() {
   // 터치 모드 — 멈춤 · 창이면 렌더 루프까지 세운다(11/7 미르 결정 5). 창이 열려 있으면 「멈춤」 덮개 대신 창을 보인다
   const isTouch = useTouchMode();
   const isFrozen = useGameFrozen();
+  const frameLimit = activeFrameLimit(settings.frameLimit);
   const isHintBoxOpen = useHintBoxOpen();
   const isChatOpen = useCompanionChatOpen();
   // 엔딩 — 끝 연출(finale)은 세계가 흐르고 HUD 만 걷는다. 전체화면 필름 · 클리어 화면은 창처럼 세계를 세우고 커서를 준다
@@ -268,19 +280,22 @@ export default function App() {
     return { mode: (progress ? "resume" : "full") as CaseStartMode, isCleared: !!progress?.isCleared };
   });
   const [cardMode, setCardMode] = useState<CaseStartMode | null>(IS_REVIEW_REQUESTED ? null : caseStart.mode);
-  const handleLockChange = useCallback((next: boolean) => {
-    setIsLocked(next);
-    if (!next) return;
-    setHasLockedOnce(true);
-    // 잠겼다 — 시작 카드(첫 몸짓 · 다시 보기)를 내린다. 다시 풀려도 카드가 아니라 「게임 밖」 쉼이 맡는다
-    setCardMode(null);
-    // 조사 시간은 첫 조작부터 센다(얼어 있던 시간은 게임 시계가 뺀다)
-    if (!IS_REVIEW_REQUESTED) {
-      playClock.start();
-      // 베타 기록 — 첫 조작(시작 · 이어 하기). 참여 코드가 없으면 아무 일도 없다
-      noteNajuStart(caseStart.mode === "full" ? "full" : "resume", caseStart.isCleared);
-    }
-  }, [caseStart]);
+  const handleLockChange = useCallback(
+    (next: boolean) => {
+      setIsLocked(next);
+      if (!next) return;
+      setHasLockedOnce(true);
+      // 잠겼다 — 시작 카드(첫 몸짓 · 다시 보기)를 내린다. 다시 풀려도 카드가 아니라 「게임 밖」 쉼이 맡는다
+      setCardMode(null);
+      // 조사 시간은 첫 조작부터 센다(얼어 있던 시간은 게임 시계가 뺀다)
+      if (!IS_REVIEW_REQUESTED) {
+        playClock.start();
+        // 베타 기록 — 첫 조작(시작 · 이어 하기). 참여 코드가 없으면 아무 일도 없다
+        noteNajuStart(caseStart.mode === "full" ? "full" : "resume", caseStart.isCleared);
+      }
+    },
+    [caseStart],
+  );
   useEffect(() => {
     if (isTouch || !hasLockedOnce) return undefined;
     // 붙듦 · 기다림은 알림이 없어 잠금이 바뀔 때와 짧은 간격으로 본다. 창이 떠 있는 동안에도 「닫으면 게임 밖인가」를 잰다
@@ -389,18 +404,20 @@ export default function App() {
       {/* 나주맵은 Leva 를 조절 창으로 쓰지 않는다 — 값은 코드 기본·저장값 그대로 돌고 패널만 숨긴다 */}
       <Leva hidden theme={{ sizes: { numberInputMinWidth: "68px" } }} />
       <Canvas
-        frameloop={isFrozen ? "never" : "always"}
+        // 프레임 제한이 있으면 FrameLimiter 가 그릴 때를 정한다("demand") — 없으면 주사율대로
+        frameloop={isFrozen ? "never" : frameloopFor(frameLimit)}
         // 끌 때도 방식(type)은 켤 때와 같게 둔다 — false 만 주면 방식 값이 바뀌어 같은 재질이 한 벌 더 구워진다(11/12 실측)
         shadows={SHADOW_QUALITY === "off" ? { enabled: false, type: THREE.PCFShadowMap } : "percentage"}
         // [1, 상한] 배열을 주면 three 가 기기 픽셀비로 골라 PerformanceMonitor 가 정한 값이 묻힌다
-        dpr={fixedDpr ?? dpr}
+        dpr={fixedDpr ?? Math.min(dpr, autoMaxDpr())}
         // 밝기 100% 면 필터를 아예 안 건다(합성 비용 0)
         style={settings.brightness !== 1 ? { filter: `brightness(${settings.brightness})` } : undefined}
         gl={{
           antialias: !IS_LOW_QUALITY && IS_POSTFX_DISABLED,
           toneMappingExposure: 1.15,
-          // 900 m 밖 산줄기까지 그리려고 far 를 키우면 가까운 면의 깊이 정밀도가 무너진다
-          logarithmicDepthBuffer: true,
+          // 900 m 밖 산줄기까지 그리려고 far 를 키우면 가까운 면의 깊이 정밀도가 무너진다 — 거꾸로 깊이(없으면 로그 깊이)로 버틴다
+          logarithmicDepthBuffer: DEPTH_MODE === "log",
+          reversedDepthBuffer: DEPTH_MODE === "rev",
           powerPreference: "high-performance",
         }}
         // 야외라 건너편 뱃길 너머 산줄기까지 이어져야 한다. 900 m ≈ 3000 유닛.
@@ -411,6 +428,8 @@ export default function App() {
           far: 4000,
         }}
       >
+        <FrameLimiter limit={frameLimit} />
+        <ReversedDepthSort />
         {/* 씬과 함께 붙인다 — 빈 캔버스에서 재면 fps 가 높게 나와 배율이 상한부터 올라가고, Preload 는 데울 것이 없다 */}
         {isSceneReady && (
           <>
@@ -419,12 +438,14 @@ export default function App() {
             {IS_DPR_AUTO && fixedDpr === null && (
               <PerformanceMonitor
                 bounds={() => [50, 58]}
-                // 저사양은 멈추지 않고 계속 맞춘다 — 세 번 뒤 그 자리에 굳으면 무거운 구역에서 못 내려간다(Codex 리뷰 10)
-                flipflops={IS_LOW_QUALITY ? Infinity : 3}
+                // 멈추지 않고 계속 맞춘다 — drei 는 오르기만 해도 횟수를 세어, 세 번이면 시작 13초 만에 상한에 굳고
+                // 무거운 구역에서 못 내려왔다(11/16 실측: 굳은 뒤 14 ~ 23fps 로 30초를 둬도 그대로)
+                flipflops={Infinity}
                 onChange={({ factor }) => {
                   // 기본은 0.25 단위, 저사양은 0.05 단위(0.65 ~ 1 사이를 0.25 로 자르면 0.75 · 1 둘뿐이다)
                   const steps = IS_LOW_QUALITY ? 20 : 4;
-                  const next = Math.round((MIN_DPR + (MAX_DPR - MIN_DPR) * factor) * steps) / steps;
+                  const max = autoMaxDpr();
+                  const next = Math.min(max, Math.round((MIN_DPR + (max - MIN_DPR) * factor) * steps) / steps);
                   setDpr((previous) => (previous === next ? previous : next));
                 }}
               />
@@ -442,13 +463,15 @@ export default function App() {
             />
             <PuzzleWorld />
             {/* 씬 뒤에 둔다 — 붙는 순서대로 효과가 돌아 씬의 재질이 다 선 다음에 데운다 */}
-            <ShaderPreload linear={!IS_POSTFX_DISABLED} withUpload={!IS_LOW_QUALITY} />
+            {/* 소품(공개 에셋)은 몇 프레임 뒤에 선다 — 다 서면 한 번 더 데운다. 화면 밖 소품은 그려지지 않아 셰이더가 안 구워진 채
+                남았다가 「조사 시작」 직후 눈에 들어오는 프레임에 구워졌다(11/17 실측 10개 · 0.38초) */}
+            <ShaderPreload key={warmRound} linear={!IS_POSTFX_DISABLED} withUpload={!IS_LOW_QUALITY} />
             <PauseClockGuard />
             {/* 멈춘 동안 캔버스 크기 · 픽셀비가 바뀌면 한 장면 다시 — 안 그리면 메뉴 뒤가 까맣다(미르 11/11 물굴 ESC 암전) */}
             <FrozenRedraw />
             <FovCap />
             {/* 붙자마자 걷으면 셰이더 컴파일·첫 업로드가 걸린 프레임을 그대로 보게 된다 */}
-            <FirstFrameSignal frames={3} onFirstFrame={() => setIsSceneDrawn(true)} />
+            <SceneSettledSignal onAssetsSettled={() => setWarmRound(1)} onSettled={() => setIsSceneDrawn(true)} />
             {IS_ARRIVING_FROM_HUB && <FirstFrameSignal onFirstFrame={revealArrival} />}
           </>
         )}
