@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 from app.services.admin_stats import (
     ENDING_PHASES,
-    ENTRY_ONLY_STAGES,
+    LEGACY_STAGE_ENTRY,
     STAGE_END,
     GameEvent,
     aggregate_game,
@@ -34,9 +34,16 @@ def stages_of(result):
 
 def test_rules_are_the_agreed_ones():
     assert ENDING_PHASES == {"released", "dawn"}
-    assert ENTRY_ONLY_STAGES == {4: ("CLIFF", "progress"), 5: ("GUT", "rite")}
-    # 1~3스테이지 끝은 그대로(3 = 시공간 틈은 스테이지 완료일 뿐)
-    assert STAGE_END == {1: "S1_SMOKE", 2: "C_SOCKET", 3: "S3_RIFT"}
+    # 11/11~ 굵은 표식은 4 · 5 진입 근거로만(11/17 정식 집계 전환)
+    assert LEGACY_STAGE_ENTRY == {("CLIFF", "progress"): 4, ("GUT", "rite"): 5}
+    # 1~3스테이지 끝은 그대로(3 = 시공간 틈은 스테이지 완료일 뿐), 4 · 5 는 구렁이상 틈 · 다섯 횃불
+    assert STAGE_END == {
+        1: "S1_SMOKE",
+        2: "C_SOCKET",
+        3: "S3_RIFT",
+        4: "S4_SERPENT",
+        5: "P16",
+    }
 
 
 def test_rift_without_ending_is_not_case_completion():
@@ -183,9 +190,11 @@ def test_cliff_and_gut_entries_are_people_once():
             ev("objective_state", "rite", "GUT", person="u:a"),
         ]
     )
-    assert dict(result.entry_only_stages) == {4: 2, 5: 1}
+    # 정식 stages 4 · 5 의 진입으로 센다(사람 단위), 완료는 아니다. 임시 필드는 []
+    assert stages_of(result)[4] == (2, 0) and stages_of(result)[5] == (1, 0)
+    assert result.entry_only_stages == []
     # 1~3스테이지는 영향 없음
-    assert all(entered == 0 for entered, _ in stages_of(result).values())
+    assert all(stages_of(result)[stage] == (0, 0) for stage in (1, 2, 3))
 
 
 def test_wrong_shapes_do_not_count_as_stage_entries():
@@ -199,7 +208,7 @@ def test_wrong_shapes_do_not_count_as_stage_entries():
             ev("run_state", "rite", "GUT", run="r1", at=T0),
         ]
     )
-    assert dict(result.entry_only_stages) == {4: 0, 5: 0}
+    assert stages_of(result)[4] == (0, 0) and stages_of(result)[5] == (0, 0)
 
 
 def test_stages_one_to_three_unchanged_with_new_events_present():
@@ -219,14 +228,21 @@ def test_stages_one_to_three_unchanged_with_new_events_present():
             ev("run_state", "dawn", person="u:c", run="r", at=T0),
         ]
     )
-    assert base.stages == with_new.stages
-    assert stages_of(base) == {1: (1, 1), 2: (1, 1), 3: (1, 0)}
+    assert base.stages[:3] == with_new.stages[:3]
+    assert stages_of(base) == {
+        1: (1, 1),
+        2: (1, 1),
+        3: (1, 0),
+        4: (0, 0),
+        5: (0, 0),
+    }
 
 
 def test_empty():
     result = aggregate_game([])
     assert result.case_completed_people == 0 and result.completed_runs == 0
-    assert result.entry_only_stages == [(4, 0), (5, 0)]
+    assert result.entry_only_stages == []
+    assert stages_of(result) == {stage: (0, 0) for stage in (1, 2, 3, 4, 5)}
 
 
 # --- 중앙값(평균과 같은 표본) ---
@@ -386,21 +402,19 @@ def test_average_is_unchanged_by_adding_median():
     assert result.median_completion_minutes == 40.0
 
 
-# --- 4 · 5스테이지 임시 집계 유지 ---
+# --- 4 · 5스테이지 정식 집계(11/17) — 임시 필드는 비고, 모르는 ID 는 어디에도 붙지 않는다 ---
 
 
-def test_entry_only_stages_stay_until_detailed_ids_exist():
-    """세부 목표 ID 가 없는 지금은 임시 집계 그대로 — 모르는 objective 가 와도 [] 로 바뀌지 않고 stages 에 4 · 5 가 생기지 않는다."""
-
+def test_entry_only_stages_is_empty_and_unknown_ids_attach_nowhere():
     result = aggregate_game(
         [
             ev("objective_state", "progress", "CLIFF"),
             ev("objective_state", "rite", "GUT"),
-            # 아직 계약에 없는 ID(가상) — 어떤 스테이지에도 붙지 않는다
+            # 계약에 없는 ID(가상) — 어떤 스테이지에도 붙지 않는다
             ev("objective_state", "complete", "S4_UNKNOWN", data={"origin": "live"}),
             ev("objective_state", "available", "S5_UNKNOWN"),
         ]
     )
-    assert result.entry_only_stages == [(4, 1), (5, 1)]
-    assert [stage for stage, _, _ in result.stages] == [1, 2, 3]
-    assert ENTRY_ONLY_STAGES  # 비우는 것은 세부 목표를 정식 집계로 옮길 때
+    assert result.entry_only_stages == []
+    assert [stage for stage, _, _ in result.stages] == [1, 2, 3, 4, 5]
+    assert stages_of(result)[4] == (1, 0) and stages_of(result)[5] == (1, 0)

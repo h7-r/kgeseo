@@ -84,15 +84,15 @@ Query: `date`(끝, 기본 오늘) · `days`(1~92, 기본 30) · `include_interna
 {
   "generated_at": "…", "timezone": "Asia/Seoul", "date": "2026-11-12", "days": 30, "people": 23,
   "funnel": [ { "phase": "character_open", "people": 23 }, { "phase": "character_done", "people": 20 }, { "phase": "headquarters", "people": 18 }, { "phase": "naju_ready", "people": 15 }, { "phase": "naju_controllable", "people": 15 } ],
-  "stages": [ { "stage": 1, "entered": 15, "completed": 9 }, { "stage": 2, "entered": 9, "completed": 3 }, { "stage": 3, "entered": 3, "completed": 1 } ],
+  "stages": [ { "stage": 1, "entered": 15, "completed": 9 }, { "stage": 2, "entered": 9, "completed": 3 }, { "stage": 3, "entered": 3, "completed": 1 }, { "stage": 4, "entered": 2, "completed": 1 }, { "stage": 5, "entered": 1, "completed": 1 } ],
   "puzzles": [ { "objective_id": "P01", "judge": "server", "attempts": 40, "wrong": 22, "hint_requests": 6, "completed_people": 12 } ],
   "avg_completion_minutes": 48.5, "completed_runs": 1,
   "case_completed_people": 1, "median_completion_minutes": 48.5,
-  "entry_only_stages": [ { "stage": 4, "entered": 2 }, { "stage": 5, "entered": 1 } ],
+  "entry_only_stages": [],
   "unavailable": {}
 }
 ```
-- 스테이지 묶음 · 서버 판정 목록은 `naju01/src/dialogue/objectives.ts`(STAGE_OF · SERVER_JUDGED)를 서버에 옮긴 표(`services/admin_stats.py`). 1 = 나루터, 2 = 바위 아래 + 물굴, 3 = 증언 능선. 스테이지 「완료」 = 끝 걸음(S1_SMOKE · C_SOCKET · S3_RIFT) 완료.
+- 스테이지 묶음 · 서버 판정 목록은 `naju01/src/dialogue/objectives.ts`(STAGE_OF · SERVER_JUDGED)를 서버에 옮긴 표(`services/admin_stats.py`). 1 = 나루터, 2 = 바위 아래 + 물굴, 3 = 증언 능선, 4 = 바위 위, 5 = 굿판. 스테이지 「완료」 = 끝 걸음(S1_SMOKE · C_SOCKET · S3_RIFT · S4_SERPENT · P16) 완료.
 - `entered` = 그 스테이지 목표를 하나라도 본(available · focus · complete) 사람 수. `completed_people` = `objective_state complete` 이고 `data.origin` 이 `live`(복원 제외)인 사람 수.
 - `attempts` = `puzzle_attempt` 건수(sent_back 포함), `wrong` = phase `fail` · `incorrect`. `hint_requests` = `help_event request` 건수. `judge` = server · screen · step.
 - **사건 완주(11/16 미르 확정)** = `run_state` 의 phase `released` 또는 `dawn`(`data.origin` 이 `live`, 없으면 live 로 본다). 두 값은 굿판의 마지막 두 단계라 정상 완주 한 번에 둘 다 남는다 — 같은 회차(`run_id`)는 한 번, 같은 사람은 한 번으로 묶는다. **`S3_RIFT`(3스테이지 끝) 완료는 사건 완주가 아니다**(그 뒤에 4 · 5스테이지가 있다). 엔딩이 아닌 run_state(`restart` · `quit` 등) · 복원 기록은 완주로 세지 않는다.
@@ -101,13 +101,30 @@ Query: `date`(끝, 기본 오늘) · `days`(1~92, 기본 30) · `include_interna
   - **완주 시간 표본**(평균 · 중앙값 공통): 시작(start · resume)과 엔딩(released · dawn)이 **둘 다 있는 회차**, `run_id` 하나에 한 값. 값 = 그 회차의 첫 시작 → **가장 이른 엔딩**(released · dawn 이 둘 다 있으면 이른 쪽) 분. 엔딩이 시작보다 앞서는(음수) 회차는 뺀다. 시작 기록이 없는 엔딩 회차는 `completed_runs` 에는 들지만 이 표본에는 들지 않는다.
   - `avg_completion_minutes` = 표본의 산술평균, 소수 첫째 자리(`round`). 표본이 없으면 null + `unavailable.avg_completion_minutes = "no_completed_run"`(코드 그대로).
   - `median_completion_minutes`(11/16 추가, `number | null`) = 같은 표본의 중앙값 — 홀수 개면 가운데 값, 짝수 개면 가운데 두 값의 산술평균. 단위 · 반올림은 평균과 같다(분, 소수 첫째 자리). 표본이 같으므로 **평균이 null 일 때만 null** 이고, 그때 `unavailable.median_completion_minutes = "no_completed_run"` 을 덧붙여 준다(기존 키 · 코드는 그대로 — 덧붙임이라 하위 호환).
-- **4 · 5스테이지(11/16 추가, 진입만) — `entry_only_stages` 는 임시 필드(미르 11/16 확정).** 목표표 밖이라 `stages`(1~3)에 넣지 않고 따로 준다. 세부 완료 조건은 아직 없다(`completed` 없음).
-  - 4스테이지(바위 위) 진입 = `objective_state` · phase `progress` · `objective_id` `CLIFF`(`data.stage` 는 단계 정보 — 값과 무관하게 진입)
-  - 5스테이지(굿판) 진입 = `objective_state` · phase `rite` · `objective_id` `GUT`
-  - 사람 단위로 한 번. 다른 phase · objective 조합(예: GUT progress)은 세지 않는다.
-  - **정식 집계 전환(향후)**: 해랑님이 4 · 5스테이지 세부 목표 ID 를 게임 이벤트(`objective_state` 의 `objective_id`)에 넣으면, 그 ID 를 `services/admin_stats.py` 의 `STAGE_OBJECTIVES`(스테이지 4 · 5 묶음) · `STAGE_END`(각 스테이지의 끝 걸음) · 필요하면 `SERVER_JUDGED` 에 더해 `stages` · `puzzles` 로 센다. 그때 `ENTRY_ONLY_STAGES` 를 비워 **`entry_only_stages` 는 `[]`** 가 된다(필드는 하위 호환을 위해 남긴다). 프론트는 `stages` 의 4 · 5 행을 쓰도록 바꾼다.
-  - 전환 전제: (1) 목표 ID 목록과 각 스테이지의 끝 걸음을 해랑님 · 미르님이 확정, (2) 게임이 그 ID 로 `available` · `focus` · `complete` 를 실제로 남김(배포 확인), (3) 이 문서 · 시험 갱신. **ID 를 받기 전에는 전환하지 않고 지금의 CLIFF · GUT 진입 집계를 유지한다** — 없는 ID 를 미리 만들거나 완료 조건을 추정하지 않는다.
-  - 전환 전후 같은 기간을 비교하면 4 · 5스테이지 진입 기준이 달라질 수 있다(CLIFF progress · GUT rite → 세부 목표를 본 사람). 전환 시점을 이 문서에 적는다.
+- **4 · 5스테이지 정식 집계(11/17 전환 — 세진, #170 운영 기록 확인 해랑).** 11/16 의 임시 필드 `entry_only_stages`(CLIFF · GUT 진입만)를
+  `stages` · `puzzles` 정식 집계로 옮겼다. 근거: 나주 ID 대응표 v1.2 9절(미르 · 해랑 11/16 확정) · `naju01/src/beta/lateObjectives.ts` ·
+  `najuBeta.ts`(#170 병합 · 배포, 운영에서 P14 available · focus 기록 확인).
+  - 정식 목표(목표표 밖 — 베타 기록 전용 ID, 서버 판정 없음):
+
+    | 스테이지 | 목표(차례) | 끝(완료 기준) | judge |
+    |---|---|---|---|
+    | 4 바위 위 | P14 정화수 세 그릇 · P15 끊긴 발자국 · S4_POUCH 아랑사의 주머니 · S4_SERPENT 구렁이상 틈 | `S4_SERPENT` | P14 · P15 = screen, S4_* = step |
+    | 5 굿판 | S5_RINGS 소반에 가락지 · P16 다섯 횃불 | `P16` | P16 = screen, S5_RINGS = step |
+
+  - 진입(`entered`) = 그 스테이지 목표를 하나라도 본(available · focus · complete — 1~3 과 같은 규칙, 복원 complete 도 「본 것」) 사람
+    **∪ 정식 ID 이전 표식**: 4 = `objective_state progress CLIFF`, 5 = `objective_state rite GUT`(11/11~ 기록 호환). 사람 단위 합집합이라
+    같은 사람의 표식 · 정식 기록 · 여러 회차는 한 명이다. 완료만 남고 available · focus 가 빠져도 진입으로 센다.
+  - 완료(`completed`) = 끝 목표의 `objective_state complete`(`data.origin` live)만. **CLIFF · GUT 의 complete · GUT rite · P16 progress 는 완료가
+    아니다.** 다섯 횃불은 하나 켤 때마다 `objective_state progress P16`(`data.lit`) — 진입 · 완료 어디에도 세지 않는다. 차례가 어긋나 꺼지면
+    `puzzle_attempt fail P16`(`data.how = blow_out`) — 기존 규칙대로 P16 의 `attempts` · `wrong` 에 든다.
+  - `puzzles` 에 새 목표 6개가 기존 모양(attempts · wrong · hint_requests · completed_people · judge)으로 1~3 목표 뒤에 붙는다. CLIFF · GUT 기록은
+    지우거나 바꾸지 않아 퍼즐 표에 표식 행으로 그대로 나온다(화면은 숨긴다 — `INTERIM_MARKERS`).
+  - **`entry_only_stages` 는 이제 늘 `[]`**(필드는 하위 호환으로 남긴다). 프론트는 빈 배열이면 임시 「진입만」 행을 숨기고 `stages` 의 4 · 5 행을
+    쓴다(이미 구현 — `GameDataPage.tsx` · `STAGE_NAMES` 4 = 바위 위, 5 = 굿판). 완료율 그래프에도 4 · 5 단계가 생긴다.
+  - 전환 전후 같은 기간을 비교하면: 4 · 5 진입은 과거 표식을 합집합으로 그대로 포함하므로 줄지 않는다(정식 ID 를 본 사람만큼 늘 수 있다).
+    4 · 5 완료는 #170 배포 전 기록에는 정식 complete 가 없어 0 이다(과거 CLIFF · GUT complete 로 소급하지 않는다).
+  - 사건 완주(`case_completed_people` · `completed_runs` · 평균 · 중앙값)는 변경 없다 — `run_state released · dawn` 기준. P16 완료는 5스테이지
+    완료일 뿐 사건 완주의 근거가 아니다.
 - 내부 계정 제외(include_internal)는 위 집계 전에 기록을 거르는 기존 규칙 그대로다 — 새 값들에도 같이 적용된다.
 - **200,000행 상한(`unavailable.truncated = first_200000_events_only`):** `id` 오름차순으로 앞 20만 건만 읽으므로 걸리면 **기간 뒤쪽(최근) 기록이 빠진다.** 그러면 `people` · `funnel` · `stages` · `puzzles` · `avg_completion_minutes` **전부** 불완전하다(최근 사람 · 최근 완료가 빠져 작게 나온다). 화면은 그 사실을 한 줄로 적고 기간을 줄이라고 안내한다. 상한을 넘기는 날이 오면 날짜별 사전 집계 표(DB 변경 → 세진 몫)로 바꾼다.
 - 기록 안 남김. 정답 값은 어디에도 없다.

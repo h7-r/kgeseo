@@ -222,7 +222,7 @@ class StageStats(BaseModel):
 
 
 class EntryOnlyStageStats(BaseModel):
-    """4 · 5스테이지 — 진입만 센다(세부 완료 조건 미확정, 11/16). 4 = 바위 위(CLIFF progress) · 5 = 굿판(GUT rite)."""
+    """(임시였던) 4 · 5스테이지 진입만 집계 — 11/17 정식 집계(`stages` 4 · 5)로 옮겨 응답은 늘 []. 모양은 계약대로 남긴다."""
 
     stage: int
     entered: int
@@ -258,8 +258,8 @@ class AdminStatsGame(BaseModel):
     case_completed_people: int = 0
     # 평균과 같은 표본의 중앙값(분, 소수 첫째 자리) — 그런 회차가 없으면 null(평균이 null 일 때와 같다)
     median_completion_minutes: float | None = None
-    # 4 · 5스테이지 진입(사람 단위) — **임시 필드**(미르 11/16). 세부 목표 ID 가 게임 이벤트에 들어와 stages · puzzles 로
-    # 정식 집계되면 [] 가 된다(계약 문서 P2-3). `stages` 는 1~3 그대로
+    # 임시 필드(11/16) — 4 · 5스테이지 세부 목표 ID(#170)가 들어와 11/17 `stages` · `puzzles` 정식 집계로 옮겼다. 이제 늘 [].
+    # 필드는 남긴다(빈 배열이면 화면은 임시 표시를 숨기고 stages 4 · 5 를 쓴다). `stages` 는 1~5
     entry_only_stages: list[EntryOnlyStageStats] = []
     unavailable: dict[str, str]
 
