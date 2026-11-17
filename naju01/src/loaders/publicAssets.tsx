@@ -94,6 +94,15 @@ export interface PublicSolid {
 let liveBuilt: Map<string, BuiltEntry> | null = null;
 let liveGroup: THREE.Group | null = null;
 let solidsVersion = 0;
+
+/**
+ * 처음 세우기가 끝났나 — 시작 카드가 뜨면 프레임이 멈추므로, 그 전에 소품을 다 세우고 셰이더까지 구워 둬야 한다.
+ * 안 그러면 세우기가 「조사 시작」을 누른 직후로 밀려 그 프레임이 멈춘다(11/16 실측: 소품 재질 9개 · 0.34초)
+ */
+let isSettled = !IS_PUBLIC_ASSETS_ENABLED;
+let quietPasses = 0;
+let totalPasses = 0;
+export const isPublicAssetsSettled = () => isSettled;
 /** 교체본이 새로 서거나 치워질 때마다 오른다 — 충돌 격자가 이걸 보고 다시 굽는다 */
 export const publicSolidsVersion = () => solidsVersion;
 export function collectPublicSolids(): PublicSolid[] {
@@ -182,8 +191,12 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
     loadPublicAssetTable(() => isAlive)
       .then((result) => {
         if (isAlive && result) setTable(result);
+        else isSettled = true;
       })
-      .catch((error: unknown) => reportAssetFailure("public-loader", error));
+      .catch((error: unknown) => {
+        isSettled = true;
+        reportAssetFailure("public-loader", error);
+      });
     return () => {
       isAlive = false;
     };
@@ -302,7 +315,9 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
   useFrame(({ scene, camera }) => {
     const group = groupRef.current;
     liveGroup = group;
-    if (!table || !group || ++tick.current % 20) return;
+    if (!table || !group) return;
+    // 처음 세우기가 끝날 때까지는 프레임마다 돈다(로딩 덮개 뒤) — 20 프레임에 한 번이면 시작 카드 전에 한 번도 못 돈다
+    if (++tick.current % 20 && isSettled) return;
     group.updateMatrixWorld(true);
     const ctx: BuildContext = {
       scene,
@@ -508,6 +523,13 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
         m.instanceMatrix.needsUpdate = true;
         m.computeBoundingSphere();
       });
+    }
+
+    if (!isSettled) {
+      const isLoading = (placesOverride.current ?? table.places).some((item) => item.loading);
+      quietPasses = changed || isLoading ? 0 : quietPasses + 1;
+      // 세운 것이 있으면 조용한 두 번, 아직 아무것도 못 세웠으면(원본이 덜 붙음) 더 기다린다. 끝내 안 되면 그냥 간다
+      if (quietPasses >= (built.current.size ? 2 : 40) || ++totalPasses > 600) isSettled = true;
     }
 
     if (changed) {

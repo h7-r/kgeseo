@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import * as THREE from "three";
 import { useThree } from "@react-three/fiber";
 
-import { enforceLightBudget } from "../puzzles/lightBudgetEnforce";
+import { prepareForBake } from "../puzzles/lightBudgetEnforce";
 
 /**
  * 셰이더 · 그림 미리 올리기 — drei 의 `<Preload all />` 을 대신한다(미르 11/12 저사양 보고).
@@ -20,7 +20,19 @@ export function ShaderPreload({ linear, withUpload }: { linear: boolean; withUpl
 
   // 수동 효과로 돈다 — 앞에 붙은 LightBudget 의 효과(채움 조명 달기 · 등록)가 먼저 끝난 뒤여야 예산이 맞는다(Codex 리뷰 11)
   useEffect(() => {
-    enforceLightBudget();
+    prepareForBake();
+    // 숨겨 둔 무리 속 조명은 무리를 보이게 하면 같이 켜진다 — 그 수만큼 늘어난 판(11/16 실측: 점조명 7개판 16개)이
+    // 구워져 헛돈다. 굽는 동안만 꺼 둔다
+    const dimmed: THREE.Object3D[] = [];
+    scene.traverse((object) => {
+      if (!(object as THREE.Light).isLight || !object.visible) return;
+      for (let parent = object.parent; parent; parent = parent.parent)
+        if (!parent.visible) {
+          dimmed.push(object);
+          break;
+        }
+    });
+    for (const light of dimmed) light.visible = false;
     const hidden: THREE.Object3D[] = [];
     scene.traverse((object) => {
       if (object.visible || (object as THREE.Light).isLight) return;
@@ -69,6 +81,7 @@ export function ShaderPreload({ linear, withUpload }: { linear: boolean; withUpl
       gl.setRenderTarget(previous);
       target?.dispose();
       for (const object of hidden) object.visible = false;
+      for (const light of dimmed) light.visible = true;
     }
   }, [gl, scene, camera, linear, withUpload]);
 

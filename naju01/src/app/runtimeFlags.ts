@@ -17,6 +17,39 @@ export const IS_BLOOM_DISABLED =
   QUERY.get("bloom") === "off" || ((IS_MOBILE_QUALITY || IS_LOW_QUALITY) && QUERY.get("bloom") !== "on");
 export const IS_VIGNETTE_DISABLED = QUERY.get("vig") === "off";
 export const IS_TONE_MAPPING_ENABLED = QUERY.get("tm") === "on";
+/** 거꾸로 깊이에 필요한 확장(EXT_clip_control)이 이 브라우저 · 그래픽 카드에 있나 — 버리는 캔버스로 한 번 물어본다 */
+function hasClipControl(): boolean {
+  if (typeof document === "undefined") return false;
+  try {
+    const context = document.createElement("canvas").getContext("webgl2");
+    const isSupported = !!context?.getExtension("EXT_clip_control");
+    context?.getExtension("WEBGL_lose_context")?.loseContext();
+    return isSupported;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 깊이 버퍼 방식(11/17). 900 m 밖 산줄기까지 그리려고 far 가 커서 보통 깊이로는 정밀도가 모자라다.
+ *   log  로그 깊이 — 셰이더가 깊이를 직접 써서 GPU 가 가려진 면을 미리 못 버린다(전부 칠한다)
+ *   rev  거꾸로 깊이(reversedDepthBuffer) — 정밀도는 로그 깊이만큼 나오고 가려진 면은 미리 버린다.
+ *        11/17 실측(M5 Max, 수직 동기 끔): 같은 자리에서 낼 수 있는 fps 가 로그 깊이의 1.6 ~ 2.4배
+ *   std  보통 깊이 — 견줄 때만
+ * 기본은 rev, 확장이 없는 기기 · 후처리나 만화 효과를 끈 실행은 log. ?depth=log|rev|std 로 고른다
+ */
+const DEPTH_QUERY = QUERY.get("depth");
+// 거꾸로 깊이는 실수형 깊이 버퍼라야 정밀도가 나온다. 후처리가 깊이를 읽을 때(만화 효과)만 실수형 깊이 텍스처가 잡히고,
+// 후처리나 만화 효과를 끈 실행은 24비트 정수 깊이라 뒤집어도 먼 겹면이 떨린다(Codex 리뷰) — 그때는 로그 깊이 그대로
+const CAN_REVERSE_DEPTH = !IS_POSTFX_DISABLED && QUERY.get("만화") !== "off";
+export const DEPTH_MODE: "log" | "rev" | "std" =
+  DEPTH_QUERY === "log" || DEPTH_QUERY === "std"
+    ? DEPTH_QUERY
+    : DEPTH_QUERY === "rev" || (CAN_REVERSE_DEPTH && hasClipControl())
+      ? "rev"
+      : "log";
+/** 거꾸로 깊이로 도는가 — 그림자 보정값처럼 깊이 방향에 기대는 곳이 본다 */
+export const IS_REVERSED_DEPTH = DEPTH_MODE === "rev";
 /** ?fb=half — 후처리 버퍼를 HalfFloat 로 쓴다. 이 버퍼에서 3D 가 까맣게 나오는 증상을 재현할 때 */
 export const USE_HALF_FLOAT_BUFFER = QUERY.get("fb") === "half";
 /**
@@ -75,6 +108,13 @@ const DPR_PARAM = QUERY.get("dpr");
 // 저사양 모드는 1 을 넘기지 않고, 느리면 0.65 까지 내린다 — 글 · 단추는 DOM 이라 흐려지지 않는다(미르 11/12)
 const DEFAULT_MAX_DPR = IS_LOW_QUALITY ? 1 : IS_MOBILE_QUALITY ? MOBILE_MAX_DPR : IS_LIGHT_PRESENTATION ? 1.5 : 1.75;
 export const MAX_DPR = Math.min(3, Math.max(1, +(DPR_PARAM || DEFAULT_MAX_DPR) || DEFAULT_MAX_DPR));
+/**
+ * 자동 조절의 상한 — 기기 픽셀비보다 높게 그리지 않는다. 픽셀비 1 인 모니터(윈도우 데스크톱)에서 1.75 까지 올리면
+ * 화면의 3배 픽셀을 MSAA 로 그린다 — 빠른 그래픽 카드일수록 끝까지 올라가 GPU 를 다 썼다(베타 11/16, 4K 에서 6720×3780).
+ * 창을 다른 모니터로 옮기면 값이 바뀌므로 그릴 때마다 읽는다. ?dpr= 로 못 박은 값(A/B)은 자르지 않는다
+ */
+export const autoMaxDpr = () =>
+  Math.min(MAX_DPR, Math.max(1, (typeof window !== "undefined" && window.devicePixelRatio) || 1));
 /** 자동 조절 하한 — 이보다 내리면 너무 뿌예진다 */
 export const MIN_DPR = IS_LOW_QUALITY ? 0.65 : 1;
 export const IS_DPR_AUTO = !DPR_PARAM;

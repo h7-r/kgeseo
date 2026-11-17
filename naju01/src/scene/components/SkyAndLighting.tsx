@@ -4,8 +4,9 @@ import * as THREE from "three";
 import { ShaderWarmup, ShadowMapUpdater } from "@/engine/rendering";
 
 import type { PresentedControls } from "../../app/presentation";
-import { SHADOW_MAP_SIZE, SHADOW_QUALITY } from "../../app/runtimeFlags";
+import { IS_REVERSED_DEPTH, SHADOW_MAP_SIZE, SHADOW_QUALITY } from "../../app/runtimeFlags";
 import { MESH_NAMES } from "../../plan/meshNames";
+import { prepareForBake } from "../../puzzles/lightBudgetEnforce";
 import { UNITS_PER_METER } from "../../plan/sitePlan";
 import { planPoint } from "../../plan/sitePlan";
 
@@ -36,7 +37,11 @@ export default function SkyAndLighting({
   sunPosition,
   focusFog = null,
 }: SkyAndLightingProps) {
-  const shadowBias = { "shadow-bias": -0.0005, "shadow-normalBias": controls.shadowNormalBias };
+  // 거꾸로 깊이에서는 그림자 지도의 깊이도 뒤집혀 보정값의 방향이 반대다(three 는 값을 그대로 더한다)
+  const shadowBias = {
+    "shadow-bias": IS_REVERSED_DEPTH ? 0.0005 : -0.0005,
+    "shadow-normalBias": controls.shadowNormalBias,
+  };
   return (
     <>
       <ShadowMapUpdater
@@ -45,7 +50,7 @@ export default function SkyAndLighting({
         slowInterval={240}
       />
       {/* 재질을 처음 그리는 순간 셰이더를 컴파일한다(수백 ms). GLB 가 늦게 붙으므로 주기적으로 데운다. */}
-      <ShaderWarmup />
+      <ShaderWarmup beforeWarm={prepareForBake} />
       {/* 구역 초점(?초점, 10/13) — 안개색 배경 + 짧은 안개, 하늘돔·구름은 숨긴다(immersion/focusFog) */}
       <color attach="background" args={[focusFog ? focusFog.color : controls.skyColor]} />
       {/* 하늘돔 — 빛도 안개도 안 타고 가장 먼저 그려 깊이 버퍼를 안 쓴다 */}

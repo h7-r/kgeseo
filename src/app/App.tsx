@@ -64,6 +64,8 @@ import {
   useHasEnteredHeadquarters,
   useIsCutscenePlaying,
 } from "@/props/vendingPushState";
+import { FrameLimiter } from "@/engine/FrameLimiter";
+import { activeFrameLimit, frameloopFor } from "@/engine/frameLimit";
 import SettingsPanel from "@/settings/SettingsPanel";
 import { RESOLUTION_DPR, useSettings, type Settings } from "@/settings/settings";
 import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
@@ -313,6 +315,7 @@ export default function App() {
     openWindow(OVERLAY_LAYERS.destination);
   }, [isTrainEntry, isTrain, openWindow]);
   const settings = useSettings();
+  const frameLimit = activeFrameLimit(settings.frameLimit);
   const lockControl = useLockControlMode();
   useDevInventorySeed();
 
@@ -425,7 +428,8 @@ export default function App() {
     <div className="game-stage" style={{ position: "relative" }}>
       <Leva hidden={!SHOW_LEVA || isMobile} theme={LEVA_THEME} />
       <Canvas
-        frameloop={isEnteringNaju || isFrozen ? "never" : "always"}
+        // 프레임 제한이 있으면 FrameLimiter 가 그릴 때를 정한다("demand") — 없으면 주사율대로
+        frameloop={isEnteringNaju || isFrozen ? "never" : frameloopFor(frameLimit)}
         // 그림자는 씬을 광원 시점에서 한 번 더 그린다. 끄면 드로우콜이 거의 절반 — 저사양에서 가장 큰 절약.
         shadows={IS_LOW_QUALITY || IS_MOBILE_QUALITY ? false : "percentage"}
         dpr={canvasDpr(settings)}
@@ -439,6 +443,7 @@ export default function App() {
         <Preload all />
         <PerformanceMeter visible={showMeter} />
         <PauseClockGuard />
+        <FrameLimiter limit={frameLimit} />
         {/* 멈춘 동안 캔버스 크기 · 픽셀비가 바뀌면 한 장면 다시 — 안 그리면 메뉴 · 창 뒤가 까맣다(미르 11/11) */}
         <FrozenRedraw />
         <TouchLook controlsRef={controlsRef} />
