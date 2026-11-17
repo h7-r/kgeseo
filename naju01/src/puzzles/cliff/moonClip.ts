@@ -11,8 +11,8 @@ import { createFilmClip } from "../filmClip";
 const URL = "/naju-film/rock-nights.mp4";
 /** 영상 크기(px) — 위아래 검은 띠는 잘라 넣었다 */
 const SOURCE = { width: 1280, height: 604 };
-/** 판 크기(미터) — 선바위 앞에 뜬다. 가장자리가 풀리므로 그림판 때(3.0)보다 조금 넓게 */
-const PLANE = { width: 3.6, height: (3.6 * SOURCE.height) / SOURCE.width };
+/** 판 크기(미터) — 선바위 앞에 뜬다. 가장자리가 풀리므로 그림판 때(3.0)보다 넓게. 3.6 은 화면에서 작았다(해랑 11/16) */
+const PLANE = { width: 4.5, height: (4.5 * SOURCE.height) / SOURCE.width };
 
 /** 컷 시작 시각(초) */
 const CUT = { bowls: 0, trail: 3.0, rise: 6.0, touch: 10.0, torch: 14.0, alone: 21.3 };

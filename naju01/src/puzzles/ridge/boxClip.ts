@@ -12,10 +12,20 @@ const URL = "/naju-film/box-night.mp4";
 /** 영상 크기(px) — 위아래 검은 띠는 잘라 넣었다 */
 const SOURCE = { width: 1024, height: 484 };
 /** 판 크기(미터) — 가장자리가 풀리므로 그림판 때(3.2)보다 조금 넓게 */
-const PLANE = { width: 3.8, height: (3.8 * SOURCE.height) / SOURCE.width };
+const PLANE = { width: 4.7, height: (4.7 * SOURCE.height) / SOURCE.width };
 
 /** 컷 시작 시각(초) */
-const CUT = { walk: 0, edge: 4.0, rustle: 5.6, slip: 7.1, watch: 9.0, fall: 12.0, flee: 17.0, impact: 19.0, after: 22.0 };
+const CUT = {
+  walk: 0,
+  edge: 4.0,
+  rustle: 5.6,
+  slip: 7.1,
+  watch: 9.0,
+  fall: 12.0,
+  flee: 17.0,
+  impact: 19.0,
+  after: 22.0,
+};
 export const BOX_CLIP_SECONDS = 25.0;
 /** 빛이 약해지며 영상이 사라지는 시간(끝에서) */
 export const BOX_CLIP_FADE = 2.4;

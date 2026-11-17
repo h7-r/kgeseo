@@ -6,6 +6,7 @@
  * 소리는 없다(영상에 소리 트랙이 없다) — 효과음은 부르는 쪽의 큐가 낸다. 멈춤(gamePause)은 문서 밖 video 도 등록해 두면 같이 세운다.
  * 판은 후처리 뒤에 따로 그린다(useFilmClipLayer) — 만화 먹선(world/mangaStyle)은 깊이가 끊기는 곳에 선을 긋는데, 판이 깊이를 쓰면
  * 둘레에 네모 선이 생기고 안 쓰면 뒤 바위 · 나무의 선이 영상 위에 비친다. 둘 다 피하려면 먹선이 지나간 뒤에 그리는 수밖에 없다.
+ * 판 뒤에는 넓고 옅은 그늘(shade)을 깐다 — 영상 둘레의 장면을 살짝 가라앉혀 영상이 또렷이 읽히게(해랑 11/16). 판과 함께 떠오르고 사라진다.
  */
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
@@ -27,6 +28,8 @@ const CORNER = 2.6;
 /** 영상 시각이 넘긴 시각과 이보다 어긋나면 맞춘다(초) — 멈췄다 돌아온 뒤 · 받다가 끊긴 뒤 */
 const SLIP = 1.0;
 const MASK = { width: 256, height: 128 };
+/** 그늘 — 판의 몇 배 크기인가 · 가운데의 어둡기(0~1, 판 불투명도에 곱한다) */
+const SHADE = { scale: 3.4, strength: 0.32 };
 
 const smooth = (t: number) => {
   const c = Math.min(1, Math.max(0, t));
@@ -60,9 +63,31 @@ function makeEdgeMask() {
   return texture;
 }
 
+/** 그늘 마스크 — 가운데가 짙고 둘레로 둥글게 풀린다(초록 채널) */
+function makeShadeMask() {
+  const canvas = document.createElement("canvas");
+  canvas.width = MASK.width;
+  canvas.height = MASK.width;
+  const g = canvas.getContext("2d") as CanvasRenderingContext2D;
+  const half = MASK.width / 2;
+  const fade = g.createRadialGradient(half, half, half * 0.22, half, half, half);
+  fade.addColorStop(0, "rgb(255,255,255)");
+  fade.addColorStop(0.55, "rgb(140,140,140)");
+  fade.addColorStop(1, "rgb(0,0,0)");
+  g.fillStyle = fade;
+  g.fillRect(0, 0, MASK.width, MASK.width);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  return texture;
+}
+
 export interface FilmClip {
   mesh: THREE.Mesh;
   material: THREE.MeshBasicMaterial;
+  /** 판 뒤의 옅은 그늘 — 판의 자식이라 자리 · 보임을 따라가고, 불투명도는 한 프레임마다 판에 맞춘다(syncShade) */
+  shade: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+  syncShade: () => void;
   video: HTMLVideoElement;
   /** 영상을 받아 둔다 — 장면이 뜨기 전에 불러 틀 때 멈칫하지 않게 */
   prepare: () => void;
@@ -105,6 +130,29 @@ export function createFilmClip(url: string, plane: { width: number; height: numb
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(plane.width * M, plane.height * M), material);
   mesh.visible = false;
   mesh.renderOrder = 8;
+  // 그늘 — 판보다 넓은 네모를 판 바로 뒤에 둔다. 깊이는 판과 같이 「늘 통과」, 먼저 그린다(renderOrder 7)
+  const shadeSize = Math.max(plane.width, plane.height) * SHADE.scale * M;
+  const shade = new THREE.Mesh(
+    new THREE.PlaneGeometry(shadeSize, shadeSize),
+    new THREE.MeshBasicMaterial({
+      color: 0x05060c,
+      alphaMap: makeShadeMask(),
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: true,
+      depthFunc: THREE.AlwaysDepth,
+      fog: false,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+    }),
+  );
+  shade.position.z = -0.02 * M;
+  shade.renderOrder = 7;
+  mesh.add(shade);
+  const syncShade = () => {
+    shade.material.opacity = material.opacity * SHADE.strength;
+  };
 
   let isPrepared = false;
   const prepare = () => {
@@ -141,9 +189,12 @@ export function createFilmClip(url: string, plane: { width: number; height: numb
     material.alphaMap?.dispose();
     material.dispose();
     mesh.geometry.dispose();
+    shade.material.alphaMap?.dispose();
+    shade.material.dispose();
+    shade.geometry.dispose();
   };
 
-  return { mesh, material, video, prepare, draw, stop, dispose };
+  return { mesh, material, shade, syncShade, video, prepare, draw, stop, dispose };
 }
 
 /**
@@ -164,11 +215,17 @@ export function useFilmClipLayer(clip: FilmClip) {
       scene.remove(clip.mesh);
     };
   }, [scene, clip]);
-  useFrame(({ gl, camera }) => {
-    if (!HAS_POSTFX || !clip.mesh.visible) return;
-    const autoClear = gl.autoClear;
-    gl.autoClear = false;
-    gl.render(overlay, camera);
-    gl.autoClear = autoClear;
-  }, HAS_POSTFX ? 2 : 0);
+  useFrame(
+    ({ gl, camera }) => {
+      if (!clip.mesh.visible) return;
+      // 부르는 쪽이 이 프레임에 정한 판 불투명도를 그늘에 옮긴다 — 후처리가 없어도 장면에 넣은 판과 같이 맞춘다
+      clip.syncShade();
+      if (!HAS_POSTFX) return;
+      const autoClear = gl.autoClear;
+      gl.autoClear = false;
+      gl.render(overlay, camera);
+      gl.autoClear = autoClear;
+    },
+    HAS_POSTFX ? 2 : 0,
+  );
 }
