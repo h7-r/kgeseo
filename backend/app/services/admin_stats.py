@@ -31,9 +31,19 @@ STAGE_OBJECTIVES: dict[int, tuple[str, ...]] = {
         "C_SOCKET",
     ),
     3: ("S3_GO", "P11", "P12", "P13", "P13-2", "S3_SCALE", "S3_KEY", "S3_RIFT"),
+    # 4 · 5스테이지는 목표표 밖 — 베타 기록 전용 ID(나주 ID 대응표 v1.2 9절 · naju01/src/beta/lateObjectives.ts, 미르 · 해랑 11/16 확정).
+    # 기록 모양은 1~3 과 같다(available · focus · complete). 화면 판정 퍼즐 P14 · P15 · P16, 판정 없는 걸음 S4_* · S5_*
+    4: ("P14", "P15", "S4_POUCH", "S4_SERPENT"),
+    5: ("S5_RINGS", "P16"),
 }
-# 스테이지 끝 — 이 걸음을 마치면 그 스테이지를 「완료」로 본다(연기 화살표로 문 · 바위 홈 · 시공간 틈)
-STAGE_END: dict[int, str] = {1: "S1_SMOKE", 2: "C_SOCKET", 3: "S3_RIFT"}
+# 스테이지 끝 — 이 걸음을 마치면 그 스테이지를 「완료」로 본다(연기 화살표로 문 · 바위 홈 · 시공간 틈 · 구렁이상 틈 · 다섯 횃불)
+STAGE_END: dict[int, str] = {
+    1: "S1_SMOKE",
+    2: "C_SOCKET",
+    3: "S3_RIFT",
+    4: "S4_SERPENT",
+    5: "P16",
+}
 OBJECTIVE_STAGE: dict[str, int] = {
     objective: stage
     for stage, objectives in STAGE_OBJECTIVES.items()
@@ -57,12 +67,13 @@ OBJECTIVE_SEEN_PHASES: frozenset[str] = frozenset({"available", "focus", "comple
 # 사건 완주(미르 11/16): 굿판 엔딩 run_state 둘 다. 정상 완주 한 번에 released → dawn 두 기록이 남으므로 회차 · 사람으로 묶는다.
 # S3_RIFT(시공간 틈) 완료는 3스테이지 끝일 뿐 사건 완주가 아니다(그 뒤 4스테이지 바위 위 · 5스테이지 굿판이 있다)
 ENDING_PHASES: frozenset[str] = frozenset({"released", "dawn"})
-# 목표표 밖의 4 · 5스테이지 — 지금은 진입만 센다(미르 · 해랑 11/16, 세부 완료 조건 미확정). naju01/src/beta/najuBeta.ts:
+# 4 · 5스테이지 정식 ID 이전(11/11~)부터 남은 굵은 표식 — **진입 근거로만** 정식 목표와 사람 단위 합집합으로 센다(11/17 전환,
+# 과거 기록 호환). 완료에는 쓰지 않는다(CLIFF · GUT 의 complete · P16 progress 로는 완료가 아니다 — 완료는 STAGE_END 의 complete 만):
 #   4스테이지(바위 위): objective_state · phase=progress · objective_id=CLIFF (data.stage = 바위 위 단계)
 #   5스테이지(굿판):    objective_state · phase=rite · objective_id=GUT
-ENTRY_ONLY_STAGES: dict[int, tuple[str, str]] = {
-    4: ("CLIFF", "progress"),
-    5: ("GUT", "rite"),
+LEGACY_STAGE_ENTRY: dict[tuple[str, str], int] = {
+    ("CLIFF", "progress"): 4,
+    ("GUT", "rite"): 5,
 }
 
 
@@ -129,7 +140,7 @@ class GameAggregate:
     puzzles: list[dict[str, Any]]
     avg_completion_minutes: float | None
     completed_runs: int
-    # (stage, entered) — 4 · 5스테이지, 진입만
+    # (stage, entered) — 4 · 5스테이지 임시 진입 집계였다. 정식 집계(stages 4 · 5)로 옮겨 이제 늘 [](필드는 계약대로 남긴다)
     entry_only_stages: list[tuple[int, int]] = field(default_factory=list)
     # 사건 완주(released 또는 dawn)한 사람 수
     case_completed_people: int = 0
@@ -147,12 +158,8 @@ def aggregate_game(events: Iterable[GameEvent]) -> GameAggregate:
     attempts: dict[str, int] = defaultdict(int)
     wrong: dict[str, int] = defaultdict(int)
     hints: dict[str, int] = defaultdict(int)
-    # 4 · 5스테이지 진입한 사람
-    entry_only: dict[int, set[str]] = defaultdict(set)
-    entry_key = {
-        (objective, phase): stage
-        for stage, (objective, phase) in ENTRY_ONLY_STAGES.items()
-    }
+    # 정식 ID 이전 표식으로 4 · 5스테이지에 들어온 사람(진입 근거로만)
+    legacy_entered: dict[int, set[str]] = defaultdict(set)
     # 사건 완주 — 사람 · 회차(run_id). 회차의 첫 시작(start · resume)과 가장 이른 엔딩
     case_completed: set[str] = set()
     ended_runs: set[str] = set()
@@ -169,9 +176,9 @@ def aggregate_game(events: Iterable[GameEvent]) -> GameAggregate:
                 seen[objective].add(event.person)
             if phase == "complete" and event.data.get("origin", "live") == "live":
                 completed[objective].add(event.person)
-            stage = entry_key.get((objective, phase))
+            stage = LEGACY_STAGE_ENTRY.get((objective, phase))
             if stage is not None:
-                entry_only[stage].add(event.person)
+                legacy_entered[stage].add(event.person)
         elif kind == "puzzle_attempt" and objective:
             attempts[objective] += 1
             if phase in WRONG_PHASES:
@@ -193,7 +200,7 @@ def aggregate_game(events: Iterable[GameEvent]) -> GameAggregate:
 
     stages: list[tuple[int, int, int]] = []
     for stage, objectives in STAGE_OBJECTIVES.items():
-        entered: set[str] = set()
+        entered: set[str] = set(legacy_entered[stage])
         for objective in objectives:
             entered |= seen[objective]
         stages.append((stage, len(entered), len(completed[STAGE_END[stage]])))
@@ -232,9 +239,7 @@ def aggregate_game(events: Iterable[GameEvent]) -> GameAggregate:
         avg_completion_minutes=average,
         # 엔딩(released · dawn)이 있는 회차 수 — 시작 기록이 없어도 엔딩이 있으면 완주한 회차다
         completed_runs=len(ended_runs),
-        entry_only_stages=[
-            (stage, len(entry_only[stage])) for stage in ENTRY_ONLY_STAGES
-        ],
+        entry_only_stages=[],
         case_completed_people=len(case_completed),
         median_completion_minutes=middle,
     )
