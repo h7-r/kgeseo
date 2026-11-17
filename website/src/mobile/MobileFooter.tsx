@@ -6,6 +6,7 @@ import { FOOTER_LINKS, useSiteNavigate } from "@/navigation/routes";
 import { COLOR } from "@/styles/tokens";
 
 import { GUTTER, safeBottom } from "./mobileStyles";
+import { SUPPORT_EMAIL } from "@/data/contact";
 
 export default function MobileFooter() {
   const navigate = useSiteNavigate();
@@ -25,7 +26,7 @@ export default function MobileFooter() {
       <p style={lineStyle}>
         ESCAPE THE LEGEND의 로고 · 캐릭터 · 명칭을 비롯해 이와 관련된 모든 고유한 표현은 LATENT SPACE의 독점 자산입니다.
       </p>
-      <p style={lineStyle}>대표자 : 황미르 | LATENT SPACE | 광주광역시 남구 송암로 60</p>
+      <p style={lineStyle}>LATENT SPACE | {SUPPORT_EMAIL}</p>
       <p style={{ ...lineStyle, marginTop: 12 }}>™ &amp; © 2026 ESCAPE THE LEGEND. All Rights Reserved.</p>
     </footer>
   );
