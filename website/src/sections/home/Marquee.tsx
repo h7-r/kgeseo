@@ -96,9 +96,7 @@ export default function Marquee() {
               ESCAPE THE LEGEND의 로고 · 캐릭터 · 명칭을 비롯해 이와 관련된 모든 고유한 표현은 LATENT SPACE의 독점
               자산입니다.
             </p>
-            <p style={{ margin: 0, lineHeight: 1.55 }}>
-              LATENT SPACE | 광주광역시 ○○구 ○○로 ○○ | 대표자 : 황미르
-            </p>
+            <p style={{ margin: 0, lineHeight: 1.55 }}>LATENT SPACE | 광주광역시 남구 송암로 60 | 대표자 : 황미르</p>
           </div>
 
           <div
