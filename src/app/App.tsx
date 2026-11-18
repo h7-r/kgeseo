@@ -66,6 +66,7 @@ import {
 } from "@/props/vendingPushState";
 import { FrameLimiter } from "@/engine/FrameLimiter";
 import { activeFrameLimit, frameloopFor } from "@/engine/frameLimit";
+import { useRenderCap } from "@/engine/renderCap";
 import SettingsPanel from "@/settings/SettingsPanel";
 import { RESOLUTION_DPR, useSettings, type Settings } from "@/settings/settings";
 import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
@@ -315,7 +316,9 @@ export default function App() {
     openWindow(OVERLAY_LAYERS.destination);
   }, [isTrainEntry, isTrain, openWindow]);
   const settings = useSettings();
-  const frameLimit = activeFrameLimit(settings.frameLimit);
+  // 영상에 가려졌거나 창이 뒤로 간 동안은 덜 그린다(engine/renderCap)
+  const renderCapFps = useRenderCap();
+  const frameLimit = activeFrameLimit(settings.frameLimit, renderCapFps);
   const lockControl = useLockControlMode();
   useDevInventorySeed();
 

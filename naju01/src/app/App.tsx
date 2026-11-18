@@ -74,6 +74,7 @@ import { readSavedSection } from "@/save/gameSave";
 import CaseStartCard from "./CaseStartCard";
 import { FrameLimiter } from "@/engine/FrameLimiter";
 import { activeFrameLimit, frameloopFor } from "@/engine/frameLimit";
+import { useRenderCap } from "@/engine/renderCap";
 import { requestGameLock } from "@/engine/input/lookGuard";
 import NajuPauseMenu from "./NajuPauseMenu";
 import PlayTimeHud from "./PlayTimeHud";
@@ -257,7 +258,9 @@ export default function App() {
   // 터치 모드 — 멈춤 · 창이면 렌더 루프까지 세운다(11/7 미르 결정 5). 창이 열려 있으면 「멈춤」 덮개 대신 창을 보인다
   const isTouch = useTouchMode();
   const isFrozen = useGameFrozen();
-  const frameLimit = activeFrameLimit(settings.frameLimit);
+  // 영상에 가려졌거나 창이 뒤로 간 동안은 덜 그린다(engine/renderCap)
+  const renderCapFps = useRenderCap();
+  const frameLimit = activeFrameLimit(settings.frameLimit, renderCapFps);
   const isHintBoxOpen = useHintBoxOpen();
   const isChatOpen = useCompanionChatOpen();
   // 엔딩 — 끝 연출(finale)은 세계가 흐르고 HUD 만 걷는다. 전체화면 필름 · 클리어 화면은 창처럼 세계를 세우고 커서를 준다
@@ -435,9 +438,13 @@ export default function App() {
           <>
             {/* factor 0(느림)~1(빠름). bounds 를 벌려 둬야 올림·내림이 번갈아 흔들리지 않고,
                 flipflops 세 번이면 그 자리에 머문다(발표 중 화면이 오르내리지 않게). */}
-            {IS_DPR_AUTO && fixedDpr === null && (
+            {/* 임시 상한(가려짐 · 창이 뒤로 감)이 걸린 동안은 뗀다 — 일부러 덜 그린 표본이 남아 있으면 풀린 직후 해상도를 내린다.
+                다시 붙을 때는 지금 배율에 해당하는 자리(factor)에서 잇는다 */}
+            {IS_DPR_AUTO && fixedDpr === null && renderCapFps === 0 && (
               <PerformanceMonitor
-                bounds={() => [50, 58]}
+                factor={Math.min(1, Math.max(0, (dpr - MIN_DPR) / Math.max(0.01, autoMaxDpr() - MIN_DPR)))}
+                // 프레임 제한이 60 아래(절전 30)면 그 값에 맞춰 본다 — 안 그러면 일부러 덜 그리는 것을 느린 기기로 읽어 해상도를 내린다
+                bounds={() => (frameLimit > 0 && frameLimit < 60 ? [frameLimit * 0.83, frameLimit * 0.96] : [50, 58])}
                 // 멈추지 않고 계속 맞춘다 — drei 는 오르기만 해도 횟수를 세어, 세 번이면 시작 13초 만에 상한에 굳고
                 // 무거운 구역에서 못 내려왔다(11/16 실측: 굳은 뒤 14 ~ 23fps 로 30초를 둬도 그대로)
                 flipflops={Infinity}
