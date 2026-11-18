@@ -22,6 +22,8 @@ export function FrameLimiter({ limit }: { limit: number }) {
   const invalidate = useThree((state) => state.invalidate);
   // every = 갱신 몇 번에 한 번 그리나, tick = 지난 갱신 수, tickTime = 마지막으로 센 갱신의 시각, drawTick = 마지막으로 그린 갱신의 번호
   const pace = useRef({ every: 1, tick: 0, tickTime: -1, drawTick: 0 });
+  // 마지막으로 어림한 화면 갱신 간격 — 상한이 바뀌어도 이어 쓴다(임시 상한이 풀릴 때 바로 제 빠르기로 돌아가게)
+  const refresh = useRef<{ ms: number | null; deltas: number[] }>({ ms: null, deltas: [] });
 
   useFrame(() => {
     const state = pace.current;
@@ -37,7 +39,9 @@ export function FrameLimiter({ limit }: { limit: number }) {
     let frame = 0;
     let last = 0;
     let sinceEstimate = 0;
-    const deltas: number[] = [];
+    const { deltas } = refresh.current;
+    // 상한이 바뀌면 건너뛸 칸을 바로 다시 센다 — 다음 어림(30 갱신 뒤)까지 옛 칸으로 그리면 영상이 걷힌 뒤 0.5초가 끊긴다
+    state.every = refresh.current.ms !== null ? refreshesPerFrame(refresh.current.ms, limit) : 1;
 
     const tick = (now: number) => {
       frame = requestAnimationFrame(tick);
@@ -53,7 +57,10 @@ export function FrameLimiter({ limit }: { limit: number }) {
       if (sinceEstimate >= ESTIMATE_EVERY) {
         sinceEstimate = 0;
         const refreshMs = estimateRefreshMs(deltas);
-        if (refreshMs !== null) state.every = refreshesPerFrame(refreshMs, limit);
+        if (refreshMs !== null) {
+          refresh.current.ms = refreshMs;
+          state.every = refreshesPerFrame(refreshMs, limit);
+        }
       }
       state.tick += 1;
       state.tickTime = now;

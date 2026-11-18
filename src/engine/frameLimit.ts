@@ -7,13 +7,15 @@
  */
 
 /** 0 = 제한 없음(화면 주사율 그대로) */
-export type FrameLimit = 0 | 60 | 120;
+export type FrameLimit = 0 | 30 | 60 | 120;
 
-export const FRAME_LIMIT_OPTIONS: readonly FrameLimit[] = [60, 120, 0];
+/** 30 은 절전 — 그리는 횟수가 반이라 CPU · GPU 를 가장 크게 던다(11/18 실측: 나주 CPU 52 → 34, 코어 하나 = 100) */
+export const FRAME_LIMIT_OPTIONS: readonly FrameLimit[] = [30, 60, 120, 0];
 
-export const FRAME_LIMIT_LABELS: Record<FrameLimit, string> = { 60: "60", 120: "120", 0: "제한 없음" };
+export const FRAME_LIMIT_LABELS: Record<FrameLimit, string> = { 30: "30 (절전)", 60: "60", 120: "120", 0: "제한 없음" };
 
-export const isFrameLimit = (value: unknown): value is FrameLimit => value === 0 || value === 60 || value === 120;
+export const isFrameLimit = (value: unknown): value is FrameLimit =>
+  value === 0 || value === 30 || value === 60 || value === 120;
 
 /** 어림한 주사율이 조금 낮게 잡혀도(119.4Hz) 한 칸 덜 건너뛰지 않게 주는 여유 */
 const FLOOR_SLACK = 0.05;
@@ -43,8 +45,12 @@ const FPS_PARAM = QUERY.get("fps");
 const FORCED_LIMIT: number | null =
   FPS_PARAM === "off" ? 0 : FPS_PARAM !== null && +FPS_PARAM >= 20 && +FPS_PARAM <= 240 ? +FPS_PARAM : null;
 
-/** 지금 쓸 상한(0 = 제한 없음) — 주소 스위치가 있으면 그 값 */
-export const activeFrameLimit = (setting: FrameLimit): number => FORCED_LIMIT ?? setting;
+/**
+ * 지금 쓸 상한(0 = 제한 없음) — 주소 스위치가 있으면 그 값(측정용이라 임시 상한도 받지 않는다).
+ * cap = 잠깐 거는 임시 상한(engine/renderCap — 영상에 가려진 동안 · 창이 뒤로 간 동안). 0 이면 없음. 둘 중 낮은 쪽을 쓴다
+ */
+export const activeFrameLimit = (setting: FrameLimit, cap = 0): number =>
+  FORCED_LIMIT ?? (cap > 0 && (setting === 0 || cap < setting) ? cap : setting);
 
 /** 얼지 않았을 때의 Canvas frameloop — 상한이 있으면 FrameLimiter 가 그릴 때를 정한다 */
 export const frameloopFor = (limit: number): "always" | "demand" => (limit > 0 ? "demand" : "always");
