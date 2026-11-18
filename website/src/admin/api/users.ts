@@ -12,7 +12,7 @@ export interface AdminUserSummary {
   save_updated_at: string | null;
 }
 
-/** 목록 한 줄 — 위 칸에 관리자 API v0.2 §3.1 칸을 더한다. 상세의 user 도 같은 칸을 준다(#167, 계약 admin_last_login.md §4). */
+/** 목록 한 줄 — 위 칸에 관리자 API v0.2 §3.1 칸을 더한다(서버 schemas/admin.py 의 AdminUserListItem). 상세의 user 도 같은 칸을 준다(#167, 계약 admin_last_login.md §4). */
 export interface AdminUserListItem extends AdminUserSummary {
   region: string | null;
   /** local · google · naver. 연결이 없으면 [] */
@@ -51,8 +51,17 @@ export interface AdminOwnedItem {
   acquired_at: string;
 }
 
+/** 상세의 user — 목록 칸에 탈퇴 시각을 더한다(서버 schemas/account_data.py 의 AdminUserDetailUser, 탈퇴 1단계 #177). */
+export interface AdminUserDetailUser extends AdminUserListItem {
+  /**
+   * 회원 탈퇴 시각. 회원이면 null. 탈퇴 회원은 목록에 안 나오지만 활동 로그의 id 로 열면 이 값으로 알 수 있다 —
+   * 그때 이메일 · 닉네임은 비식별화된 값이고 region · last_login_at 은 null, providers 는 [] 이다(계약 account_withdrawal_v0.2.md §11)
+   */
+  deleted_at: string | null;
+}
+
 export interface AdminUserDetail {
-  user: AdminUserListItem;
+  user: AdminUserDetailUser;
   save: AdminGameSave | null;
   character: AdminCharacter | null;
   items: AdminOwnedItem[];
