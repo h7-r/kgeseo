@@ -39,7 +39,7 @@ import ErrorPage from "@/pages/ErrorPage";
 import HomePage from "@/pages/HomePage";
 import SocialCallbackPage from "@/pages/SocialCallbackPage";
 import { IS_ACCOUNT_MANAGEMENT_READY } from "@/services/account/manageAccount";
-import { useSessionChecking, useSessionUser } from "@/services/session";
+import { getSessionUser, useSessionChecking, useSessionUser } from "@/services/session";
 import { useMaintenanceRedirect } from "@/services/siteStatus";
 
 /** 관리자가 점검 모드를 켜면 사이트 화면을 점검 화면으로 보낸다(관리자 주소 · 게임은 예외). */
@@ -129,17 +129,17 @@ export default function App() {
 /** 로그인한 사람을 게임으로 보낸다. 플레이 단추로 로그인·가입을 마친 사람도 여기로 온다. 주소로 바로 들어온 비로그인은 로그인으로. */
 function PlayRedirect() {
   const navigate = useNavigate();
-  // 사용자 객체가 아니라 id 를 본다 — 복원이 값을 다시 적어도 게임 시작을 두 번 부르지 않게.
-  const userId = useSessionUser()?.id;
   // 새 탭으로 /play 를 열면 서버 답이 오기 전엔 로그인 여부를 모른다 — 그때 로그인으로 보내면 로그인된 사람이 로그인 폼을 본다.
   const isChecking = useSessionChecking();
 
   useEffect(() => {
     if (isChecking) return;
+    // 사용자를 구독하지 않고 확인이 끝난 순간 한 번만 읽는다 — launchGame 이 끊긴 세션을 지우며 /login?next=/play 로 보낼 때
+    // 여기가 다시 돌아 next 없는 /login 으로 덮어쓰지 않게(복원이 값을 다시 적어도 게임 시작을 두 번 부르지 않는다).
     // replace: 뒤로 가기로 이 중간 자리에 돌아와 다시 튕기지 않게.
-    if (userId) void launchGame((path) => navigate(path, { replace: true }));
+    if (getSessionUser()) void launchGame((path) => navigate(path, { replace: true }));
     else navigate(ROUTES.login, { replace: true });
-  }, [navigate, userId, isChecking]);
+  }, [navigate, isChecking]);
 
   return (
     <TransitNotice>{isChecking ? "로그인 상태를 확인하고 있습니다…" : "게임으로 이동하고 있습니다…"}</TransitNotice>
