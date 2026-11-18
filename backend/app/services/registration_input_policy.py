@@ -3,6 +3,7 @@ import logging
 import re
 import unicodedata
 from pathlib import Path
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,8 @@ def validate_registration_email(value: str) -> None:
         raise InvalidEmailError
 
 
-def validate_registration_region(value: str | None) -> str | None:
+# tools/nickname-policy/backend.py 가 이 파일을 Python 3.9 로 따로 불러 돌린다 — `X | None` 표기는 거기서 멈춘다.
+def validate_registration_region(value: Optional[str]) -> Optional[str]:
     """비우면 「미입력」(None). 적었으면 목록에 있는 이름이어야 한다 — 「화성시」같은 떠돌이 값이 통계에 남지 않게."""
     region = unicodedata.normalize("NFC", value or "").strip()
     if not region:

@@ -68,9 +68,7 @@ function printParity({ backendErrors, nicknames, passwords, emails }) {
       console.log(`    ${check} ${JSON.stringify(input)} → ${error}`);
   }
   const leaks = nicknames.serverBlocksScreenPasses;
-  console.log(
-    `  닉네임 ${nicknames.total}개 — 서버는 막는데 화면은 통과: ${leaks.length}개(알려진 예외 밖 ${nicknames.unexpectedServerOnly.length}개)`,
-  );
+  console.log(`  닉네임 ${nicknames.total}개 — 서버는 막는데 화면은 통과: ${leaks.length}개`);
   if (leaks.length) console.log(`    ${leaks.slice(0, 40).join(" ")}${leaks.length > 40 ? " …" : ""}`);
   const screenOnly = Object.entries(nicknames.screenBlocksServerPasses).map(([k, v]) => `${k} ${v}`);
   console.log(`  화면만 막음(서버 목록보다 넓은 것): ${screenOnly.join(", ")}`);
@@ -123,8 +121,8 @@ function findFailures({ parity, variants, falsePositives }) {
   const failures = [];
   if (parity) {
     if (parity.backendErrors.length) failures.push(`백엔드 판정 실행 오류 ${parity.backendErrors.length}건`);
-    if (parity.nicknames.unexpectedServerOnly.length)
-      failures.push(`서버만 막는 닉네임(알려진 예외 밖) ${parity.nicknames.unexpectedServerOnly.length}건`);
+    if (parity.nicknames.serverBlocksScreenPasses.length)
+      failures.push(`서버만 막는 닉네임 ${parity.nicknames.serverBlocksScreenPasses.length}건`);
     if (parity.passwords.different) failures.push(`비밀번호 판정 차이 ${parity.passwords.different}건`);
     if (parity.emails.differentAfterTrim)
       failures.push(`이메일 판정 차이(전송 값) ${parity.emails.differentAfterTrim}건`);
