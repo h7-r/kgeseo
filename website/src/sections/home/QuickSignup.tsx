@@ -80,6 +80,8 @@ export default function QuickSignup() {
           consents: consent.consents,
         });
         if (!result.ok) {
+          // 서버가 칸을 짚어 줬으면 그 칸 옆에도 띄운다(회원가입 화면과 같다).
+          if (result.field) form.setRemoteError(result.field, result.reason);
           setAlertMessage(result.reason);
           return;
         }

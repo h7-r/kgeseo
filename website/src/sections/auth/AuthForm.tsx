@@ -128,6 +128,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
           signIn(result.user);
         } else if (mode === "login") {
           const result = await authenticate(email, values.password ?? "");
+          // 결과와 무관하게 비밀번호는 남기지 않는다. 비운 칸의 「입력해 주세요」는 clearFields 가 감춰 아래 사유와 겹치지 않는다.
           form.clearFields(["password"]);
           if (!result.ok) {
             setAlertMessage(result.reason);

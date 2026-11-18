@@ -147,15 +147,30 @@ export function socialInvalidResponseMessage(provider: SocialProvider): string {
     : "네이버 로그인 응답이 올바르지 않습니다. 처음부터 다시 시도해 주세요.";
 }
 
-/** /auth/google · /auth/naver 실패를 화면 문구로. 서버의 영문 detail 은 쓰지 않고 status·code 로 고른다. */
+/** 계정에 이메일이 없어 가입·로그인을 이어 갈 수 없다(401 email_required). 사용자가 provider 쪽에서 고칠 수 있는 일이다. */
+function socialEmailRequiredMessage(provider: SocialProvider): string {
+  return `${PROVIDER_LABEL[provider]} 계정에서 이메일 제공에 동의해 주세요. 동의한 뒤 다시 시도하면 됩니다.`;
+}
+
+/** 서버가 code 로 까닭을 밝힌 실패. 같은 상태 코드라도 code 가 있으면 이쪽이 먼저다. */
+const SOCIAL_AUTH_MESSAGE_BY_CODE: Readonly<Record<string, (provider: SocialProvider) => string>> = {
+  account_link_required: () => ACCOUNT_LINK_MESSAGE,
+  email_required: socialEmailRequiredMessage,
+};
+
+/** code 없는(옛 모양) 실패는 상태 코드로 고른다. 401·422 는 provider 가 준 값 문제라 처음부터 다시 한다. */
+function socialAuthMessageByStatus(provider: SocialProvider, status: number): string {
+  if (status === 503) return socialNotReadyMessage(provider);
+  if (status === 401 || status === 422) return socialInvalidResponseMessage(provider);
+  if (status === 502) return `${PROVIDER_LABEL[provider]} 계정 정보를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.`;
+  return `${PROVIDER_LABEL[provider]} 로그인 중 문제가 생겼습니다. 잠시 후 다시 시도해 주세요.`;
+}
+
+/** /auth/google · /auth/naver 실패를 화면 문구로. 서버의 영문 detail 은 쓰지 않고 code 먼저, 없으면 status 로 고른다. */
 export function socialAuthErrorMessage(provider: SocialProvider, error: BackendAuthError): string {
   if (error.status === null) return CONNECTION_ERROR_MESSAGE;
-  if (error.code === "account_link_required") return ACCOUNT_LINK_MESSAGE;
-  if (error.status === 503) return socialNotReadyMessage(provider);
-  if (error.status === 401 || error.status === 422) return socialInvalidResponseMessage(provider);
-  if (error.status === 502)
-    return `${PROVIDER_LABEL[provider]} 계정 정보를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.`;
-  return `${PROVIDER_LABEL[provider]} 로그인 중 문제가 생겼습니다. 잠시 후 다시 시도해 주세요.`;
+  const byCode = error.code ? SOCIAL_AUTH_MESSAGE_BY_CODE[error.code] : undefined;
+  return byCode ? byCode(provider) : socialAuthMessageByStatus(provider, error.status);
 }
 
 /**
