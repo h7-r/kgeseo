@@ -8,7 +8,8 @@ ed6ad28 → 1a1558c → ad69c66을 순서대로 적용했다(중복 없음, 충�
 ## 코드에서 준비한 설정
 
 - APP_ENV=production: DB 비밀번호 및 Google/Naver 설정 누락·placeholder,
-  root DB 사용자, wildcard/HTTP CORS 및 잘못된 Naver callback이면 설정 로딩 실패.
+  root DB 사용자, `SESSION_COOKIE_SECURE=true` 아님(11/18 — https 운영의 로그인 · 게스트 쿠키는 `__Host-` + Secure 여야 한다),
+  wildcard/HTTP CORS 및 잘못된 Naver callback이면 설정 로딩 실패.
   오류에 설정값을 출력하지 않는다. 개발/테스트는 기존 opt-in 동작을 유지한다.
 - CORS_ORIGINS: JSON 문자열 배열로 정확한 HTTPS FE origin을 지정한다.
   origin 끝 슬래시·경로·쿼리·userinfo를 허용하지 않는다. 허용 origin만 CORS 응답.

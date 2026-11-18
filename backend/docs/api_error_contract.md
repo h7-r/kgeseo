@@ -33,8 +33,8 @@
 | `POST …/hints` | 404 4종(세션 · 퍼즐 · 힌트 단계 · 레거시 세션의 `Case not found.`) / 409 `HINT_BALANCE_EMPTY` · `HINT_REF_MISMATCH` · 문장 5종 / 422 검증 · `HINT_REF_INVALID` / 500 `Hint state is invalid.` · `Case content is unavailable.` / 503 `HINT_REF_UNAVAILABLE` |
 | `POST …/puzzles/{puzzle_id}/hints`(별칭) | 위에서 `hint_ref` 관련(409 `HINT_REF_MISMATCH` · 422 `HINT_REF_INVALID` · 503)만 빠진다 |
 | `POST …/npc/turns` | 404 / 409 `CASE_VERSION_UNAVAILABLE`(레거시 세션 포함) · 이벤트 ID 충돌 / 422 / 500 `NPC content is unavailable.` |
-| `POST /auth/social-onboarding/complete` | 401 `invalid_onboarding_token` / 409 `onboarding_token_used` · `terms_version_mismatch` · `nickname_unavailable` · `account_link_required` · 문장 1종 / 422 `consent_required` · `invalid_nickname` · `invalid_input` |
-| `POST /auth/google` · `/naver` | 401 · 409(`account_link_required` 또는 문장) · 422 · 502(네이버) · 503 |
+| `POST /auth/social-onboarding/complete` | 401 `invalid_onboarding_token` / 409 `onboarding_token_used` · `terms_version_mismatch` · `nickname_unavailable` · `account_link_required` · 문장 1종 / 422 `consent_required` · `invalid_nickname` · `invalid_input` / 429 `rate_limited`(IP 빈도, 11/18) |
+| `POST /auth/google` · `/naver` | 401(네이버는 프로필에 이메일이 없으면 `email_required`, 그 밖은 문장) · 409(`account_link_required` 또는 문장) · 422 · 429 `rate_limited`(IP 빈도, 11/18) · 502(네이버 장애만 — 인가 코드 오류는 401) · 503 |
 
 전체 문장 · code 목록은 OpenAPI 각 응답의 `description`에 있다(소스와 다르면 테스트가 실패한다).
 
