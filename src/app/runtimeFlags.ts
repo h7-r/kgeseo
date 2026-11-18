@@ -17,7 +17,11 @@ export const IS_LOBBY_OUTLINE_DISABLED = query.get("outline") === "off";
 
 /** 시연 화면에 개발 도구가 뜨지 않게 개발 서버에서도 기본은 숨긴다. ?leva · ?dev 로 켠다. */
 export const SHOW_LEVA = query.has("leva");
-export const SHOW_DEV_TOOLS = query.has("dev");
+/**
+ * ?dev — 개발 서버에서만. 운영 빌드는 주소에 ?dev 를 붙여도 꺼진다 — 개발 도구(옛 Google 로그인 PoC 포함)가 운영에서 열려
+ * 세션 쿠키를 바꿀 수 있었다(인증 점검 M13, 11/18). 도구 모듈 자체도 App 에서 import.meta.env.DEV 로 묶어 번들에서 뺀다
+ */
+export const SHOW_DEV_TOOLS = import.meta.env.DEV && query.has("dev");
 
 /** 캐릭터 꾸미기 패널은 지금 숨겨 둔다. ?customize 로만 켠다(외형은 App 이 직접 읽어 꺼도 유지된다). */
 export const SHOW_CUSTOMIZE_PANEL = query.has("customize");

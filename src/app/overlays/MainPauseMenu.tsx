@@ -5,7 +5,7 @@
  * 기차 안은 마우스를 풀어 홀로그램을 겨누는 곳이라 띄우지 않는다(App). 처음 [T] 전에는 튜토리얼 첫 단계가 T 를 알려 줘 띄우지 않는다.
  */
 import PauseMenu, { ControlRows, type PauseMenuItem } from "@/game/PauseMenu";
-import { EXIT_FAILED_TEXT, exitGame, exitNote } from "@/game/exitGame";
+import { exitFailureText, exitGame, exitNote } from "@/game/exitGame";
 import { isGameSaveEnabled } from "@/save/gameSave";
 
 type Place = "tutorial" | "lobby";
@@ -58,7 +58,7 @@ export default function MainPauseMenu({
           run: async (force) =>
             (await exitGame(force)) === "left"
               ? { ok: true }
-              : { ok: false, message: EXIT_FAILED_TEXT, forceLabel: "저장하지 않고 끝내기" },
+              : { ok: false, message: exitFailureText(), forceLabel: "저장하지 않고 끝내기" },
         },
       },
     ],

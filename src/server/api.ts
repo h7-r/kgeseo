@@ -70,12 +70,6 @@ async function backendRequest<T>(path: string, init: RequestInit = {}): Promise<
   return body as T;
 }
 
-export interface GoogleUser {
-  name?: string;
-  email?: string;
-  picture?: string;
-}
-
 interface AnonymousSessionResponse {
   data: { anonymous_session_id: string };
 }
@@ -132,8 +126,6 @@ const jsonInit = (method: string, body: unknown): RequestInit => ({
 // 실제 백엔드 연결 확인용. 아래 모의 서버와는 따로 동작한다.
 export const loadBackendHealth = () => backendRequest<unknown>("/api/v1/health");
 export const loadDatabaseReadiness = () => backendRequest<unknown>("/api/v1/health/ready");
-export const signInWithGoogle = (credential: string) =>
-  backendRequest<GoogleUser>("/api/v1/auth/google", jsonInit("POST", { credential }));
 
 // 소화전 자물쇠 vertical slice 용 실제 백엔드 API.
 export const createAnonymousSession = () =>

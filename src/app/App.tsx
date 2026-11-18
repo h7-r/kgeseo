@@ -148,18 +148,16 @@ function canvasDpr({ resolution }: Settings): number | [number, number] {
   return IS_MOBILE_QUALITY ? [1, Math.min(MOBILE_MAX_DPR, 1.5)] : [1, 1.5];
 }
 
-// ?dev 일 때만 그리므로 평소엔 받지도 않는다.
-const BackendStatus = lazy(() => import("@/server/BackendStatus"));
-const GoogleSignIn = lazy(() => import("@/server/GoogleSignIn"));
-const PlaySessionStatusPanel = lazy(() => import("@/server/PlaySessionStatusPanel"));
+// 개발 서버에서 ?dev 일 때만 받는다. 운영 빌드는 import.meta.env.DEV 가 false 로 접혀 이 import 자체가 번들에서 빠진다 —
+// 옛 Google 로그인 PoC 가 운영 번들에 실려 ?dev 로 열리고 세션 쿠키를 바꿀 수 있었다(인증 점검 M13, 11/18)
+const DevToolsPanel = import.meta.env.DEV ? lazy(() => import("@/server/DevTools")) : null;
 
-/** ?dev 로만 여는 개발 도구 — Backend·DB 준비 상태, 시연용 Google 로그인, 플레이 세션 상태 */
+/** ?dev 로만 여는 개발 도구 — Backend·DB 준비 상태, 소화전 자물쇠 플레이 세션 상태 */
 function DevTools() {
+  if (!DevToolsPanel) return null;
   return (
     <Suspense fallback={null}>
-      <BackendStatus />
-      <GoogleSignIn />
-      <PlaySessionStatusPanel />
+      <DevToolsPanel />
     </Suspense>
   );
 }

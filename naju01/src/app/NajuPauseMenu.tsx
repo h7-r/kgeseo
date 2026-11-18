@@ -13,14 +13,15 @@
  */
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 
-import { EXIT_FAILED_TEXT, exitGame, exitNote } from "@/game/exitGame";
+import { exitFailureText, exitGame, exitNote } from "@/game/exitGame";
 import type { LeaveResult, LeaveToLobbyAction } from "@/game/LeaveToLobby";
 import PauseMenu, { type PauseMenuItem, type PauseRunResult } from "@/game/PauseMenu";
 import { UI } from "@/game/gameUi";
 
 import { textLog } from "../dialogue/textLog";
 import { openSurvey, shouldOfferSurvey } from "@/beta/betaSurvey";
-import { isGameSaveEnabled, scheduleGameSave } from "@/save/gameSave";
+import { getSaveStatus, scheduleGameSave } from "@/save/gameSave";
+import { restartBlockedReason, saveFailureText, unsavedNote } from "@/save/saveStatusText";
 
 import { moveToSafeSpot, safeSpotUnavailableReason } from "../movement/safeSpot";
 import { helpLog } from "../progress/helpLog";
@@ -33,6 +34,7 @@ import { leaveToTrain } from "./leaveToLobby";
 import { RESTART_FAILED_TEXT, restartNajuCase } from "./restartNaju";
 
 const LOCK_REFUSED_TEXT = "브라우저가 잠시 막았어요 — 한 번 더 눌러 주세요.";
+const LEAVE_FAILED_TEXT = "저장하지 못했어요. 연결을 확인하고 다시 해 보거나, 저장 없이 갈 수 있어요.";
 
 interface NajuPauseMenuProps {
   onResume: () => void;
@@ -50,11 +52,7 @@ const toRun =
   async (force: boolean): Promise<PauseRunResult> =>
     (await leave(force)) === "left"
       ? { ok: true }
-      : {
-          ok: false,
-          message: "저장하지 못했어요. 연결을 확인하고 다시 해 보거나, 저장 없이 갈 수 있어요.",
-          forceLabel,
-        };
+      : { ok: false, message: saveFailureText(getSaveStatus(), LEAVE_FAILED_TEXT), forceLabel };
 
 async function restart(): Promise<PauseRunResult> {
   if (!(await restartNajuCase())) return { ok: false, message: RESTART_FAILED_TEXT };
@@ -76,7 +74,10 @@ export default function NajuPauseMenu({
     document.addEventListener("pointerlockerror", handleError);
     return () => document.removeEventListener("pointerlockerror", handleError);
   }, []);
-  const isSaving = isGameSaveEnabled();
+  // 저장 상태 — 저장 중이 아니면 왜 안 되는지(로그인 안 함 · 세션 끊김 · 불러오기 실패)를 물음 밑에 적는다
+  const saveStatus = getSaveStatus();
+  const isSaving = saveStatus === "saving";
+  const unsaved = unsavedNote(saveStatus);
 
   const groups: PauseMenuItem[][] = [
     [
@@ -124,9 +125,7 @@ export default function NajuPauseMenu({
               label: "다른 지역으로(기차)",
               confirm: {
                 question: "기차로 가서 다른 지역을 고를까요?",
-                note: isSaving
-                  ? "지금까지 한 조사는 저장돼요. 기차 목적지 창에서 이어서 할 수 있어요."
-                  : "로그인하지 않아 지금까지 한 것은 저장되지 않아요.",
+                note: unsaved ?? "지금까지 한 조사는 저장돼요. 기차 목적지 창에서 이어서 할 수 있어요.",
                 confirmLabel: "기차로 가기",
                 busyText: isSaving ? "저장하고 기차로 가는 중…" : "기차로 가는 중…",
                 run: toRun(leaveToTrain, "그래도 가기"),
@@ -156,7 +155,7 @@ export default function NajuPauseMenu({
           run: async (force) =>
             (await exitGame(force)) === "left"
               ? { ok: true }
-              : { ok: false, message: EXIT_FAILED_TEXT, forceLabel: "저장하지 않고 끝내기" },
+              : { ok: false, message: exitFailureText(), forceLabel: "저장하지 않고 끝내기" },
         },
       },
     ],
@@ -165,9 +164,13 @@ export default function NajuPauseMenu({
         id: "restart",
         label: "처음부터 다시",
         isDanger: true,
+        // 세션이 끊긴 채로는 서버 기록을 못 지운다 — 지웠다고 보이고 실제로는 남는 일이 없게 막는다
+        disabledReason: restartBlockedReason(saveStatus),
         confirm: {
           question: "이번 나주 조사의 진행 · 시간 · 도움 기록을 지우고 처음부터 다시 할까요?",
-          note: isSaving ? "지운 기록은 되돌릴 수 없어요." : "로그인하지 않아 저장된 진행은 없어요. 이 판을 처음부터 새로 시작해요.",
+          note: isSaving
+            ? "지운 기록은 되돌릴 수 없어요."
+            : "로그인하지 않아 저장된 진행은 없어요. 이 판을 처음부터 새로 시작해요.",
           confirmLabel: "처음부터 다시",
           isDanger: true,
           busyText: isSaving ? "기록을 지우는 중…" : "처음으로 돌아가는 중…",
