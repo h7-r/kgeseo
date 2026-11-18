@@ -34,8 +34,8 @@ export function toSessionUserFromMe(me: MeBody): MeSessionFields {
   if (typeof me.created_at === "string") fields.joinedAt = parseBackendTimestamp(me.created_at);
   if (Array.isArray(me.providers)) {
     fields.providers = me.providers.filter((provider) => typeof provider === "string");
-    // 칩 한 개짜리 옛 칸 — 연결이 여럿이면 첫 것(알파벳순)
-    fields.provider = fields.providers[0];
+    // 칩 한 개짜리 옛 칸 — 연결이 여럿이면 첫 것(알파벳순). 빈 목록이면 로그인 때 받은 값을 undefined 로 덮지 않게 둔다
+    if (fields.providers.length > 0) fields.provider = fields.providers[0];
   }
   return fields;
 }
@@ -48,9 +48,10 @@ export function providersOf(user: Pick<SessionUser, "provider" | "providers">): 
 
 /**
  * 이메일 비밀번호로 로그인하는 계정인가. 소셜 전용이면 false — 비밀번호 변경 · 탈퇴 비밀번호 칸을 보이지 않는다.
- * 가입 방식을 모르면(옛 /me 로 복원) undefined — 화면은 지금처럼 그린다.
+ * 연결 전부(/me providers)를 알 때만 판정한다 — 로그인 응답의 provider 하나는 「이번에 Google 로 들어왔다」일 뿐,
+ * 이메일 비밀번호도 걸어 둔 사람일 수 있다(보고서 M11 주의). 모르면 undefined — 화면은 지금처럼 그린다.
  */
 export function hasPasswordSignIn(user: Pick<SessionUser, "provider" | "providers">): boolean | undefined {
-  const providers = providersOf(user);
-  return providers.length === 0 ? undefined : providers.includes("local");
+  if (!user.providers || user.providers.length === 0) return undefined;
+  return user.providers.includes("local");
 }

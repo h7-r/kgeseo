@@ -37,16 +37,28 @@ test("region 이 null 이면 빈 글, 문자열이 아닌 provider 는 걸러 �
   assert.deepEqual(user.providers, ["local"]);
 });
 
+test("providers 가 빈 목록이면 provider 칸은 건드리지 않는다 — 펼쳐 넣어도 로그인 때 값이 남는다", () => {
+  const fromMe = toSessionUserFromMe({ ...base, providers: [] });
+  assert.deepEqual(fromMe.providers, []);
+  assert.equal("provider" in fromMe, false);
+  assert.equal({ provider: "naver", ...fromMe }.provider, "naver");
+});
+
 test("providersOf — providers 가 있으면 그것, 없으면 로그인 때 받은 provider 하나, 둘 다 없으면 빈 목록", () => {
   assert.deepEqual(providersOf({ providers: ["google", "local"], provider: "naver" }), ["google", "local"]);
   assert.deepEqual(providersOf({ provider: "naver" }), ["naver"]);
   assert.deepEqual(providersOf({}), []);
 });
 
-test("hasPasswordSignIn — local 이 있어야 비밀번호 계정, 소셜만이면 false, 모르면 undefined", () => {
+test("hasPasswordSignIn — /me providers 로만 판정: local 이 있어야 비밀번호 계정, 소셜만이면 false", () => {
   assert.equal(hasPasswordSignIn({ providers: ["local"] }), true);
   assert.equal(hasPasswordSignIn({ providers: ["google", "local"] }), true);
   assert.equal(hasPasswordSignIn({ providers: ["google"] }), false);
-  assert.equal(hasPasswordSignIn({ provider: "naver" }), false);
+});
+
+test("hasPasswordSignIn — 로그인 응답의 provider 하나만 알면 undefined(이메일 비밀번호도 걸어 둔 사람일 수 있다)", () => {
+  assert.equal(hasPasswordSignIn({ provider: "naver" }), undefined);
+  assert.equal(hasPasswordSignIn({ provider: "local" }), undefined);
+  assert.equal(hasPasswordSignIn({ providers: [] }), undefined);
   assert.equal(hasPasswordSignIn({}), undefined);
 });
