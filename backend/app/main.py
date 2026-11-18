@@ -90,6 +90,9 @@ SENSITIVE_INPUT_FIELDS = {
     "/api/v1/auth/naver": (),
     "/api/v1/auth/register": ("email", "password", "nickname"),
     "/api/v1/auth/login": ("email", "password"),
+    # 중복 확인(11/18) — 이메일·닉네임 입력값도 오류 본문에 되돌려 보내지 않는다
+    "/api/v1/auth/email-exists": ("email",),
+    "/api/v1/auth/nickname-exists": ("nickname",),
     "/api/v1/auth/social-onboarding/complete": ("nickname",),
     # 회원 탈퇴(11/17) — 비밀번호 재확인 값을 오류 본문에 되돌려 보내지 않는다
     "/api/v1/me/withdrawal": ("password",),
