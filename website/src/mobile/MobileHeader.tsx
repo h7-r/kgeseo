@@ -7,7 +7,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { FONT } from "@/lib/style";
 import { HEADER_MENU, QUERY, ROUTES, START_GAME, useSiteNavigate, withQuery } from "@/navigation/routes";
-import { signOut, useSessionUser } from "@/services/session";
+import { signOut, useSessionChecking, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
 import { GUTTER, MOBILE_HEADER_HEIGHT, primaryButtonStyle, safeTop } from "./mobileStyles";
@@ -26,6 +26,8 @@ export default function MobileHeader() {
   }
   const isMenuOpen = menuOpenAt === pathname;
   const user = useSessionUser();
+  // 새 탭은 서버 답이 올 때까지 계정 줄을 비운다 — 로그인 단추가 잠깐 보였다 이름으로 바뀌지 않게
+  const isCheckingSession = useSessionChecking();
   const [query, setQuery] = useState("");
 
   // 메뉴가 열린 동안 뒤 페이지가 스크롤되지 않게
@@ -113,7 +115,7 @@ export default function MobileHeader() {
                   로그아웃
                 </button>
               </>
-            ) : (
+            ) : isCheckingSession ? null : (
               <>
                 <button type="button" style={accountButtonStyle} onClick={() => navigate(ROUTES.login)}>
                   로그인

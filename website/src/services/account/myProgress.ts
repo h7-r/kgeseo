@@ -3,6 +3,7 @@
  * 화면이 다른 사람 값을 들고 있지 않게 들고 있던 값은 화면 쪽 상태로만 두고 따로 저장하지 않는다.
  */
 import { apiUrl } from "@/config/env";
+import { endLocalSession } from "@/services/session";
 import {
   summarizeMyProgress,
   type CharacterBody,
@@ -38,6 +39,9 @@ export async function fetchMyProgress(): Promise<MyProgressResult> {
     ]);
     return { status: "ready", progress: summarizeMyProgress(save, items ?? [], character) };
   } catch (error) {
-    return error instanceof SignedOutError ? { status: "signedOut" } : { status: "error" };
+    if (!(error instanceof SignedOutError)) return { status: "error" };
+    // 서버 세션이 끝났다(쿠키 만료 · 다른 탭 로그아웃) — 이 탭의 로그인 표시도 거둔다.
+    endLocalSession();
+    return { status: "signedOut" };
   }
 }
