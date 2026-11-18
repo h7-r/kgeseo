@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiUrl } from "@/config/env";
+import { toSessionUserFromMe, type MeBody } from "@/services/account/meProfile";
 
 /**
  * 로그인 세션. 서버가 토큰을 내주기 전까지 확인된 사용자를 sessionStorage 에만 둔다.
@@ -12,8 +13,10 @@ export interface SessionUser {
   region?: string;
   joinedAt?: number;
   isTest?: boolean;
-  /** "local" · "google" · "naver" */
+  /** "local" · "google" · "naver" — 로그인 응답이 주는 한 개 */
   provider?: string;
+  /** 연결된 가입 방식 전부(/me providers, 알파벳순). 소셜 전용 판정은 이것으로 */
+  providers?: string[];
   /** 소셜 계정 프로필 사진 주소 */
   picture?: string;
 }
@@ -76,6 +79,7 @@ export function signIn(user: SessionUser) {
     joinedAt: user.joinedAt,
     isTest: user.isTest,
     provider: user.provider,
+    providers: user.providers,
     picture: user.picture,
     signedInAt: Date.now(),
   };
@@ -114,8 +118,9 @@ export async function restoreServerSession(): Promise<void> {
       return;
     }
     if (!response.ok) return;
-    const me = (await response.json()) as { user_id: string; email: string; nickname: string; region: string | null };
-    signIn({ ...readSession(), id: me.user_id, email: me.email, name: me.nickname, region: me.region ?? "" });
+    const me = (await response.json()) as MeBody;
+    // 가입일 · 가입 방식은 /me 가 주면 그것, 옛 서버라 없으면 이 탭에 있던 값을 이어 쓴다
+    signIn({ ...readSession(), ...toSessionUserFromMe(me) });
   } catch {
     // 서버에 못 닿으면 지금 상태를 유지한다.
   }

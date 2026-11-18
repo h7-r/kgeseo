@@ -2,27 +2,19 @@ import { useState, type CSSProperties } from "react";
 
 import { SUPPORT_EMAIL } from "@/data/contact";
 import { FONT } from "@/lib/style";
-import type { InquiryRecord } from "@/services/account/db";
-import { categoryLabel, parseUtc, type MyInquiry } from "@/services/inquiries";
+import { categoryLabel, formatInquiryDate, inquiryStatusLabel, parseUtc } from "@/services/inquiries";
 import { COLOR } from "@/styles/tokens";
 
 import { darkCardStyle, labelTextStyle, profileStartStyle, valueTextStyle } from "./myPageStyles";
+import type { MyInquiriesState } from "./useMyInquiries";
 
 interface InquiriesTabProps {
-  /** 서버의 내 문의. "loading" 은 받는 중, null 은 못 받음 */
-  inquiries: readonly MyInquiry[] | null | "loading";
-  /** 문의 서버 전에 이 브라우저에만 남긴 접수(운영팀에 닿지 않았다) */
-  legacy: readonly InquiryRecord[];
+  inquiries: MyInquiriesState;
   onWrite: () => void;
 }
 
-const STATUS_LABEL: Record<MyInquiry["status"], string> = { open: "답변 대기", answered: "답변 완료", closed: "종료" };
-
-/**
- * 내 문의 — 로그인한 채 접수한 1:1 문의와 운영팀 답변(관리자 API v0.3 P3-1, 11/13).
- * 문의 서버 전에 이 사이트 양식으로 「접수」했던 것은 이 브라우저에만 남고 운영팀에 닿지 않았다 — 아래에 따로 「전달 안 됨」으로 둔다.
- */
-export function InquiriesTab({ inquiries, legacy, onWrite }: InquiriesTabProps) {
+/** 내 문의 — 로그인한 채 접수한 1:1 문의와 운영팀 답변(관리자 API v0.3 P3-1, 11/13). 모바일판은 MobilePages 의 MobileInquiries */
+export function InquiriesTab({ inquiries, onWrite }: InquiriesTabProps) {
   const [openId, setOpenId] = useState<string | null>(null);
   return (
     <>
@@ -79,10 +71,10 @@ export function InquiriesTab({ inquiries, legacy, onWrite }: InquiriesTabProps) 
                 <span style={typeChipStyle}>{categoryLabel(inquiry.category)}</span>
                 <span style={titleStyle}>{inquiry.title}</span>
                 <span style={{ ...labelTextStyle, fontSize: "14px", flexShrink: 0 }}>
-                  {formatDate(parseUtc(inquiry.created_at))}
+                  {formatInquiryDate(parseUtc(inquiry.created_at))}
                 </span>
                 <span style={inquiry.status === "answered" ? answeredChipStyle : statusChipStyle}>
-                  {STATUS_LABEL[inquiry.status]}
+                  {inquiryStatusLabel(inquiry.status)}
                 </span>
                 <span style={{ ...labelTextStyle, fontSize: "14px", width: "16px", flexShrink: 0 }} aria-hidden="true">
                   {isOpen ? "▴" : "▾"}
@@ -101,7 +93,7 @@ export function InquiriesTab({ inquiries, legacy, onWrite }: InquiriesTabProps) 
                     inquiry.replies.map((reply) => (
                       <div key={`${inquiry.id}:${reply.created_at}`} style={replyStyle}>
                         <span style={{ ...labelTextStyle, fontSize: "13px" }}>
-                          운영팀 · {formatDate(parseUtc(reply.created_at))}
+                          운영팀 · {formatInquiryDate(parseUtc(reply.created_at))}
                         </span>
                         <p style={{ ...contentStyle, margin: 0 }}>{reply.body}</p>
                       </div>
@@ -113,36 +105,8 @@ export function InquiriesTab({ inquiries, legacy, onWrite }: InquiriesTabProps) 
           );
         })
       )}
-
-      {legacy.length > 0 && (
-        <>
-          <span style={{ ...labelTextStyle, fontSize: "14px", color: COLOR.textDim }}>
-            아래는 문의 서버가 열리기 전에 이 브라우저에서만 「접수」된 것으로, 운영팀에 전달되지 않았습니다. 답변이
-            필요하면 위 「문의하기」로 다시 접수하거나 {SUPPORT_EMAIL} 로 보내 주세요.
-          </span>
-          {legacy.map((inquiry) => (
-            <div key={inquiry.number} style={{ ...rowStyle, opacity: 0.75 }}>
-              <div style={rowHeadStyle}>
-                <span style={typeChipStyle}>{inquiry.type}</span>
-                <span style={titleStyle}>{inquiry.title}</span>
-                <span style={{ ...labelTextStyle, fontSize: "14px", flexShrink: 0 }}>
-                  {formatDate(inquiry.receivedAt)}
-                </span>
-                <span style={statusChipStyle}>전달 안 됨</span>
-              </div>
-            </div>
-          ))}
-        </>
-      )}
     </>
   );
-}
-
-/** 2026.11.10 16:20 */
-function formatDate(at: number): string {
-  const date = new Date(at);
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}.${pad(date.getMonth() + 1)}.${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 const emptyStyle: CSSProperties = {

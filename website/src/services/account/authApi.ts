@@ -3,6 +3,7 @@ import type { SessionUser } from "@/services/session";
 import { normalizeEmail, type ConsentKind } from "./db";
 import { apiUrl } from "@/config/env";
 import { lockedLoginMessage, parseRetryAfter, rateLimitedMessage } from "@/lib/retryAfter";
+import { parseBackendTimestamp } from "@/lib/serverTime";
 import { TEST_ACCOUNT } from "./testAccount";
 
 /** 백엔드 인증 API(/api/v1/auth). 개발 서버는 vite proxy 로 127.0.0.1:8000 에 넘긴다. */
@@ -129,19 +130,8 @@ function isBackendUser(value: unknown): value is BackendUser {
   );
 }
 
-// 끝에 Z 나 ±hh:mm 이 있으면 시간대가 적힌 값이다.
-const TIMEZONE_SUFFIX = /(?:Z|[+-]\d{2}:?\d{2})$/i;
-
-/**
- * 서버 시각을 밀리초로. 서버는 UTC 를 시간대 표기 없이 보내는데, Date.parse 는 표기가 없으면 현지 시각으로 읽는다.
- * 표기가 없을 때만 Z 를 붙인다 — 서버가 나중에 Z 를 붙여 보내도 그대로 맞다.
- */
-export function parseBackendTimestamp(value: string): number | undefined {
-  // 마이크로초(6자리)는 브라우저마다 읽는 법이 달라 밀리초까지만 쓴다.
-  const trimmed = value.trim().replace(/(\.\d{3})\d+/, "$1");
-  const time = Date.parse(TIMEZONE_SUFFIX.test(trimmed) ? trimmed : `${trimmed}Z`);
-  return Number.isNaN(time) ? undefined : time;
-}
+// 서버 시각 읽기는 lib/serverTime 으로 옮겼다(/me 복원 쪽도 같은 것을 쓴다). 옛 import 가 그대로 되게 다시 내보낸다
+export { parseBackendTimestamp };
 
 /** 로그인·가입 응답의 { user } 를 세션 모양으로 바꾼다. 모양이 어긋나면 null — 빈 사용자로 로그인시키지 않는다. */
 export function toSessionUserFromBackend(body: unknown): SessionUser | null {

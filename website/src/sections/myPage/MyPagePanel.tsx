@@ -1,20 +1,20 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 
 import TabBar from "@/components/TabBar";
 import { MY_PAGE_TABS, type AccountAction, type MyPageTabId } from "@/data/myPage";
 import { FONT } from "@/lib/style";
 import { QUERY, ROUTES, launchGame, useSiteNavigate, withQuery } from "@/navigation/routes";
-import type { AccountData } from "@/services/account/db";
-import { exportMyData, readAccountData, writeAccountData } from "@/services/account/manageAccount";
-import { fetchMyInquiries, type MyInquiry } from "@/services/inquiries";
+import { downloadJson, exportFileName, exportMyData } from "@/services/account/exportMyData";
+import { hasPasswordSignIn } from "@/services/account/meProfile";
 import { signOut, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
 import { InquiriesTab } from "./InquiriesTab";
-import { AccountTab, SubscriptionTab } from "./MyPageTabs";
+import { AccountTab, SubscriptionTab, type ExportState } from "./MyPageTabs";
 import PasswordModal from "./PasswordModal";
 import ProfileCard, { type ProfileStat } from "./ProfileCard";
 import { AchievementsTab, ItemsTab, ProgressGate, ProgressTab } from "./ProgressTabs";
+import { useMyInquiries } from "./useMyInquiries";
 import { useMyProgress } from "./useMyProgress";
 
 type OpenModal = "password" | null;
@@ -47,51 +47,32 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
   const [openModal, setOpenModal] = useState<OpenModal>(null);
   const closeModal = () => setOpenModal(null);
 
-  const [accountData, setAccountData] = useState<AccountData | null>(null);
-  useEffect(() => {
-    if (!user?.email) return;
-    let isActive = true;
-    readAccountData(user.email).then((data) => {
-      if (isActive) setAccountData(data);
-    });
-    return () => {
-      isActive = false;
-    };
-  }, [user?.email]);
-  const emailNotifications = accountData?.settings?.emailNotifications ?? true;
-  // 서버의 내 문의 — 탭을 열 때 받는다(문의 서버, 11/13). 로그아웃하면 비운다
-  // 받은 결과에 「누구 · 몇 번째 열기」표식을 붙여 둔다 — 표식이 다르면 아직 받는 중으로 본다(효과 안에서 바로 setState 하지 않게)
-  const inquiriesKey = `${user?.id ?? ""}:${tab === "inquiries" ? "open" : "closed"}`;
-  const [loadedInquiries, setLoadedInquiries] = useState<{ key: string; items: MyInquiry[] | null } | null>(null);
-  useEffect(() => {
-    if (!user?.id || tab !== "inquiries") return;
-    const controller = new AbortController();
-    fetchMyInquiries(controller.signal).then((items) => {
-      if (!controller.signal.aborted) setLoadedInquiries({ key: inquiriesKey, items });
-    });
-    return () => controller.abort();
-  }, [user?.id, tab, inquiriesKey]);
-  const myInquiries: MyInquiry[] | null | "loading" =
-    loadedInquiries?.key === inquiriesKey ? loadedInquiries.items : "loading";
+  // 서버의 내 문의 — 탭을 열 때 받는다(문의 서버, 11/13). 모바일판과 같은 훅
+  const myInquiries = useMyInquiries(user?.id, tab === "inquiries");
+
+  // 「내보내기」 — 서버의 내 데이터를 JSON 파일로. 만드는 동안 줄 글이 바뀌고, 실패하면 그 자리에 이유가 남는다
+  const [exportState, setExportState] = useState<ExportState>("idle");
+  const handleExport = async () => {
+    if (exportState === "busy") return;
+    setExportState("busy");
+    const result = await exportMyData();
+    if (!result.ok) {
+      setExportState(result.reason);
+      return;
+    }
+    downloadJson(result.data, exportFileName());
+    setExportState("idle");
+  };
 
   const handleSignOut = () => {
     signOut();
     navigate(ROUTES.home);
   };
 
-  const handleAccountAction = async (action: AccountAction) => {
+  const handleAccountAction = (action: AccountAction) => {
     if (action === "signOut") handleSignOut();
     else if (action === "changePassword") setOpenModal("password");
-    else if (!user) return;
-    else if (action === "emailNotifications") {
-      const saved = await writeAccountData(user.email, {
-        settings: { ...(accountData?.settings ?? {}), emailNotifications: !emailNotifications },
-      });
-      setAccountData(saved);
-    } else if (action === "exportData") {
-      const data = await exportMyData(user.email);
-      if (data) downloadJson(data, `escape-legend-내데이터-${new Date().toISOString().slice(0, 10)}.json`);
-    }
+    else if (action === "exportData") void handleExport();
   };
 
   return (
@@ -119,11 +100,16 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
         {tab === "inquiries" && (
           <InquiriesTab
             inquiries={myInquiries}
-            legacy={accountData?.inquiries ?? []}
             onWrite={() => navigate(withQuery(ROUTES.support, { [QUERY.tab]: "inquiry" }))}
           />
         )}
-        {tab === "account" && <AccountTab emailNotifications={emailNotifications} onAction={handleAccountAction} />}
+        {tab === "account" && (
+          <AccountTab
+            hasPassword={user ? hasPasswordSignIn(user) : undefined}
+            exportState={exportState}
+            onAction={handleAccountAction}
+          />
+        )}
         {tab === "subscription" && <SubscriptionTab />}
         {(tab === "history" || tab === "achievements" || tab === "items") && (
           <ProgressGate state={progressState} onRetry={reloadProgress}>
@@ -155,8 +141,6 @@ const rootStyle: CSSProperties = {
   boxSizing: "border-box",
 };
 
-// 비밀번호 변경 창의 경고와 같은 모양
-
 const tabRowStyle: CSSProperties = { display: "flex", gap: "20px", alignItems: "center" };
 
 const tabBaseStyle: CSSProperties = {
@@ -172,14 +156,3 @@ const tabBaseStyle: CSSProperties = {
 };
 const activeTabStyle: CSSProperties = { ...tabBaseStyle, background: COLOR.navy, color: COLOR.white, fontWeight: 700 };
 const inactiveTabStyle: CSSProperties = { ...tabBaseStyle, background: "#1a1c26", color: COLOR.textMuted };
-
-/** 비밀번호 해시를 뺀 내 데이터를 JSON 파일로 내려받는다. */
-function downloadJson(data: unknown, fileName: string) {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
-  const link = Object.assign(document.createElement("a"), { href: url, download: fileName });
-  // 문서에 붙였다 떼야 download 파일 이름이 먹는 브라우저가 있다.
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
