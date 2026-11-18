@@ -9,7 +9,16 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { findFirstMesh } from "../loaders/glbImport";
 import { loadHeightTable, type HeightTable } from "./heightTable";
 
-const TERRAIN_GLB_URL = new URL("../../assets/terrain.glb", import.meta.url).href;
+/**
+ * 보이는 땅은 가벼운 판을 쓴다(11/18) — 원본은 320×200 고른 격자 12.8만 면이라 평평한 강변도 비탈만큼 촘촘했다.
+ *   가벼운 판은 모양이 같은 만큼만 합친 4.2만 면이다(tools/terrain-lite.mjs — 걷는 땅의 높이 차 최대 3.2 cm). 걷기 · 소품 놓기는 높이표를 읽어 그대로다.
+ *   `?terrain=full` 로 원본을 본다(견줘 보기 · 깨지면 이 줄만 되돌린다).
+ */
+const IS_FULL_TERRAIN =
+  typeof location !== "undefined" && new URLSearchParams(location.search).get("terrain") === "full";
+const TERRAIN_GLB_URL = IS_FULL_TERRAIN
+  ? new URL("../../assets/terrain.glb", import.meta.url).href
+  : new URL("../../assets/terrain-lite.glb", import.meta.url).href;
 
 type BakedTerrainStatus = "idle" | "loading" | "ready" | "failed";
 
@@ -38,7 +47,12 @@ function loadTerrainGeometry() {
     try {
       loader.load(
         TERRAIN_GLB_URL,
-        (gltf) => resolve(findFirstMesh(gltf)?.geometry ?? null),
+        (gltf) => {
+          const geometry = findFirstMesh(gltf)?.geometry ?? null;
+          // 검사 도구(tools/headlessPage · export-local-ids)가 「구운 땅이 올라왔나」를 이 표식으로 본다 — 면 수는 판마다 다르다
+          if (geometry) geometry.userData.isBakedTerrain = true;
+          resolve(geometry);
+        },
         undefined,
         (e) => {
           console.warn("[새지형] GLB 를 못 읽었다 — 해석 지형으로 간다:", e);

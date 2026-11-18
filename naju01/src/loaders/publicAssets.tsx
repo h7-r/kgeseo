@@ -28,6 +28,7 @@ import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import { IS_LOW_QUALITY } from "@/engine/quality";
 
 import { isEditModeActive } from "../placement/libraryPlaceApi";
 import { UNITS_PER_METER } from "../plan/sitePlan";
@@ -67,6 +68,7 @@ export {
   publicAssetStatus,
 } from "./publicAssetManifest";
 export { PUBLIC_ASSET_MESH_PREFIX } from "./publicAssetGeometry";
+import { hash01, PUBLIC_ASSET_MESH_PREFIX } from "./publicAssetGeometry";
 
 const U = UNITS_PER_METER;
 /** 원경판 경계(m) — 초점 모드에선 안개가 14 m 에서 닫히므로 10 m 로 당긴다(안개 속은 원경판으로 충분) */
@@ -78,6 +80,40 @@ const SINK_SECONDS = 2.4;
 const FOCUS_JUMP_UNITS = 8 * U;
 /** 눈이 이만큼 움직이기 전에는 원근 나눔을 다시 하지 않는다(경계 22 m 에 견줘 반 미터는 눈에 안 띈다) */
 const LOD_REFILL_UNITS = 0.5 * U;
+/** 세우기 · 원근 나눔은 20 프레임, 구역 초점 거르기는 400 프레임에 한 번 — 프레임이 느려도 이 시간(ms)은 넘기지 않는다(60 fps 의 그 프레임 수보다 조금 길게) */
+const PASS_MAX_WAIT_MS = 400;
+const FILTER_MAX_WAIT_MS = 7000;
+/**
+ * 저사양 잔자갈 솎기(11/18) — 그래픽 카드를 못 쓰는 PC 는 삼각형 수가 곧 그리기 속도다(실측: 자갈을 빼면 1.7배).
+ *   교체본 「자갈」 가운데 걷기 충돌이 굽지 않는 낮은 것(solidField MIN_HEIGHT 0.15 m 미만)만 절반 남긴다 —
+ *   막는 돌은 그대로라 「안 보이는 돌에 걸림」이 없다. 표준 화질은 건드리지 않는다. `?thin=off` 로 끈다(견줘 보기).
+ */
+const IS_PEBBLE_THINNING =
+  IS_LOW_QUALITY && (typeof location === "undefined" || new URLSearchParams(location.search).get("thin") !== "off");
+const THIN_MESH_NAME = `${PUBLIC_ASSET_MESH_PREFIX}자갈`;
+const THIN_BELOW_M = 0.15;
+const THIN_KEEP_RATIO = 0.5;
+
+/** 솎을 자리 표(1 = 뺀다) — 편집 번호(없으면 자리 순번)로 정해 걸어 다녀도 같은 돌이 남는다. 대상 무리가 아니면 null */
+function pebbleThinMask(mesh: THREE.InstancedMesh, matrices: Float32Array, n: number, ids: number[] | null) {
+  if (!IS_PEBBLE_THINNING || mesh.name !== THIN_MESH_NAME) return null;
+  const { geometry } = mesh;
+  if (!geometry.boundingBox) geometry.computeBoundingBox();
+  const box = geometry.boundingBox;
+  if (!box) return null;
+  const size = box.getSize(new THREE.Vector3());
+  const world = new THREE.Matrix4();
+  mesh.updateMatrixWorld();
+  const mask = new Uint8Array(n);
+  for (let k = 0; k < n; k++) {
+    // 충돌 격자(solidField)와 같은 자 — 기울기까지 넣은 월드 경계 상자의 높이. 눕힌 돌은 제 키보다 높게 걸칠 수 있다
+    const e = world.fromArray(matrices, k * 16).premultiply(mesh.matrixWorld).elements;
+    const heightM = (Math.abs(e[1]) * size.x + Math.abs(e[5]) * size.y + Math.abs(e[9]) * size.z) / U;
+    if (heightM >= THIN_BELOW_M) continue;
+    if (hash01((ids && ids[k] >= 0 ? ids[k] : k) * 7349 + 101) >= THIN_KEEP_RATIO) mask[k] = 1;
+  }
+  return mask;
+}
 
 // ── 「놓기」 다시 읽기 (10/15) — 통합 편집 모드(E)가 manifest 「놓기」를 쓴 뒤(놓기·고치기·지우기) 새로고침 없이 보이게 ──
 const reloadHandlers = new Set<() => Promise<boolean>>();
@@ -173,6 +209,11 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
   const focusTick = useRef(0);
   /** 구역 초점으로 마지막에 걸러 낸 때의 눈 자리(유닛) */
   const filteredAt = useRef(new THREE.Vector3(Infinity, Infinity, Infinity));
+  // 틱은 프레임 수로 센다 — 프레임이 느린 PC 일수록 거르기가 늦어져(9 fps 면 46초에 한 번) 정작 느린 쪽이 더 많이 그렸다.
+  // 60 fps 에서 같은 때가 되도록 시간 하한을 같이 둔다(11/18)
+  const passedAt = useRef(0);
+  const focusFilteredAt = useRef(0);
+  const wasOverview = useRef(false);
   const lodAt = useRef<{ eye: THREE.Vector3; radius: number | null }>({
     eye: new THREE.Vector3(Infinity, Infinity, Infinity),
     radius: null,
@@ -317,7 +358,9 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
     liveGroup = group;
     if (!table || !group) return;
     // 처음 세우기가 끝날 때까지는 프레임마다 돈다(로딩 덮개 뒤) — 20 프레임에 한 번이면 시작 카드 전에 한 번도 못 돈다
-    if (++tick.current % 20 && isSettled) return;
+    const nowMs = performance.now();
+    if (++tick.current % 20 && isSettled && nowMs - passedAt.current < PASS_MAX_WAIT_MS) return;
+    passedAt.current = nowMs;
     group.updateMatrixWorld(true);
     const ctx: BuildContext = {
       scene,
@@ -479,8 +522,16 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
     // 이 블록은 20 프레임에 한 번 도는 틱 안에 있어 실제로는 400 프레임에 한 번이다. 걸을 때는 그걸로 넉넉하지만,
     // 순간이동(틈 · 되돌려짐)으로 눈이 멀리 뛰면 그 자리 소품이 몇 초씩 빠져 보인다 — 크게 옮겼으면 바로 다시 거른다
     const hasJumped = eye.distanceToSquared(filteredAt.current) > FOCUS_JUMP_UNITS ** 2;
-    if ((radius || focus.paused) && (++focusTick.current % 20 === 0 || hasJumped)) {
+    const isFilterOverdue = nowMs - focusFilteredAt.current > FILTER_MAX_WAIT_MS;
+    // 전체보기(편집 · 부감)를 드나들면 솎은 자갈을 바로 되살리거나 다시 솎는다 — 다음 주기까지 기다리면 그동안 집을 수 없다
+    const isThinModeChanged = IS_PEBBLE_THINNING && (radius === null) !== wasOverview.current;
+    wasOverview.current = radius === null;
+    if (
+      (radius || focus.paused) &&
+      (++focusTick.current % 20 === 0 || hasJumped || isFilterOverdue || isThinModeChanged)
+    ) {
       filteredAt.current.copy(eye);
+      focusFilteredAt.current = nowMs;
       const t = new THREE.Vector3();
       group.traverse((o) => {
         if (!(o as THREE.InstancedMesh).isInstancedMesh || o.userData.lodPaired) return;
@@ -499,7 +550,11 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
           ids: number[] | null;
           coverIds: string[] | null;
           placeSpots: number[] | null;
+          thin?: Uint8Array | null;
         };
+        if (full.thin === undefined) full.thin = pebbleThinMask(m, full.matrices, full.n, full.ids);
+        // 전체보기(편집 · 부감)에서는 솎지 않는다 — 놓인 돌을 전부 보고 집어야 한다
+        const thin = radius ? full.thin : null;
         const ids: number[] = [];
         const coverIds: string[] = [];
         const placeSpots: number[] = [];
@@ -510,6 +565,7 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
             m.matrixWorld,
           );
           if (t.distanceToSquared(eye) > radius2) continue;
+          if (thin?.[k]) continue;
           (m.instanceMatrix.array as Float32Array).set(full.matrices.subarray(k * 16, k * 16 + 16), j * 16);
           if (full.ids) ids.push(full.ids[k]);
           if (full.coverIds) coverIds.push(full.coverIds[k]);
