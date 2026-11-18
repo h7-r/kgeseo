@@ -166,6 +166,8 @@ export function useForm({
     const nextValues = { ...values, [name]: next };
     setValues(nextValues);
     markHandled(name);
+    // 서버만 짚어 주는 칸(비밀번호 형식)은 다시 물을 검사가 없다. 고치는 순간 그 안내를 거둔다.
+    if (!blurChecks[name] && remoteErrors[name]) setRemoteErrors((prev) => ({ ...prev, [name]: "" }));
     if (touched[name] || submitted) runAsyncCheck(name, nextValues);
   };
 
@@ -195,6 +197,8 @@ export function useForm({
 
   const validateAll = async () => {
     setSubmitted(true);
+    // 제출은 사람의 뜻이다 — 프로그램이 비워서 감춘 오류도 이제 보여야 아래 안내와 어긋나지 않는다.
+    setCleared({});
     const syncErrors = validateFields(fields, values, { isLogin });
     const results: FieldErrors = { ...syncErrors };
     for (const name of Object.keys(asyncChecks) as FieldName[]) {
