@@ -104,7 +104,9 @@ merge 마이그레이션이 필요하다. 운영자가 실제 DB를 백업·검�
 | `RATE_LIMIT_NICKNAME_EXISTS` | 30 | `POST /api/v1/auth/nickname-exists` |
 | `RATE_LIMIT_REGISTER` | 30 | `POST /api/v1/auth/register`(베타 종료 뒤 10 으로 낮출 예정) |
 | `RATE_LIMIT_ANONYMOUS_SESSION_CREATE` | 60 | `POST /api/v1/anonymous-sessions`(새 게스트 발급만) |
-| `RATE_LIMIT_WINDOW_SEC` | 60 | 네 API 가 함께 쓰는 창(초). 보통 바꾸지 않는다 |
+| `RATE_LIMIT_LOGIN` | 60 | `POST /api/v1/auth/login`(11/18. 이메일 · IP 실패 잠금과 별개) |
+| `RATE_LIMIT_SOCIAL_LOGIN` | 30 | `POST /api/v1/auth/google` · `/auth/naver` · `/auth/social-onboarding/complete`(11/18. 값 하나, API 마다 따로 센다) |
+| `RATE_LIMIT_WINDOW_SEC` | 60 | 위 API 가 함께 쓰는 창(초). 보통 바꾸지 않는다 |
 
 - 줄이 없으면 기본값으로 켜진다. 값은 1 이상의 정수(`RATE_LIMIT_WINDOW_SEC`는 1~3600)만 받는다. 제한을 끄는 값은 없다.
 - 0 · 음수 · 빈 값 · 숫자가 아닌 값이면 **설정 로딩이 실패해 `waegok-api`가 시작되지 않는다**(기본값으로 바꿔 뜨지

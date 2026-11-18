@@ -209,12 +209,44 @@ def test_login_429_carries_retry_after_and_keeps_its_body(
     assert response.status_code == 429
     assert response.headers["retry-after"] == "437"
     assert response.headers["cache-control"] == "no-store"
+    # 11/18 — message 의 시간은 Retry-After 와 같은 숫자다(437초 → 올림 8분). 고정 「15분」이 아니다
     assert response.json() == {
         "detail": {
             "code": "login_locked",
-            "message": "로그인 실패가 많아 잠시 막혔습니다. 15분 뒤 다시 시도해 주세요.",
+            "message": "로그인 실패가 많아 잠시 막혔습니다. 8분 뒤 다시 시도해 주세요.",
         }
     }
+
+
+@pytest.mark.parametrize(
+    ("seconds", "phrase"),
+    [
+        (1, "1초 뒤"),
+        (59, "59초 뒤"),
+        (60, "1분 뒤"),
+        (61, "2분 뒤"),
+        (437, "8분 뒤"),
+        (900, "15분 뒤"),
+    ],
+)
+def test_wait_phrase_rounds_up_to_minutes_like_the_website(seconds, phrase) -> None:
+    assert user_session.wait_phrase(seconds) == phrase
+
+
+def test_login_429_message_follows_the_remaining_seconds(
+    client: TestClient, monkeypatch
+) -> None:
+    async def remaining(db, request, email):
+        return 45
+
+    monkeypatch.setattr("app.api.v1.auth.login_lock_remaining_seconds", remaining)
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": "sejin@example.com", "password": "WrongPassword123!"},
+    )
+
+    assert response.headers["retry-after"] == "45"
+    assert response.json()["detail"]["message"].endswith("45초 뒤 다시 시도해 주세요.")
 
 
 def test_retry_after_is_readable_by_the_website_through_cors() -> None:

@@ -197,6 +197,8 @@ def test_locked_password_attempts_are_429_and_skip_withdrawal(
     assert response.status_code == 429
     assert response.headers["retry-after"] == "120"
     assert response.json()["detail"]["code"] == "login_locked"
+    # 11/18 — message 의 시간은 Retry-After 와 같은 숫자(120초 → 2분)
+    assert response.json()["detail"]["message"].endswith("2분 뒤 다시 시도해 주세요.")
     assert called == []
     assert_documented(response, "POST", PATH)
 

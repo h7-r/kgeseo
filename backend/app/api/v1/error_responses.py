@@ -239,6 +239,25 @@ NPC_TURN = {
 # --- Auth · 소셜 가입 ---
 
 _NO_STORE = " 응답 헤더 `Cache-Control: no-store`."
+
+
+def _rate_limited_text(limit: str) -> str:
+    return (
+        f"같은 IP 의 요청이 최근 60초 한도(기본 {limit}, 운영 설정 `RATE_LIMIT_*`로 바뀔 수 있다)를 넘었다. "
+        "`Retry-After` 헤더(정수 초) 뒤 다시 보낸다. API 마다 · IP 마다 따로 센다."
+    )
+
+
+def _rate_limited(limit: str) -> dict[int, dict[str, Any]]:
+    """IP 기준 요청 빈도 제한(베타 전 보안 PR B). 한도는 `RATE_LIMIT_*` 설정의 기본값이다."""
+
+    return {
+        429: error(CodedError, _rate_limited_text(limit) + _NO_STORE, "rate_limited")
+    }
+
+
+# 소셜 로그인 셋(구글 · 네이버 · 소셜 가입 완료)의 IP 한도. 설정값 `RATE_LIMIT_SOCIAL_LOGIN` 하나(11/18)
+_SOCIAL_RATE_LIMITED = _rate_limited("30회, `RATE_LIMIT_SOCIAL_LOGIN`")
 _ACCOUNT_LINK_OR_CONFLICT = error(
     CodedError | ErrorMessage,
     "같은 이메일의 다른 가입 방법이 있으면 `code: account_link_required`. "
@@ -252,6 +271,7 @@ GOOGLE_LOGIN = {
         ErrorMessage, "credential 검증 실패." + _NO_STORE, "Invalid Google credential."
     ),
     409: _ACCOUNT_LINK_OR_CONFLICT,
+    **_SOCIAL_RATE_LIMITED,
     503: error(
         ErrorMessage,
         "서버에 Google 설정이 없다." + _NO_STORE,
@@ -261,15 +281,20 @@ GOOGLE_LOGIN = {
 
 NAVER_LOGIN = {
     401: error(
-        ErrorMessage,
-        "인가 코드 · 프로필이 유효하지 않다(문장 구분)." + _NO_STORE,
+        CodedError | ErrorMessage,
+        "인가 코드가 틀리거나 만료됐다(네이버가 HTTP 200 에 `error` 를 실어 답한 경우 포함) 또는 프로필이 유효하지 않다(문장 구분). "
+        "프로필에 이메일이 없으면 `code: email_required` — 네이버 동의 항목에서 이메일을 받지 못한 경우라 화면이 따로 안내한다."
+        + _NO_STORE,
         "Invalid Naver authorization code.",
         "Invalid Naver profile.",
+        "email_required",
     ),
     409: _ACCOUNT_LINK_OR_CONFLICT,
+    **_SOCIAL_RATE_LIMITED,
     502: error(
         ErrorMessage,
-        "네이버 서버 호출 실패(문장 구분)." + _NO_STORE,
+        "네이버 서버 장애만(문장 구분) — 연결 · 시간 초과 · 본문 깨짐 · 토큰 모양 이상. 인가 코드 오류는 401 이다."
+        + _NO_STORE,
         "Naver token exchange failed.",
         "Naver profile request failed.",
     ),
@@ -315,25 +340,13 @@ LOGIN = {
     ),
     429: error(
         CodedError,
-        "같은 이메일 또는 IP 의 로그인 실패가 많아 잠시 막혔다. `Retry-After` 헤더가 잠금이 풀릴 때까지 "
-        "남은 초다(이메일 · IP 잠금이 둘 다면 더 늦게 풀리는 쪽)." + _NO_STORE,
+        "`code`로 구분한다. `login_locked`: 같은 이메일 또는 IP 의 로그인 실패가 많아 잠시 막혔다. `Retry-After` 헤더가 잠금이 "
+        "풀릴 때까지 남은 초다(이메일 · IP 잠금이 둘 다면 더 늦게 풀리는 쪽)이고 `message` 의 「n분 뒤」도 같은 숫자다. "
+        "`rate_limited`: " + _rate_limited_text("60회, `RATE_LIMIT_LOGIN`") + _NO_STORE,
         "login_locked",
+        "rate_limited",
     ),
 }
-
-
-def _rate_limited(limit: str) -> dict[int, dict[str, Any]]:
-    """IP 기준 요청 빈도 제한(베타 전 보안 PR B). 한도는 `RATE_LIMIT_*` 설정의 기본값이다."""
-
-    return {
-        429: error(
-            CodedError,
-            f"같은 IP 의 요청이 최근 60초 한도(기본 {limit}, 운영 설정 `RATE_LIMIT_*`로 바뀔 수 있다)를 넘었다. "
-            "`Retry-After` 헤더(정수 초) 뒤 다시 보낸다. API 마다 · IP 마다 따로 센다."
-            + _NO_STORE,
-            "rate_limited",
-        )
-    }
 
 
 REGISTER.update(_rate_limited("30회"))
@@ -373,6 +386,7 @@ SOCIAL_ONBOARDING = {
         "invalid_nickname",
         "invalid_input",
     ),
+    **_SOCIAL_RATE_LIMITED,
 }
 
 

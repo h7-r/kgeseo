@@ -102,10 +102,11 @@ def test_production_play_origins_are_limited_to_pm_allowlist(
 
 
 def test_production_guest_cookie_has_host_prefix_and_required_attributes():
+    # 11/18 — production 은 설정 검증이 SESSION_COOKIE_SECURE=true 를 요구한다(false 면 시작 자체가 막힌다 → test_deployment_settings)
     environment = {
         **os.environ,
         "APP_ENV": "production",
-        "SESSION_COOKIE_SECURE": "false",
+        "SESSION_COOKIE_SECURE": "true",
         "DB_HOST": "db.example.invalid",
         "DB_USER": "synthetic",
         "DB_PASSWORD": "synthetic",

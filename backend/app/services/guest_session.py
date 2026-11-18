@@ -28,7 +28,8 @@ from app.services.user_session import (
 
 logger = logging.getLogger(__name__)
 
-GUEST_COOKIE_SECURE = settings.app_env == "production" or settings.session_cookie_secure
+# 운영(production)은 설정 검증(validate_deployment)이 SESSION_COOKIE_SECURE=true 를 요구하므로 로그인 쿠키와 같은 값을 본다(11/18)
+GUEST_COOKIE_SECURE = settings.session_cookie_secure
 GUEST_COOKIE = "__Host-waegok_guest" if GUEST_COOKIE_SECURE else "waegok_guest"
 GUEST_COOKIE_OPTIONS = {**SESSION_COOKIE_OPTIONS, "secure": GUEST_COOKIE_SECURE}
 GUEST_LIFETIME = SESSION_LIFETIME
