@@ -1,6 +1,7 @@
 /**
  * 계정별 게임 저장. 서버(/api/v1/me/game-save)가 쿠키 세션(로그인 때 받는 HttpOnly 쿠키, 14일)의 사용자 칸에만 읽고 쓴다.
- * 본편과 나주는 페이지가 달라도 같은 저장본의 칸(section)을 나눠 쓴다. 계약은 backend/docs/contracts/account_me_v0.1.md.
+ * 본편과 나주는 페이지가 달라도 같은 저장본의 칸(section)을 나눠 쓴다. 서버 쪽은 backend/app/api/v1/me.py
+ * (계약 문서 backend/docs/contracts/account_me_v0.1.md 는 아직 없다 — 인증 점검 BE-5 묶음에서 신설 예정).
  *
  * - 운영은 로그인한 사람만 들어온다(shared/playLoginGate). 처음 불러올 때 401 이면 손님(개발 서버)이라 저장 없이 돈다.
  * - 저장 중 401 이 오면 세션이 끊긴 것(다른 탭 로그아웃 · 탈퇴 · 만료) — 조용히 멈추지 않고 상태를 signed_out 으로 올려
