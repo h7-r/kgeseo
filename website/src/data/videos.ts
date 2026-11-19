@@ -58,8 +58,13 @@ export const VIDEOS_FOR_ABOUT = {
   updates: GAMEPLAY_VIDEOS.birds,
 } satisfies Record<string, Video>;
 
-/** 홈 배경 필름. 스크롤로 앞뒤로 넘기므로 키프레임을 촘촘히 구웠다(ffmpeg -g 2 -bf 0). */
-export const RIVER_FILM = { src: "/river-film-v2.mp4" };
+/**
+ * 홈 배경 필름(데스크톱만 받는다). 스크롤로 앞뒤로 넘기므로 B 프레임 없이 8칸마다 키프레임을 둔다.
+ * 1080p · 2칸 키프레임(25MB)에서 720p 로 줄였다 — 위에 일렁임·그레인·그늘을 얹어 화질 차이가 안 보이고 칸 찾기도 더 빠르다(11/19).
+ *   ffmpeg -i 원본.mp4 -an -vf scale=1280:720:flags=lanczos -c:v libx264 -preset slow -g 8 -keyint_min 8 -sc_threshold 0 -bf 0 \
+ *     -b:v 1750k -maxrate 2625k -bufsize 3500k (2패스) -movflags +faststart river-film-v3.mp4
+ */
+export const RIVER_FILM = { src: "/river-film-v3.mp4" };
 
 /**
  * 홈 링 안의 필름 — 본부실 사건 보드에서 나주의 밤으로 빨려 든다.
