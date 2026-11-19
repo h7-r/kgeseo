@@ -10,6 +10,8 @@
 - 거절: 소셜 전용 · 틀린 비밀번호 · 관리자 — 아무것도 바뀌지 않음. 이메일+소셜 · 테스트 계정은 탈퇴(테스트 계정은 계속 내부 계정)
 - 중간 실패 → 통째로 되돌림
 - 경합: 탈퇴 vs 로그인 · 게임 저장 · 문의 · 같은 탈퇴 두 번(교착 없음)
+- 게스트 쿠키(11/19): 요청 쿠키의 게스트만 폐기 · 두 쿠키 만료 · 옛 게스트 쿠키 재사용 · 재가입 승계 차단 · 실패 · 거절이면 게스트 그대로 ·
+  다른 게스트 그대로 · 게스트 회차 · 승계 기록 · 게임 집계 보존 · 잘못된 · 만료 · 폐기 게스트 쿠키는 탈퇴를 막지 않음
 """
 
 import asyncio
@@ -34,10 +36,11 @@ from app.models.account_data import (
     UserItem,
     UserSession,
 )
+from app.models.anonymous_session import AnonymousSession
 from app.models.app_user import AppUser
 from app.models.auth_identity import AuthIdentity
 from app.models.beta_event import BetaEvent
-from app.models.guest_session import GuestSessionTransfer
+from app.models.guest_session import GuestSession, GuestSessionTransfer
 from app.models.inquiry import Inquiry, InquiryReply
 from app.models.interaction_event import InteractionEvent
 from app.models.npc_turn_idempotency import NpcTurnRequest, NpcTurnResponseBody
@@ -45,6 +48,7 @@ from app.models.play_session import PlaySession
 from app.models.social_onboarding_pending import SocialOnboardingPending
 from app.services import account_withdrawal, user_session
 from app.services.admin_query import kst_day_start_utc, kst_today
+from app.services.guest_session import GUEST_COOKIE
 from app.services.local_auth import hash_password, utc_now
 from app.services.user_session import current_user
 from tests.test_admin_api_mysql import DAY, HOUR, mysql_run, sign_in
@@ -997,6 +1001,240 @@ def test_failure_in_the_middle_rolls_everything_back(monkeypatch):
         assert await world.snapshot(world.member) == before
         assert before["npc_hashes"] == ["None", NPC_HASH] and before["saves"] == 1
         assert before["answers"] == [answer_of(world.member)]
+
+    mysql_run(scenario)
+
+
+# --- 게스트 쿠키 · 게스트 세션(11/19 미르 요청) ---
+
+
+async def _guest_with_play(sessions, token: str) -> tuple[str, str, str]:
+    """유효한 게스트(쿠키 원문 `token`)와 그 게스트가 가진 회차 하나. (게스트 id, 익명 세션 id, 회차 id)."""
+
+    now = utc_now()
+    anonymous_id, guest_id, play_id = (str(uuid4()) for _ in range(3))
+    async with sessions() as db:
+        db.add(AnonymousSession(id=anonymous_id, created_at=now, expires_at=now + DAY))
+        await db.flush()
+        db.add(
+            GuestSession(
+                id=guest_id,
+                anonymous_session_id=anonymous_id,
+                token_hash=user_session.hash_session_token(token),
+                created_at=now,
+                expires_at=now + DAY,
+            )
+        )
+        db.add(
+            PlaySession(
+                id=play_id,
+                anonymous_session_id=anonymous_id,
+                case_id="naju-angam-01",
+                state_json={"completed_puzzle_ids": []},
+                created_at=now,
+                updated_at=now,
+                hint_balance=0,
+                help_used=0,
+                owner_anonymous_session_id=anonymous_id,
+            )
+        )
+        await db.commit()
+    return guest_id, anonymous_id, play_id
+
+
+async def _guest_state(sessions, guest_id: str, play_id: str) -> tuple:
+    """(revoked_at, expires_at, 회차 owner_user_id, 회차 owner_anonymous_session_id)."""
+
+    async with sessions() as db:
+        guest = await db.get(GuestSession, guest_id, populate_existing=True)
+        play = await db.get(PlaySession, play_id, populate_existing=True)
+        return (
+            guest.revoked_at,
+            guest.expires_at,
+            play.owner_user_id,
+            play.owner_anonymous_session_id,
+        )
+
+
+def _expired(response: httpx.Response) -> set[str]:
+    names = set()
+    for line in response.headers.get_list("set-cookie"):
+        assert "Max-Age=0" in line, line
+        names.add(line.split("=", 1)[0])
+    return names
+
+
+async def _anonymous_session_id(guest_token: str) -> tuple[str, bool]:
+    """게스트 쿠키만 든 브라우저로 익명 세션 창구를 부른다 — (익명 세션 id, 새 게스트 쿠키가 발급됐는지)."""
+
+    async with _client() as http:
+        http.cookies.set(GUEST_COOKIE, guest_token)
+        response = await http.post("/api/v1/anonymous-sessions")
+        assert response.status_code == 201, response.text
+        issued = any(
+            line.startswith(f"{GUEST_COOKIE}=")
+            for line in response.headers.get_list("set-cookie")
+        )
+        return response.json()["data"]["anonymous_session_id"], issued
+
+
+@pytest.mark.real_play_auth
+def test_withdrawal_revokes_the_request_guest_and_blocks_its_reuse(monkeypatch):
+    async def scenario(sessions):
+        world = World(sessions)
+        await world.seed()
+        member = world.member
+        mine_token, other_token = f"mine-{uuid4().hex}", f"other-{uuid4().hex}"
+        mine_guest, mine_anonymous, mine_play = await _guest_with_play(
+            sessions, mine_token
+        )
+        other_guest, other_anonymous, other_play = await _guest_with_play(
+            sessions, other_token
+        )
+        mine_before = await _guest_state(sessions, mine_guest, mine_play)
+        other_before = await _guest_state(sessions, other_guest, other_play)
+        assert mine_before[0] is None and mine_before[2] is None
+        transfers_before = await world.count(GuestSessionTransfer)
+        game_before = {flag: await _game(world, flag) for flag in ("false", "true")}
+
+        async with _client() as http:
+            # 로그인 승계가 쿠키를 지우지 않도록 로그인 뒤에 게스트 쿠키를 싣는다(로그인한 채 게임에서 받은 게스트)
+            await _login(http, member.email)
+            http.cookies.set(GUEST_COOKIE, mine_token)
+
+            # 탈퇴 트랜잭션 중간 실패 → 게스트 폐기도 되돌린다(회원 · 쿠키 · 게스트 모두 그대로)
+            def broken():
+                raise RuntimeError("injected failure after deletions")
+
+            original = account_withdrawal.withdrawn_nickname
+            monkeypatch.setattr(account_withdrawal, "withdrawn_nickname", broken)
+            member_before = await world.snapshot(member)
+            with pytest.raises(RuntimeError, match="injected"):
+                await http.post(PATH, json={"password": PASSWORD})
+            monkeypatch.setattr(account_withdrawal, "withdrawn_nickname", original)
+            assert await world.snapshot(member) == member_before
+            assert await _guest_state(sessions, mine_guest, mine_play) == mine_before
+            assert (await http.get("/api/v1/me")).status_code == 200
+
+            # 틀린 비밀번호 → 그대로, 쿠키도 내려가지 않는다
+            wrong = await http.post(PATH, json={"password": "Wrong-Pass-77"})
+            assert wrong.status_code == 401 and "set-cookie" not in wrong.headers
+            assert await _guest_state(sessions, mine_guest, mine_play) == mine_before
+
+            # 정상 탈퇴 → 204, 로그인 · 게스트 쿠키 둘 다 만료
+            done = await http.post(PATH, json={"password": PASSWORD})
+            assert done.status_code == 204, done.text
+            assert _expired(done) == {user_session.SESSION_COOKIE, GUEST_COOKIE}
+
+        # 요청 쿠키의 게스트만 폐기 — 만료 시각 · 그 게스트 회차의 소유자는 그대로(지우지도 회원으로 옮기지도 않는다)
+        revoked_at, expires_at, owner_user, owner_anonymous = await _guest_state(
+            sessions, mine_guest, mine_play
+        )
+        assert revoked_at is not None
+        assert (expires_at, owner_user, owner_anonymous) == (
+            mine_before[1],
+            None,
+            mine_anonymous,
+        )
+        assert (await world.user(member.id)).deleted_at is not None
+        # 다른 게스트 세션은 그대로
+        assert await _guest_state(sessions, other_guest, other_play) == other_before
+        # 기존 승계 기록 · 게임 집계 보존
+        assert await world.count(GuestSessionTransfer) == transfers_before
+        assert (
+            await world.count(
+                GuestSessionTransfer, GuestSessionTransfer.app_user_id == member.id
+            )
+            == 1
+        )
+        for flag in ("false", "true"):
+            assert await _game(world, flag) == game_before[flag]
+
+        # 옛 게스트 쿠키를 브라우저가 다시 보내도 — 재사용 차단(새 게스트가 발급되고, 옛 회차는 열리지 않는다)
+        reissued, fresh_cookie = await _anonymous_session_id(mine_token)
+        assert reissued != mine_anonymous and fresh_cookie
+        async with _client() as http:
+            http.cookies.set(GUEST_COOKIE, mine_token)
+            play = await http.get(f"/api/v1/play-sessions/{mine_play}")
+            assert play.status_code == 401
+            assert play.json() == {"detail": "Play session cookie required."}
+        # 다른 게스트는 계속 같은 익명 세션을 쓴다
+        assert await _anonymous_session_id(other_token) == (other_anonymous, False)
+
+        # 같은 이메일로 재가입하면서 옛 게스트 쿠키를 보내도 과거 게스트 진행은 승계되지 않는다
+        async with _client() as http:
+            http.cookies.set(GUEST_COOKIE, mine_token)
+            fresh = await http.post(
+                "/api/v1/auth/register",
+                json={
+                    "email": member.email,
+                    "password": PASSWORD,
+                    "nickname": member.nickname,
+                    "consent": {"terms": True, "privacy": True, "age": True},
+                },
+            )
+            assert fresh.status_code == 201, fresh.text
+            new_id = fresh.json()["user"]["user_id"]
+        assert new_id != member.id
+        assert await world.count(PlaySession, PlaySession.owner_user_id == new_id) == 0
+        assert (
+            await world.count(
+                GuestSessionTransfer, GuestSessionTransfer.app_user_id == new_id
+            )
+            == 0
+        )
+        assert (await _guest_state(sessions, mine_guest, mine_play))[2:] == (
+            None,
+            mine_anonymous,
+        )
+        assert await _guest_state(sessions, other_guest, other_play) == other_before
+
+    mysql_run(scenario)
+
+
+@pytest.mark.real_play_auth
+def test_withdrawal_with_a_bad_guest_cookie_still_succeeds():
+    """잘못된 · 만료된 · 이미 폐기된 게스트 쿠키는 탈퇴를 막지 않고, 그 게스트 행도 바꾸지 않는다."""
+
+    async def scenario(sessions):
+        world = World(sessions)
+        await world.seed()
+        expired_token, revoked_token = f"exp-{uuid4().hex}", f"rev-{uuid4().hex}"
+        expired_guest, _, expired_play = await _guest_with_play(sessions, expired_token)
+        revoked_guest, _, revoked_play = await _guest_with_play(sessions, revoked_token)
+        async with sessions() as db:
+            await db.execute(
+                update(GuestSession)
+                .where(GuestSession.id == expired_guest)
+                .values(expires_at=utc_now() - HOUR)
+            )
+            await db.execute(
+                update(GuestSession)
+                .where(GuestSession.id == revoked_guest)
+                .values(revoked_at=utc_now() - HOUR)
+            )
+            await db.commit()
+        expired_before = await _guest_state(sessions, expired_guest, expired_play)
+        revoked_before = await _guest_state(sessions, revoked_guest, revoked_play)
+
+        for user, token in (
+            (world.member, expired_token),
+            (world.other, revoked_token),
+            (world.tester, "not-a-real-guest-token"),
+        ):
+            async with _client() as http:
+                await _login(http, user.email)
+                http.cookies.set(GUEST_COOKIE, token)
+                done = await http.post(PATH, json={"password": PASSWORD})
+                assert done.status_code == 204, done.text
+                assert _expired(done) == {user_session.SESSION_COOKIE, GUEST_COOKIE}
+            assert (await world.user(user.id)).deleted_at is not None
+        assert (
+            await _guest_state(sessions, expired_guest, expired_play) == expired_before
+        )
+        assert (
+            await _guest_state(sessions, revoked_guest, revoked_play) == revoked_before
+        )
 
     mysql_run(scenario)
 

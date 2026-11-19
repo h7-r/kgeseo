@@ -1,7 +1,10 @@
 """회원 탈퇴 Phase 1 — 한 트랜잭션으로 지우고 비식별화한다(계약 `docs/contracts/account_withdrawal_v0.2.md`, WD-01~14).
 
-순서(회원 행 배타 잠금이 맨 앞 — 로그인 `start_session` 과 같은 행을 같은 순서로 잠가 교착이 새로 생기지 않는다):
+순서(회원 행 배타 잠금이 데이터 표보다 앞 — 로그인 `start_session` 과 같은 행을 같은 순서로 잠가 교착이 새로 생기지 않는다. 그 앞에는 게스트 행 하나만):
 
+0. 요청에 유효한 게스트 쿠키가 있으면 그 게스트 행만 배타 잠금(11/19 미르 요청). 회원 행보다 먼저 — 로그인 승계
+   (`guest_session._transfer`: 게스트 행 → 승계 기록 INSERT 의 FK 로 회원 행)와 같은 순서라 교착이 생기지 않는다. 쿠키가 없거나
+   잘못됐거나 만료 · 폐기된 게스트면 아무것도 잠그지 않고 그대로 진행한다(탈퇴를 막지 않는다).
 1. 회원 행 잠금 · 이미 탈퇴했는지
 2. 관리자면 거절(WD-12) → 이메일 비밀번호 수단이 없으면 `reauth_required`(소셜 전용, WD-10) → 비밀번호 확인
 3. 사용자가 보낸 입력에서 나온 값: NPC 턴 이벤트의 `message_sha256` 과 퍼즐 `submit_answer` 이벤트의 `answer` 를 null 로(행 · 다른 키 ·
@@ -11,7 +14,8 @@
 6. 그 계정의 소셜 가입 대기 행 · 이메일 로그인 실패 집계(이메일이 남은 임시 행)
 7. 로그인 수단(auth_identities) · 모든 로그인 세션(WD-02 · WD-11)
 8. 이메일 · 닉네임을 원래 값과 무관한 무작위 값으로, 지역 · 동의 · 최근 로그인을 NULL 로, `deleted_at` 기록(WD-01 · 02 · 13)
-9. COMMIT 한 번. 어디서든 실패하면 통째로 되돌린다.
+9. 0 에서 잠근 게스트 세션 `revoked_at` 기록 — 그 쿠키로 다시 플레이 · 승계하지 못한다(행 · 그 게스트의 회차는 지우지 않는다)
+10. COMMIT 한 번. 어디서든 실패하면 통째로 되돌린다.
 
 남기는 것(WD-05~07 · 09): 회원 행(id · role · is_test · created_at), `play_sessions`(owner_user_id 그대로), `interaction_events` 행,
 `beta_events`, `guest_session_transfers`, `admin_audit_logs`. 회원 행을 지우지 않으므로 FK 의 SET NULL · CASCADE 가 일어나지 않고,
@@ -32,11 +36,13 @@ from app.models.account_data import (
 )
 from app.models.app_user import AppUser
 from app.models.auth_identity import AuthIdentity
+from app.models.guest_session import GuestSession
 from app.models.inquiry import Inquiry
 from app.models.interaction_event import InteractionEvent
 from app.models.npc_turn_idempotency import NpcTurnRequest
 from app.models.play_session import PlaySession
 from app.models.social_onboarding_pending import SocialOnboardingPending
+from app.services.guest_session import find_guest_session
 from app.services.local_auth import normalize_email, utc_now, verify_password
 from app.services.npc_turn_service import NPC_TURN_EVENT_TYPE
 from app.services.user_session import hash_session_token
@@ -82,10 +88,20 @@ def _login_throttle_key(email: str) -> str:
     return hash_session_token(f"email:{normalize_email(email)}")
 
 
-async def withdraw_member(db: AsyncSession, user_id: str, password: str | None) -> None:
-    """회원 탈퇴. 성공하면 커밋까지 마친다. 거절이면 `WithdrawalRefused`(되돌린 뒤), 그 밖의 실패는 되돌리고 다시 던진다."""
+async def withdraw_member(
+    db: AsyncSession,
+    user_id: str,
+    password: str | None,
+    guest_token: str | None = None,
+) -> None:
+    """회원 탈퇴. 성공하면 커밋까지 마친다. 거절이면 `WithdrawalRefused`(되돌린 뒤), 그 밖의 실패는 되돌리고 다시 던진다.
+
+    `guest_token` 은 요청의 게스트 쿠키 원문. 유효한 게스트면 같은 트랜잭션에서 폐기한다 — 거절 · 실패면 게스트도 그대로다.
+    """
 
     try:
+        # 요청 쿠키의 게스트 하나만 — 다른 게스트 세션은 건드리지 않는다
+        guest = await find_guest_session(db, guest_token, for_update=True)
         user = await db.scalar(
             select(AppUser)
             .where(AppUser.id == user_id)
@@ -202,6 +218,13 @@ async def withdraw_member(db: AsyncSession, user_id: str, password: str | None) 
         )
         if result.rowcount != 1:
             raise RuntimeError("withdrawal did not update exactly one member row")
+        if guest is not None:
+            await db.execute(
+                update(GuestSession)
+                .where(GuestSession.id == guest.id, GuestSession.revoked_at.is_(None))
+                .values(revoked_at=now)
+                .execution_options(synchronize_session=False)
+            )
         await db.commit()
     except BaseException:
         await db.rollback()

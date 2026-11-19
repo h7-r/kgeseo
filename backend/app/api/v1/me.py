@@ -24,6 +24,7 @@ from app.schemas.account_data import (
 )
 from app.schemas.inquiry import MyInquiry, MyInquiryList, MyInquiryReply
 from app.services.account_withdrawal import WithdrawalRefused, withdraw_member
+from app.services.guest_session import GUEST_COOKIE, clear_guest_cookie
 from app.services.inquiry import replies_of
 from app.services.local_auth import utc_now
 from app.services.user_session import (
@@ -168,7 +169,9 @@ async def withdraw(
     user: AppUser = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """회원 탈퇴(계약 account_withdrawal_v0.2). 성공하면 204 와 로그인 쿠키 만료 — 커밋이 끝난 뒤에만 쿠키를 지운다.
+    """회원 탈퇴(계약 account_withdrawal_v0.2). 성공하면 204 와 로그인 · 게스트 쿠키 만료 — 커밋이 끝난 뒤에만 쿠키를 지운다.
+
+    요청의 게스트 쿠키가 유효하면 그 게스트 세션도 같은 트랜잭션에서 폐기한다(쿠키만 지우지 않고 서버에서도 막는다).
 
     비밀번호 실패는 로그인과 같은 이메일 집계에 더한다(탈퇴 창구로 비밀번호를 대입해 보지 못하게). 거절 · 실패면 바뀌는 것이 없다.
     """
@@ -185,7 +188,9 @@ async def withdraw(
             headers={"Cache-Control": "no-store", "Retry-After": str(retry_after)},
         )
     try:
-        await withdraw_member(db, user.id, body.password)
+        await withdraw_member(
+            db, user.id, body.password, guest_token=request.cookies.get(GUEST_COOKIE)
+        )
     except WithdrawalRefused as refusal:
         if refusal.code == "invalid_password":
             await record_login_failure(db, request, email)
@@ -209,6 +214,7 @@ async def withdraw(
             headers={"Cache-Control": "no-store"},
         ) from refusal
     response.delete_cookie(SESSION_COOKIE, **SESSION_COOKIE_OPTIONS)
+    clear_guest_cookie(response)
 
 
 @router.get(
