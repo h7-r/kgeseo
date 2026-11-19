@@ -20,8 +20,10 @@ export const fetchMe = (signal?: AbortSignal) => adminGet<AdminMe>("/api/v1/me",
 
 export type LoginFailure = "invalid" | "locked" | "input" | "offline" | "server";
 
+/** 422 는 서버 code(invalid_email · invalid_password · invalid_input)를 그대로 싣는다 — 어느 칸의 문구로 보일지는 화면이 정한다(lib/loginInput.ts) */
 export type LoginResult =
-  { ok: true } | { ok: false; failure: LoginFailure; status: number; retryAfterSeconds?: number };
+  | { ok: true }
+  | { ok: false; failure: LoginFailure; status: number; retryAfterSeconds?: number; code?: string };
 
 const UNREACHABLE: readonly number[] = [502, 503, 504];
 
@@ -64,7 +66,7 @@ export async function loginWithPassword(email: string, password: string): Promis
       retryAfterSeconds: parseRetryAfter(response.headers.get("Retry-After")),
     };
   }
-  if (status === 422) return { ok: false, failure: "input", status };
+  if (status === 422) return { ok: false, failure: "input", status, code: errorCode(body) };
   if (UNREACHABLE.includes(status)) return { ok: false, failure: "offline", status };
   return { ok: false, failure: "server", status };
 }

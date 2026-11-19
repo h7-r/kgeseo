@@ -135,7 +135,10 @@ function SearchBar({
   );
 }
 
-/** 전체 · 활성은 통계 요약 API(관리자 · 테스트 계정 제외, is_test 세진 11/13). 정지 · 탈퇴는 서버에 기능이 없어 준비 중이다. */
+/**
+ * 전체 · 활성은 통계 요약 API(관리자 · 테스트 계정 제외, is_test 세진 11/13). 전체는 탈퇴 회원을 뺀 수다(탈퇴 1단계 #177).
+ * 탈퇴 누적 수 · 월별 탈퇴는 서버가 아직 집계하지 않아 준비 중(unavailable 유지는 미르 11/17 확정). 정지는 기능 전.
+ */
 function MemberStatCards() {
   const [resource] = useAdminResource("stats:members", (signal) => fetchStatsSummary(false, signal));
   const stats = resource.status === "ready" ? resource.data : null;
@@ -157,7 +160,7 @@ function MemberStatCards() {
         caption="최근 30일 로그인 · 플레이 시작"
       />
       <StatCard label="정지" value={null} pendingText="준비 중 — 정지 기능 전" caption="이용 제한" />
-      <StatCard label="탈퇴" value={null} pendingText="준비 중 — 탈퇴 기능 전" caption="누적" />
+      <StatCard label="탈퇴" value={null} pendingText="준비 중 — 탈퇴 집계 전" caption="누적" />
     </div>
   );
 }

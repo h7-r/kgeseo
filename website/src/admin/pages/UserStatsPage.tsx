@@ -33,7 +33,10 @@ const delta = (current: number, previous: number, higherIsBetter: boolean) => {
   return percent === null ? undefined : formatDelta(percent, higherIsBetter);
 };
 
-/** 회원 통계(stats/members). 이 화면을 열 때마다 「회원 통계 조회」 한 줄이 남는다(최근 가입자 목록 때문). 탈퇴 · 정지는 기능 전이라 준비 중. */
+/**
+ * 회원 통계(stats/members). 이 화면을 열 때마다 「회원 통계 조회」 한 줄이 남는다(최근 가입자 목록 때문).
+ * 총 회원 · 분포는 탈퇴 회원을 뺀 값(탈퇴 1단계 #177). 월별 탈퇴 · 이탈률은 서버 집계 전이라 준비 중(unavailable 유지는 미르 11/17 확정) · 정지는 기능 전.
+ */
 export default function UserStatsPage() {
   const [months] = useQueryChoice("months", MONTHS, "6");
   const span = Number(months);
@@ -82,7 +85,7 @@ function MemberStatsView({ stats }: { stats: StatsMembers }) {
         {stats.date} 한국 날짜 기준 · {formatDateTime(stats.generated_at)} 집계 · 관리자 · 테스트 계정 제외.
       </p>
       <div className="adm-grid adm-grid--two">
-        <Panel title="월별 가입" meta={`최근 ${stats.months}개월 · 탈퇴는 기능 전이라 없음`}>
+        <Panel title="월별 가입" meta={`최근 ${stats.months}개월 · 탈퇴 집계 전이라 가입만`}>
           <LineChart
             label={`최근 ${stats.months}개월 월별 가입`}
             series={{
