@@ -4,6 +4,7 @@ import { FOOTER_ATTR } from "@/lib/layout";
 import { FONT } from "@/lib/style";
 import { FOOTER_LINKS, useSiteNavigate } from "@/navigation/routes";
 import { COLOR } from "@/styles/tokens";
+import { SUPPORT_EMAIL } from "@/data/contact";
 
 /** 하위 페이지 공통 푸터. 홈 푸터와 달리 사업자 정보가 아래에 붙는다. */
 export default function PageFooter() {
@@ -37,7 +38,7 @@ export default function PageFooter() {
           ESCAPE THE LEGEND의 로고 · 캐릭터 · 명칭을 비롯해 이와 관련된 모든 고유한 표현은 LATENT SPACE의 독점
           자산입니다.
         </p>
-        <p style={lineStyle}>대표자 : 황미르 | LATENT SPACE | 광주광역시 남구 송암로 60</p>
+        <p style={lineStyle}>LATENT SPACE | {SUPPORT_EMAIL}</p>
       </div>
     </footer>
   );
