@@ -477,7 +477,9 @@ def test_player_message_must_not_carry_paused_ms(client) -> None:
     assert response.status_code == 422
 
 
-def test_replay_with_different_paused_ms_conflicts(client, db_session, overrides) -> None:
+def test_replay_with_different_paused_ms_conflicts(
+    client, db_session, overrides
+) -> None:
     approve_all(overrides)
     db_session.get_result = session_row()
     client.post(URL, json=auto_body(paused_ms_since_interaction=1000))
