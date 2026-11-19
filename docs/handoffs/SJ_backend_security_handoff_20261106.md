@@ -6,7 +6,7 @@
 - PR #39는 `6dbd367`을 두 번째 부모로 하는 merge commit `3fa49e6`으로 병합됐다. Codex 브랜치는 `main`의 `29b2a850c309da93701421d47eba24ed717867c2`에서 시작해 보안 패치만 적용했다.
 - `POST /anonymous-sessions`는 로그인 여부와 별개로 유효한 게스트 쿠키를 재사용하거나 새로 발급한다. 로그인 쿠키가 유효하면 플레이는 계정 소유로 생성된다. 쿠키 없는 첫 요청을 동시에 보내면 요청마다 독립된 게스트가 생길 수 있으므로 FE는 익명 세션 발급 요청을 직렬화한다.
 - 게스트 회차 생성은 INSERT 커밋까지 게스트 행의 공유 잠금을 유지한다. 승계는 같은 행을 배타 잠금한다. 생성이 먼저 끝나면 새 회차도 승계하고, 승계가 먼저 끝나면 이전 게스트 쿠키의 생성 요청은 401이다. 승계가 실패하면 소유권·승계 기록·게스트 폐기가 함께 롤백되고 쿠키를 보존한다. 로그인은 성공하며 다음 로그인에서 승계를 다시 시도할 수 있다.
-- `APP_ENV=production`에서 게스트 쿠키는 `__Host-waegok_guest`와 Secure를 사용한다. 플레이 쓰기 요청은 설정된 CORS Origin 중 `https://www.k-escape.com`과 `https://play.k-escape.com`만 받는다. 기존 로그인과 OAuth의 Origin 검사는 그대로 적용된다. 운영 로그인 쿠키에는 `SESSION_COOKIE_SECURE=true`도 필요하다.
+- `APP_ENV=production`에서 게스트 쿠키는 `__Host-waegok_guest`와 Secure를 사용한다. 플레이 쓰기 요청은 로그인 · 저장 API와 같이 `CORS_ORIGINS`에 정확히 적힌 Origin만 받는다(11/8 변경: 이전의 www · play 고정 목록은 없앴다. preview 등은 `CORS_ORIGINS`에 넣을 때만 허용). 기존 로그인과 OAuth의 Origin 검사는 그대로 적용된다. 운영 로그인 쿠키에는 `SESSION_COOKIE_SECURE=true`도 필요하다.
 - `d8f2a6c4e1b9`는 테이블 두 개와 NULL 허용 소유자 열을 추가한다. 이전 앱이 쓴 행은 보존되며 신규 앱의 소유권 검사에서는 404다. 과거 익명 UUID를 근거로 소유자를 할당하지 않는다. 앱 롤백 때는 스키마를 유지한다. 다운그레이드는 신규 소유권과 승계 기록을 제거하므로 운영 롤백 절차로 사용하지 않는다.
 - 새 격리 MySQL 8.0.46에서 단일 head, 업그레이드·다운그레이드·재업그레이드, 배포 CLI의 스키마 검사, 이전 main 앱의 신규 스키마 회차 생성·조회를 확인했다. 소셜 온보딩 전용 MySQL 테스트의 7개 실패(`role` 기본값을 복사하지 않는 fixture)는 기준 main과 신규 브랜치에서 동일하게 재현됐다. 운영 MySQL 8.4 실행은 확인 범위 밖이다.
 - 최신 main의 FE `companionApi.ts` 공통 fetch에는 `credentials: "include"`가 빠져 있다. 진행 동기화를 포함해 이 경로에서 쿠키를 보낸다. `shared/env.ts`에 `setAssetVersionPath()`가 있으므로 생성·조회 응답의 `asset_base_path`를 케이스 에셋 로딩 전에 이 함수로 전달한다. 버전 없는 세션은 `null`을 전달해 빌드 기본 경로로 돌아간다. FE 연동과 백엔드 배포 시점을 조율한다.
@@ -162,7 +162,7 @@ FE 파일 · NPC v0.4.16 · P01/P03/P09 퍼즐은 건드리지 않았다.
 
 - [ ] RDS 백업 · 스냅샷 뒤 `alembic upgrade head`(승인된 절차). 기존 Play Session 은 소유자 없음 → 접근 불가가 됨을 PM 재확인.
 - [ ] RDS 파라미터 `log_bin_trust_function_creators` · DB 기본 정렬 확인.
-- [ ] `APP_ENV=production` · `SESSION_COOKIE_SECURE=true` · `CORS_ORIGINS=["https://www.k-escape.com","https://play.k-escape.com"]` · `NAVER_REDIRECT_URI` origin 이 그 둘 중 하나.
+- [ ] `APP_ENV=production` · `SESSION_COOKIE_SECURE=true` · `CORS_ORIGINS=["https://www.k-escape.com","https://play.k-escape.com"]`(preview 를 열 때만 `"https://preview.k-escape.com"` 추가) · `NAVER_REDIRECT_URI` origin 이 그 둘 중 하나.
 - [ ] Uvicorn 은 `127.0.0.1:8000` 에만 열고 Caddy 가 TLS · 프록시(Origin · 쿠키 헤더 보존).
 - [ ] 배포 뒤 `/api/v1/health/ready`(DB 만) + 실제 브라우저로 게스트 발급 · 플레이 · 로그인 승계 1회 확인.
 - [ ] MySQL 8.4 에서 마이그레이션 · 본 테스트 재실행(격리 DB).
