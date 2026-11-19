@@ -28,7 +28,7 @@ from app.services.lobby_ticket import (
     get_issue_rate_limiter,
     issue_ticket,
 )
-from app.services.nickname_policy import LEET, RESERVED, forbidden_terms_in
+from app.services.nickname_policy import forbidden_terms_in, has_reserved_term
 from app.services.user_session import current_user, require_same_origin
 
 router = APIRouter(
@@ -54,10 +54,9 @@ def public_investigator_name(raw: str) -> str | None:
     name = re.sub(r"\s+", " ", unicodedata.normalize("NFC", raw).strip())
     if not 2 <= len(name) <= 12 or INVESTIGATOR_NAME.fullmatch(name) is None:
         return None
-    key = name.casefold().replace(" ", "")
-    if {key, key.translate(LEET), key.rstrip("0123456789")} & RESERVED:
-        return None
-    if forbidden_terms_in(name.replace(" ", "")):
+    # 띄어 써도 같은 말이다(관리 자). 예약어·금칙어 모두 닉네임과 같은 공용 목록으로 본다.
+    compact = name.replace(" ", "")
+    if has_reserved_term(compact) or forbidden_terms_in(compact):
         return None
     return name
 

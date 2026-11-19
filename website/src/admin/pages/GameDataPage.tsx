@@ -44,7 +44,7 @@ function GameDataView({ game }: { game: StatsGame }) {
   // 사건 완주 = 엔딩까지 간 사람(서버가 주면). 아직 안 주는 서버면 마지막 스테이지 완료 인원
   const finished = game.case_completed_people ?? last?.completed ?? null;
   const finishedCaption =
-    game.case_completed_people !== undefined ? "엔딩(새벽)까지 간 사람" : last ? `${stageName(last.stage)} 완료` : null;
+    game.case_completed_people !== undefined ? "사건 완주(풀려남 · 새벽)" : last ? `${stageName(last.stage)} 완료` : null;
   // 진입만 세는 스테이지(임시 필드)는 표 끝에 「진입만」으로 — 같은 번호가 stages 로 들어오면 그쪽만 보인다
   const known = new Set(game.stages.map((stage) => stage.stage));
   const stageRows: { stage: number; entered: number; completed: number | null }[] = [

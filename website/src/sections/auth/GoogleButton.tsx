@@ -2,14 +2,21 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import googleIcon from "@/assets/images/imgComponent12.svg";
 import { mountGoogleButton, type GoogleButtonHandlers } from "@/services/account/googleAuth";
+import { socialNotReadyMessage } from "@/services/account/socialAuthApi";
 import { COLOR } from "@/styles/tokens";
 
 const BUTTON_SIZE = "44px";
-// 구글이 이 주소를 거절하면 단추가 크기 0 으로 숨는다. 이만큼 기다려도 안 보이면 까닭을 알린다.
+// 구글이 이 주소를 거절하면 단추가 크기 0 으로 숨는다. 이만큼 기다려도 안 보이면 대체 단추를 둔다.
 const BUTTON_APPEAR_TIMEOUT_MS = 8000;
 const BUTTON_CHECK_INTERVAL_MS = 500;
-const NOT_ALLOWED_MESSAGE = () =>
-  `Google 로그인 단추를 불러오지 못했습니다. 이 주소(${window.location.origin})가 Google 콘솔에 등록되어 있는지 확인해 주세요.`;
+
+/** 단추가 안 그려진 까닭은 운영자 몫이다. 사용자에게는 「준비 중」만 보이고, 콘솔 등록 안내는 개발 서버에서만 남긴다. */
+function warnButtonHidden() {
+  if (!import.meta.env.DEV) return;
+  console.warn(
+    `Google 로그인 단추가 그려지지 않았습니다. 이 주소(${window.location.origin})가 Google 콘솔 「승인된 JavaScript 원본」에 등록되어 있는지 확인하세요.`,
+  );
+}
 
 /** 구글 공식 단추. 키가 없거나 스크립트를 못 받으면 같은 자리의 단추가 누를 때 까닭을 알려 준다. */
 export default function GoogleButton({ onBusyChange, onResult, onError }: GoogleButtonHandlers) {
@@ -45,12 +52,15 @@ export default function GoogleButton({ onBusyChange, onResult, onError }: Google
         unmount = finish;
         // 스크립트를 받느라 걸린 시간은 빼고 단추를 그린 뒤부터 잰다. 늦게라도 나타나면 안내를 거둔다.
         const startedAt = Date.now();
+        let hasWarned = false;
         appearCheck = setInterval(() => {
           const isVisible = Boolean(slot.querySelector("iframe")?.getBoundingClientRect().width);
           if (isVisible) {
             clearInterval(appearCheck);
             setIsButtonHidden(false);
           } else if (Date.now() - startedAt > BUTTON_APPEAR_TIMEOUT_MS) {
+            if (!hasWarned) warnButtonHidden();
+            hasWarned = true;
             setIsButtonHidden(true);
           }
         }, BUTTON_CHECK_INTERVAL_MS);
@@ -71,7 +81,7 @@ export default function GoogleButton({ onBusyChange, onResult, onError }: Google
       type="button"
       className="button"
       style={fallbackStyle}
-      onClick={() => onError(unavailableReason || NOT_ALLOWED_MESSAGE())}
+      onClick={() => onError(unavailableReason || socialNotReadyMessage("google"))}
       title="Google 계정으로 계속하기"
       aria-label="Google 계정으로 계속하기"
     >

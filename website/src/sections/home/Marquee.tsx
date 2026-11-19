@@ -5,6 +5,7 @@ import { FONT } from "@/lib/style";
 import { usePrefersReducedMotion } from "@/lib/motionPreference";
 import { QUERY, ROUTES, SOCIAL_LINKS, useSiteNavigate, withQuery, type NavTarget } from "@/navigation/routes";
 import { COLOR } from "@/styles/tokens";
+import { SUPPORT_EMAIL } from "@/data/contact";
 
 /** 띠를 따라 오른쪽으로 흐르는 글귀. 한 벌 끝에 ✦ 를 붙여 다음 벌과 이어 붙인다. */
 const BAND_PHRASES = [
@@ -96,7 +97,7 @@ export default function Marquee() {
               ESCAPE THE LEGEND의 로고 · 캐릭터 · 명칭을 비롯해 이와 관련된 모든 고유한 표현은 LATENT SPACE의 독점
               자산입니다.
             </p>
-            <p style={{ margin: 0, lineHeight: 1.55 }}>LATENT SPACE | 광주광역시 남구 송암로 60 | 대표자 : 황미르</p>
+            <p style={{ margin: 0, lineHeight: 1.55 }}>LATENT SPACE | {SUPPORT_EMAIL}</p>
           </div>
 
           <div

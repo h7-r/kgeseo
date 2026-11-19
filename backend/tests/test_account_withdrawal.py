@@ -14,12 +14,14 @@ from sqlalchemy.dialects import mysql
 from app.api.v1 import auth, me
 from app.main import app
 from app.models.app_user import AppUser
+from app.models.guest_session import GuestSession
 from app.services import account_withdrawal, user_session
 from app.services.account_withdrawal import (
     WithdrawalRefused,
     withdrawn_email,
     withdrawn_nickname,
 )
+from app.services.guest_session import GUEST_COOKIE
 from app.services.nickname_policy import InvalidNicknameError, validate_nickname
 from app.services.user_session import (
     SESSION_COOKIE,
@@ -32,6 +34,7 @@ from tests.test_api_error_contract import assert_documented
 PATH = "/api/v1/me/withdrawal"
 SAME_ORIGIN = {"Origin": "http://localhost:5175"}
 SECRET = "Correct-Horse-91"
+GUEST_TOKEN = "guest-cookie-token"
 
 
 def member(role: str = "user") -> AppUser:
@@ -114,26 +117,44 @@ def test_format_errors_never_echo_the_password(client, signed_in, body, code):
 
 
 def _refuse(code):
-    async def withdraw(db, user_id, password):
+    async def withdraw(db, user_id, password, guest_token=None):
         raise WithdrawalRefused(code)
 
     return withdraw
 
 
-def test_success_is_204_and_expires_the_cookie(
-    client, signed_in, unlocked, monkeypatch
+def _expired_cookies(response) -> dict[str, str]:
+    """응답이 만료시킨 쿠키 이름 → Set-Cookie 줄."""
+
+    cookies = {}
+    for line in response.headers.get_list("set-cookie"):
+        name = line.split("=", 1)[0]
+        assert "Max-Age=0" in line, line
+        cookies[name] = line
+    return cookies
+
+
+@pytest.mark.parametrize("guest_cookie", [GUEST_TOKEN, None])
+def test_success_is_204_and_expires_login_and_guest_cookies(
+    client, signed_in, unlocked, monkeypatch, guest_cookie
 ):
     calls = []
 
-    async def withdraw(db, user_id, password):
-        calls.append((user_id, password))
+    async def withdraw(db, user_id, password, guest_token=None):
+        calls.append((user_id, password, guest_token))
 
     monkeypatch.setattr(me, "withdraw_member", withdraw)
+    if guest_cookie:
+        client.cookies.set(GUEST_COOKIE, guest_cookie)
     response = client.post(PATH, json={"password": SECRET}, headers=SAME_ORIGIN)
     assert response.status_code == 204 and response.content == b""
-    assert calls == [(signed_in.id, SECRET)]
-    cookie = response.headers["set-cookie"]
-    assert cookie.startswith(f"{SESSION_COOKIE}=") and "Max-Age=0" in cookie
+    # 요청의 게스트 쿠키 원문을 서비스로 넘겨 같은 트랜잭션에서 폐기하게 한다(없으면 None — 탈퇴는 그대로 된다)
+    assert calls == [(signed_in.id, SECRET, guest_cookie)]
+    cookies = _expired_cookies(response)
+    assert set(cookies) == {SESSION_COOKIE, GUEST_COOKIE}
+    for line in cookies.values():
+        assert "HttpOnly" in line and "Path=/" in line and "SameSite=lax" in line
+        assert "Domain" not in line
     assert response.headers["cache-control"] == "no-store"
 
 
@@ -147,6 +168,7 @@ def test_wrong_password_counts_a_failure_and_keeps_the_cookie(
 
     monkeypatch.setattr(me, "withdraw_member", _refuse("invalid_password"))
     monkeypatch.setattr(me, "record_login_failure", record)
+    client.cookies.set(GUEST_COOKIE, GUEST_TOKEN)
     response = client.post(PATH, json={"password": "wrong-pass"}, headers=SAME_ORIGIN)
     assert response.status_code == 401
     assert response.json()["detail"]["code"] == "invalid_password"
@@ -166,6 +188,7 @@ def test_admin_and_social_only_are_403_without_counting(
 
     monkeypatch.setattr(me, "withdraw_member", _refuse(code))
     monkeypatch.setattr(me, "record_login_failure", record)
+    client.cookies.set(GUEST_COOKIE, GUEST_TOKEN)
     response = client.post(PATH, json={}, headers=SAME_ORIGIN)
     assert response.status_code == 403
     assert response.json()["detail"]["code"] == code
@@ -177,6 +200,7 @@ def test_already_withdrawn_by_a_parallel_request_is_401(
     client, signed_in, unlocked, monkeypatch
 ):
     monkeypatch.setattr(me, "withdraw_member", _refuse("already_withdrawn"))
+    client.cookies.set(GUEST_COOKIE, GUEST_TOKEN)
     response = client.post(PATH, json={"password": SECRET}, headers=SAME_ORIGIN)
     assert response.status_code == 401
     assert response.json() == {"detail": "Login required."}
@@ -204,7 +228,7 @@ def test_locked_password_attempts_are_429_and_skip_withdrawal(
 
 
 def test_unexpected_failure_leaves_the_cookie(signed_in, unlocked, monkeypatch, client):
-    async def boom(db, user_id, password):
+    async def boom(db, user_id, password, guest_token=None):
         raise RuntimeError("db down")
 
     monkeypatch.setattr(me, "withdraw_member", boom)
@@ -235,6 +259,59 @@ def test_service_refuses_before_touching_data(db_session, user, code):
     # 회원 행을 배타 잠금으로 읽었다
     (locked,) = db_session.scalar_calls
     assert "FOR UPDATE" in _sql(locked)
+
+
+def _guest(expires_at: datetime) -> GuestSession:
+    return GuestSession(
+        id="00000000-0000-4000-8000-0000000000bb",
+        anonymous_session_id="00000000-0000-4000-8000-0000000000cc",
+        token_hash=user_session.hash_session_token(GUEST_TOKEN),
+        created_at=datetime(2026, 11, 1),
+        expires_at=expires_at,
+    )
+
+
+@pytest.mark.parametrize("found", [True, False])
+@pytest.mark.parametrize(
+    ("role", "code"),
+    [("admin", "admin_cannot_withdraw"), ("user", "already_withdrawn")],
+)
+def test_service_refusal_with_a_guest_cookie_changes_no_guest(
+    db_session, found, role, code
+):
+    """요청 쿠키의 게스트를 잠금으로 찾은 뒤(유효 · 무효 어느 쪽이든) 거절되면 게스트도 바꾸지 않고 되돌린다."""
+
+    user = member(role)
+    if code == "already_withdrawn":
+        user.deleted_at = datetime(2026, 11, 17)
+    guest = _guest(datetime(2099, 1, 1)) if found else None
+    db_session.scalar_result = [guest, user]
+    with pytest.raises(WithdrawalRefused) as refused:
+        asyncio.run(
+            account_withdrawal.withdraw_member(
+                db_session, user.id, SECRET, guest_token=GUEST_TOKEN
+            )
+        )
+    assert refused.value.code == code
+    assert db_session.rollback_count == 1 and db_session.commit_count == 0
+    assert db_session.execute_calls == []
+    assert guest is None or guest.revoked_at is None
+    # 게스트 조회: 그 쿠키 토큰의 해시 하나만 · 폐기 · 만료 아님 · 배타 잠금 — 다른 게스트는 보지 않는다
+    lookup, locked_user = (_sql(statement) for statement in db_session.scalar_calls)
+    assert user_session.hash_session_token(GUEST_TOKEN) in lookup
+    assert GUEST_TOKEN not in lookup
+    assert "guest_sessions.revoked_at IS NULL" in lookup
+    assert "guest_sessions.expires_at >" in lookup
+    assert lookup.rstrip().endswith("FOR UPDATE")
+    assert "app_users" in locked_user and "FOR UPDATE" in locked_user
+
+
+def test_service_without_a_guest_cookie_does_not_look_up_guests(db_session):
+    db_session.scalar_result = [member("admin")]
+    with pytest.raises(WithdrawalRefused):
+        asyncio.run(account_withdrawal.withdraw_member(db_session, member().id, SECRET))
+    (only,) = db_session.scalar_calls
+    assert "guest_sessions" not in _sql(only)
 
 
 # --- 탈퇴 표시 값 ---

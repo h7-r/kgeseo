@@ -20,6 +20,8 @@ class FakeAsyncSession:
     def __init__(self) -> None:
         self.get_result: Any = None
         self.scalar_result: Any = None
+        # scalars() 가 돌려줄 행 목록(.all())
+        self.scalars_result: list[Any] = []
         self.added: list[Any] = []
         self.get_calls: list[tuple[type[Any], str]] = []
         self.get_options: list[dict[str, Any]] = []
@@ -55,6 +57,11 @@ class FakeAsyncSession:
             return self.scalar_result.pop(0)
         return self.scalar_result
 
+    async def scalars(self, statement: Any) -> "_Rows":
+        self.scalar_calls.append(statement)
+        self.operation_log.append("scalars")
+        return _Rows(self.scalars_result)
+
     async def execute(self, statement: Any) -> None:
         self.execute_calls.append(statement)
         if self.execute_error is not None:
@@ -72,6 +79,16 @@ class FakeAsyncSession:
     async def rollback(self) -> None:
         self.rollback_count += 1
         self.operation_log.append("rollback")
+
+
+class _Rows:
+    """`db.scalars(...)` 결과 흉내 — `.all()` 만 쓴다."""
+
+    def __init__(self, rows: list[Any]) -> None:
+        self._rows = rows
+
+    def all(self) -> list[Any]:
+        return list(self._rows)
 
 
 class _ExpiringProxy:
@@ -93,6 +110,11 @@ class _ExpiringProxy:
 
     def __setattr__(self, name: str, value: Any) -> None:
         setattr(self._target, name, value)
+
+
+def expires_on_rollback(target: Any, db: FakeAsyncSession) -> Any:
+    """세션 밖에서 얻은 객체(예: `current_user` 의 회원 행)도 rollback 뒤 속성 접근이 실패하게 감싼다."""
+    return _ExpiringProxy(target, db)
 
 
 class ExpiringSession(FakeAsyncSession):

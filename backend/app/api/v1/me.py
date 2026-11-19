@@ -1,6 +1,7 @@
 """로그인한 사용자 자신의 데이터. 모든 조회·저장의 대상은 세션의 사용자로만 정해진다."""
 
 import json
+from datetime import timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -12,6 +13,7 @@ from app.api.v1 import error_responses
 from app.db.session import get_db
 from app.models.account_data import GamePlaySave, ItemCatalog, UserCharacter, UserItem
 from app.models.app_user import AppUser
+from app.models.auth_identity import AuthIdentity
 from app.models.inquiry import Inquiry
 from app.schemas.account_data import (
     CharacterResponse,
@@ -24,6 +26,7 @@ from app.schemas.account_data import (
 )
 from app.schemas.inquiry import MyInquiry, MyInquiryList, MyInquiryReply
 from app.services.account_withdrawal import WithdrawalRefused, withdraw_member
+from app.services.guest_session import GUEST_COOKIE, clear_guest_cookie
 from app.services.inquiry import replies_of
 from app.services.local_auth import utc_now
 from app.services.user_session import (
@@ -108,6 +111,22 @@ async def find_save(db: AsyncSession, user_id: str) -> GamePlaySave | None:
     )
 
 
+async def stored_revision(db: AsyncSession, user_id: str) -> int:
+    """지금 DB 에 있는 저장본의 번호. 없으면 0(첫 저장으로 다시 시도하면 된다)."""
+    stored = await find_save(db, user_id)
+    return stored.revision if stored else 0
+
+
+async def list_providers(db: AsyncSession, user_id: str) -> list[str]:
+    """회원의 로그인 수단 이름을 연결한 순서로. 같은 수단이 둘이어도 한 번만(관리자 상세는 알파벳순 — 여기는 가입 순)."""
+    rows = await db.scalars(
+        select(AuthIdentity.provider)
+        .where(AuthIdentity.app_user_id == user_id)
+        .order_by(AuthIdentity.created_at, AuthIdentity.id)
+    )
+    return list(dict.fromkeys(rows.all()))
+
+
 async def list_owned_items(db: AsyncSession, user_id: str) -> list[OwnedItem]:
     rows = await db.execute(
         select(UserItem, ItemCatalog)
@@ -128,13 +147,19 @@ async def list_owned_items(db: AsyncSession, user_id: str) -> list[OwnedItem]:
 
 
 @router.get("", response_model=MeResponse, responses=error_responses.ME_READ)
-async def read_me(user: AppUser = Depends(current_user)) -> MeResponse:
+async def read_me(
+    user: AppUser = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MeResponse:
     return MeResponse(
         user_id=user.id,
         email=user.email,
         nickname=user.nickname,
         region=user.region,
         role=user.role,
+        # DB 는 UTC naive — 표시를 붙여야 응답이 `Z` 로 끝난다
+        created_at=user.created_at.replace(tzinfo=timezone.utc),
+        providers=await list_providers(db, user.id),
     )
 
 
@@ -169,7 +194,9 @@ async def withdraw(
     user: AppUser = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """회원 탈퇴(계약 account_withdrawal_v0.2). 성공하면 204 와 로그인 쿠키 만료 — 커밋이 끝난 뒤에만 쿠키를 지운다.
+    """회원 탈퇴(계약 account_withdrawal_v0.2). 성공하면 204 와 로그인 · 게스트 쿠키 만료 — 커밋이 끝난 뒤에만 쿠키를 지운다.
+
+    요청의 게스트 쿠키가 유효하면 그 게스트 세션도 같은 트랜잭션에서 폐기한다(쿠키만 지우지 않고 서버에서도 막는다).
 
     비밀번호 실패는 로그인과 같은 이메일 집계에 더한다(탈퇴 창구로 비밀번호를 대입해 보지 못하게). 거절 · 실패면 바뀌는 것이 없다.
     """
@@ -187,7 +214,9 @@ async def withdraw(
             headers={"Cache-Control": "no-store", "Retry-After": str(retry_after)},
         )
     try:
-        await withdraw_member(db, user.id, body.password)
+        await withdraw_member(
+            db, user.id, body.password, guest_token=request.cookies.get(GUEST_COOKIE)
+        )
     except WithdrawalRefused as refusal:
         if refusal.code == "invalid_password":
             await record_login_failure(db, request, email)
@@ -211,6 +240,7 @@ async def withdraw(
             headers={"Cache-Control": "no-store"},
         ) from refusal
     response.delete_cookie(SESSION_COOKIE, **SESSION_COOKIE_OPTIONS)
+    clear_guest_cookie(response)
 
 
 @router.get(
@@ -278,9 +308,11 @@ async def write_game_save(
     db: AsyncSession = Depends(get_db),
 ) -> GameSaveResponse:
     _check_json(body.state, MAX_STATE_BYTES)
-    await ensure_member(db, user.id)
+    # rollback 뒤에는 회원 행 속성을 읽을 수 없다(만료 재조회) — 번호를 먼저 떼어 둔다
+    user_id = user.id
+    await ensure_member(db, user_id)
     now = utc_now()
-    save = await find_save(db, user.id)
+    save = await find_save(db, user_id)
     # 다른 창이 먼저 저장했으면 덮어쓰지 않고 최신값을 알려 준다.
     if (save.revision if save else 0) != body.revision:
         raise HTTPException(
@@ -290,7 +322,7 @@ async def write_game_save(
     if save is None:
         save = GamePlaySave(
             id=str(uuid4()),
-            app_user_id=user.id,
+            app_user_id=user_id,
             slot=DEFAULT_SLOT,
             revision=1,
             schema_version=body.schema_version,
@@ -309,9 +341,12 @@ async def write_game_save(
     try:
         await db.commit()
     except IntegrityError as error:
+        # 두 창이 저장본 없는 상태에서 동시에 첫 저장 — 먼저 들어간 쪽의 번호를 알려 줘야 재시도가 한 번에 된다
         await db.rollback()
+        revision = await stored_revision(db, user_id)
         raise HTTPException(
-            status.HTTP_409_CONFLICT, detail={"code": "save_conflict", "revision": 0}
+            status.HTTP_409_CONFLICT,
+            detail={"code": "save_conflict", "revision": revision},
         ) from error
     return to_save_response(save)
 
