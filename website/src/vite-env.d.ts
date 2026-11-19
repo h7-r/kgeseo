@@ -9,6 +9,8 @@ interface ImportMetaEnv {
   readonly VITE_TEST_ACCOUNT?: string;
   readonly VITE_GOOGLE_CLIENT_ID?: string;
   readonly VITE_NAVER_CLIENT_ID?: string;
+  /** "open" 이면 네이버 로그인을 모두에게 연다. 비우면 검수 전 「준비 중」(?naver=preview 로만 시험). */
+  readonly VITE_NAVER_LOGIN?: string;
 }
 
 interface ImportMeta {

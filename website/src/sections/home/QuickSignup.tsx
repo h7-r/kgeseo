@@ -23,13 +23,13 @@ import { FONT } from "@/lib/style";
 import { suggestEmailTypo, type FieldName } from "@/lib/validation";
 import { ROUTES, useSiteNavigate } from "@/navigation/routes";
 import { signUp } from "@/services/account/authApi";
-import { startNaverLogin } from "@/services/account/naverAuth";
 import { readOnboarding, type OnboardingRequired } from "@/services/account/socialAuthApi";
 import { signIn, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
 import { signupFormPanelStyle, signupPanelStyle, primaryButtonStyle, primaryLabelStyle } from "./quickSignupStyles";
 import GoogleButton from "../auth/GoogleButton";
+import NaverButton from "../auth/NaverButton";
 import SocialOnboardingForm from "../auth/SocialOnboardingForm";
 import WelcomePanel from "./WelcomePanel";
 
@@ -256,16 +256,7 @@ export default function QuickSignup() {
             }}
             onError={setSocialMessage}
           />
-          <button
-            type="button"
-            className="button"
-            style={{ ...socialButtonStyle, background: "#03c75a", borderColor: "#03c75a" }}
-            onClick={() => setSocialMessage(startNaverLogin(ROUTES.home))}
-            title="네이버로 가입 (네이버 화면으로 이동)"
-            aria-label="네이버로 가입 (네이버 화면으로 이동)"
-          >
-            <span style={naverMarkStyle}>N</span>
-          </button>
+          <NaverButton returnTo={ROUTES.home} action="가입" onMessage={setSocialMessage} />
           <span
             style={{
               fontFamily: FONT.mono,
@@ -308,27 +299,6 @@ const titleStyle: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-// 구글 팝업이 떠 있는 동안 — 로그인 화면의 간편 로그인 단추와 같은 모양
-const socialButtonStyle: CSSProperties = {
-  width: "44px",
-  height: "44px",
-  borderRadius: "22px",
-  background: "rgba(46,72,137,0.08)",
-  border: "1px solid rgba(79,108,176,0.3)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  boxSizing: "border-box",
-};
-
-const naverMarkStyle: CSSProperties = {
-  fontFamily: "'Inter', system-ui, sans-serif",
-  fontWeight: 800,
-  fontSize: "18px",
-  lineHeight: 1,
-  color: "#fff",
-  letterSpacing: "-0.5px",
-};
 
 const loginLinkStyle: CSSProperties = {
   fontFamily: FONT.mono,
