@@ -16,8 +16,8 @@
 | `MissingRequirementsError` | `{"detail": "<문장>", "missing_clue_count" \| "missing_puzzle_count" \| "missing_item_count": n}` | 개수 키 |
 | `ValidationErrorResponse` | `{"detail": [{loc, msg, type, …}]}` | 요청 형식 오류(FastAPI 기본) |
 
-`400`을 내는 경로는 없다. 인증 경로(`/auth/register` · `/login` · `/social-onboarding/complete`)의 요청 형식 오류는 입력을 되돌려 보내지 않으려고
-목록 형식 대신 `CodedError`(`invalid_email` · `invalid_password` · `invalid_nickname` · `invalid_input`)로 답한다.
+`400`을 내는 경로는 없다. 인증 경로(`/auth/register` · `/login` · `/social-onboarding/complete` · `/email-exists` · `/nickname-exists`, 뒤 둘은 11/18)의
+요청 형식 오류는 입력을 되돌려 보내지 않으려고 목록 형식 대신 `CodedError`(`invalid_email` · `invalid_password` · `invalid_nickname` · `invalid_input`)로 답한다.
 
 ## 2. 경로별 오류 (우선 영역)
 
@@ -33,8 +33,10 @@
 | `POST …/hints` | 404 4종(세션 · 퍼즐 · 힌트 단계 · 레거시 세션의 `Case not found.`) / 409 `HINT_BALANCE_EMPTY` · `HINT_REF_MISMATCH` · 문장 5종 / 422 검증 · `HINT_REF_INVALID` / 500 `Hint state is invalid.` · `Case content is unavailable.` / 503 `HINT_REF_UNAVAILABLE` |
 | `POST …/puzzles/{puzzle_id}/hints`(별칭) | 위에서 `hint_ref` 관련(409 `HINT_REF_MISMATCH` · 422 `HINT_REF_INVALID` · 503)만 빠진다 |
 | `POST …/npc/turns` | 404 / 409 `CASE_VERSION_UNAVAILABLE`(레거시 세션 포함) · 이벤트 ID 충돌 / 422 / 500 `NPC content is unavailable.` |
-| `POST /auth/social-onboarding/complete` | 401 `invalid_onboarding_token` / 409 `onboarding_token_used` · `terms_version_mismatch` · `nickname_unavailable` · `account_link_required` · 문장 1종 / 422 `consent_required` · `invalid_nickname` · `invalid_input` |
-| `POST /auth/google` · `/naver` | 401 · 409(`account_link_required` 또는 문장) · 422 · 502(네이버) · 503 |
+| `POST /auth/social-onboarding/complete` | 401 `invalid_onboarding_token` / 409 `onboarding_token_used` · `terms_version_mismatch` · `nickname_unavailable` · `account_link_required` · 문장 1종 / 422 `consent_required` · `invalid_nickname` · `invalid_input` / 429 `rate_limited`(IP 빈도, 11/18) |
+| `POST /auth/google` · `/naver` | 401(네이버는 프로필에 이메일이 없으면 `email_required`, 그 밖은 문장) · 409(`account_link_required` 또는 문장) · 422 · 429 `rate_limited`(IP 빈도, 11/18) · 502(네이버 장애만 — 인가 코드 오류는 401) · 503 |
+| `POST /auth/register`(11/18) | 409 `email_taken` · `nickname_taken`(`message`는 옛 문장 그대로) · `terms_version_mismatch` / 422 `invalid_email` · `invalid_password` · `invalid_nickname` · `invalid_region` · `invalid_input` · 문장 2종(동의 누락 · 그 밖) |
+| `POST /auth/email-exists` · `/nickname-exists`(11/18) | 422 `invalid_email` · `invalid_nickname` · `invalid_input`(형식 오류도 입력을 되돌리지 않음) |
 
 전체 문장 · code 목록은 OpenAPI 각 응답의 `description`에 있다(소스와 다르면 테스트가 실패한다).
 
@@ -52,7 +54,7 @@
 | `POST …/interactions` 409 | `CASE_VERSION_UNAVAILABLE`, 단서 미획득, 상호작용 없음, action 불일치, 현재 구역 모름, 현재 구역 아님, 이동 불가, 안 보임, 비활성, 이벤트 ID 충돌, 선행 단서 · 퍼즐 · 아이템 부족(개수 키로 구분 가능) | 문장 비교 |
 | `POST …/hints` 404 · 409 · 500 | 404 세션 · 퍼즐 · 힌트 단계 · 케이스 파일 없음 / 500 힌트 상태 오류 · 케이스 파일 형식 오류 / 409 `CASE_VERSION_UNAVAILABLE` · 이전 단계 미해금 · 아직 못 씀 · 이벤트 ID 충돌 | 잔액 · `hint_ref`만 `code`가 있다 |
 | `POST …/npc/turns` 409 | 버전 사용 불가 · 이벤트 ID 충돌 | 문장 비교 |
-| `POST /auth/register` 409 · 422 | 이메일 · 닉네임 중복(문장), 동의 누락 · 입력 오류(문장)와 `code` 혼재 | 사이트 FE가 이미 문장 비교로 분기한다 |
+| `POST /auth/register` 422 | 동의 누락 · 그 밖의 입력 오류만 문장(409 중복은 11/18부터 `code`) | 사이트 FE는 `code` 우선, 문장은 옛 호환 |
 | 소셜 로그인 · 가입 409 | 계정 생성 경합만 문장(나머지는 `code`) | FE는 일반 문구로 처리 |
 | `GET …/bundle` · `POST /play-sessions` 404 | 세션 없음 · 케이스 없음 | 문장 비교 |
 

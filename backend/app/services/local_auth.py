@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.terms import CURRENT_TERMS_VERSION
 from app.models.app_user import AppUser
 from app.models.auth_identity import AuthIdentity
 from app.schemas.auth import LocalRegisterRequest
@@ -17,6 +18,7 @@ from app.services.nickname_policy import validate_nickname
 from app.services.registration_input_policy import (
     validate_registration_email,
     validate_registration_password,
+    validate_registration_region,
 )
 
 PASSWORD_HASH_ALGORITHM = "pbkdf2_sha256"
@@ -34,6 +36,10 @@ class NicknameAlreadyRegisteredError(Exception):
 
 
 class ConsentRequiredError(Exception):
+    pass
+
+
+class TermsVersionMismatchError(Exception):
     pass
 
 
@@ -138,7 +144,7 @@ async def register_user(db: AsyncSession, request: LocalRegisterRequest) -> AppU
     email = normalize_email(request.email)
     nickname = validate_nickname(request.nickname)
     validate_registration_password(request.password, email=email, nickname=nickname)
-    region = normalize_nickname(request.region or "") or None
+    region = validate_registration_region(request.region)
 
     if not email or not nickname:
         raise InvalidLocalAuthInputError
@@ -148,6 +154,9 @@ async def register_user(db: AsyncSession, request: LocalRegisterRequest) -> AppU
         or not request.consent.age
     ):
         raise ConsentRequiredError
+    # 옛 판에 동의한 채 보내면 받지 않는다(소셜 가입과 같은 규칙). 화면은 새 약관을 다시 보여 주고 받는다.
+    if request.consent.terms_version != CURRENT_TERMS_VERSION:
+        raise TermsVersionMismatchError
     if await email_exists(db, email):
         raise EmailAlreadyRegisteredError
     if await nickname_exists(db, nickname):

@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     # 베타 30(11/11 미르). 베타 종료 뒤 10 으로 낮출 예정(환경 변수만 바꾼다).
     rate_limit_register: int = Field(default=30, ge=1)
     rate_limit_anonymous_session_create: int = Field(default=60, ge=1)
+    # 이메일 로그인(POST /auth/login). 이메일 · IP 잠금(15분 5회 · 30회)과 별개로 요청 자체의 빈도를 센다(11/18).
+    # 교실 하나가 같은 IP 로 로그인할 수 있어 가입보다 넉넉히 둔다.
+    rate_limit_login: int = Field(default=60, ge=1)
+    # 소셜 로그인 셋(POST /auth/google · /auth/naver · /auth/social-onboarding/complete). 값 하나를 셋이 같이 쓰되 API 마다 따로 센다(11/18)
+    rate_limit_social_login: int = Field(default=30, ge=1)
     # 베타 분석 기록 받기(POST /api/v1/beta-events). 교실 하나가 같은 IP 로 나갈 수 있어 넉넉히 둔다(11/11 미르).
     rate_limit_beta_events: int = Field(default=1500, ge=1)
     # 1:1 문의 접수(POST /api/v1/inquiries) — IP 당 창(초) 안 최대 건수. 기본 10분 5건(세진 · 해랑 11/13)

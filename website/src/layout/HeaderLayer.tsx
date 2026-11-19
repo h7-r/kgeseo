@@ -13,7 +13,7 @@ import {
 } from "@/navigation/routes";
 import { measureSectionPositions } from "@/navigation/sectionGeometry";
 import { SUB_NAV_HEIGHT, getSubMenu, itemLabel } from "@/navigation/subMenus";
-import { signOut, useSessionUser } from "@/services/session";
+import { signOut, useSessionChecking, useSessionUser } from "@/services/session";
 
 import Header, { type HeaderMenuId } from "./Header";
 import {
@@ -50,6 +50,8 @@ export default function HeaderLayer() {
   const scale = useStageScale();
   const { isSolid, isHidden: wantsHidden } = useHeaderScrollState();
   const user = useSessionUser();
+  // 새 탭은 서버 답이 올 때까지 계정 자리를 비운다 — 「로그인 · 회원가입」이 잠깐 보였다 이름으로 바뀌지 않게
+  const isCheckingSession = useSessionChecking();
   const navigate = useNavigate();
   const { pathname: path } = useLocation();
   const menu = getSubMenu(path);
@@ -119,6 +121,7 @@ export default function HeaderLayer() {
         <Header
           activeId={activeMenuFor(path)}
           user={user}
+          isCheckingSession={isCheckingSession}
           onAccountClick={handleAccountClick}
           onPlay={handlePlay}
           onSignOut={handleSignOut}

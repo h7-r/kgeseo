@@ -207,9 +207,10 @@ async function readFromGame(url, channel, screenshot) {
         renderer_pixel_ratio: window.__game?.naju?.gl?.getPixelRatio(),
         canvas: { width: window.__game?.naju?.gl?.domElement.width, height: window.__game?.naju?.gl?.domElement.height },
         baked_ground_triangles: (ground?.geometry?.index?.count ?? 0) / 3,
+        is_baked_ground: !!ground?.geometry?.userData?.isBakedTerrain,
       };
     });
-    if (runtime.baked_ground_triangles !== 128000) throw new Error("baked ground not ready; refusing export");
+    if (!runtime.is_baked_ground) throw new Error("baked ground not ready; refusing export");
     const read = () =>
       page.evaluate(() => {
         const naju = window.__game?.naju;

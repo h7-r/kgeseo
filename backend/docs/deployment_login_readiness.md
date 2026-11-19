@@ -8,7 +8,8 @@ ed6ad28 → 1a1558c → ad69c66을 순서대로 적용했다(중복 없음, 충�
 ## 코드에서 준비한 설정
 
 - APP_ENV=production: DB 비밀번호 및 Google/Naver 설정 누락·placeholder,
-  root DB 사용자, wildcard/HTTP CORS 및 잘못된 Naver callback이면 설정 로딩 실패.
+  root DB 사용자, `SESSION_COOKIE_SECURE=true` 아님(11/18 — https 운영의 로그인 · 게스트 쿠키는 `__Host-` + Secure 여야 한다),
+  wildcard/HTTP CORS 및 잘못된 Naver callback이면 설정 로딩 실패.
   오류에 설정값을 출력하지 않는다. 개발/테스트는 기존 opt-in 동작을 유지한다.
 - CORS_ORIGINS: JSON 문자열 배열로 정확한 HTTPS FE origin을 지정한다.
   origin 끝 슬래시·경로·쿼리·userinfo를 허용하지 않는다. 허용 origin만 CORS 응답.
@@ -104,7 +105,9 @@ merge 마이그레이션이 필요하다. 운영자가 실제 DB를 백업·검�
 | `RATE_LIMIT_NICKNAME_EXISTS` | 30 | `POST /api/v1/auth/nickname-exists` |
 | `RATE_LIMIT_REGISTER` | 30 | `POST /api/v1/auth/register`(베타 종료 뒤 10 으로 낮출 예정) |
 | `RATE_LIMIT_ANONYMOUS_SESSION_CREATE` | 60 | `POST /api/v1/anonymous-sessions`(새 게스트 발급만) |
-| `RATE_LIMIT_WINDOW_SEC` | 60 | 네 API 가 함께 쓰는 창(초). 보통 바꾸지 않는다 |
+| `RATE_LIMIT_LOGIN` | 60 | `POST /api/v1/auth/login`(11/18. 이메일 · IP 실패 잠금과 별개) |
+| `RATE_LIMIT_SOCIAL_LOGIN` | 30 | `POST /api/v1/auth/google` · `/auth/naver` · `/auth/social-onboarding/complete`(11/18. 값 하나, API 마다 따로 센다) |
+| `RATE_LIMIT_WINDOW_SEC` | 60 | 위 API 가 함께 쓰는 창(초). 보통 바꾸지 않는다 |
 
 - 줄이 없으면 기본값으로 켜진다. 값은 1 이상의 정수(`RATE_LIMIT_WINDOW_SEC`는 1~3600)만 받는다. 제한을 끄는 값은 없다.
 - 0 · 음수 · 빈 값 · 숫자가 아닌 값이면 **설정 로딩이 실패해 `waegok-api`가 시작되지 않는다**(기본값으로 바꿔 뜨지

@@ -33,8 +33,17 @@ class SiteMaintenance(BaseModel):
     message: str
 
 
+class SiteSocial(BaseModel):
+    """소셜 로그인이 서버에 설정돼 있는지만(11/18 해랑, 점검 H2). 키 · 비밀값 · 콜백 주소는 내지 않는다.
+    false 면 단추를 눌러도 503 이 나니 웹사이트가 미리 「준비 중」으로 보일 수 있다."""
+
+    google: bool
+    naver: bool
+
+
 class SiteStatus(BaseModel):
     maintenance: SiteMaintenance
+    social: SiteSocial
 
 
 class AdminAccount(BaseModel):

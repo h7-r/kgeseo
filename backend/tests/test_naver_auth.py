@@ -10,6 +10,7 @@ from app.services import naver_auth
 from app.services.naver_auth import (
     InvalidNaverProfileError,
     NaverAuthConfigurationError,
+    NaverEmailRequiredError,
     NaverProfileError,
     NaverTokenExchangeError,
 )
@@ -296,6 +297,20 @@ def test_naver_profile_normalizer_rejects_untrusted_profile(payload) -> None:
         naver_auth.normalize_naver_profile(payload)
 
 
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"id": "naver-subject"},
+        {"id": "naver-subject", "email": " 	 "},
+        {"id": "naver-subject", "email": None},
+    ],
+)
+def test_naver_profile_normalizer_names_the_missing_email(response) -> None:
+    # 11/18 — 이메일만 없는 정상 프로필은 하위 예외로 가른다(화면이 「이메일 제공 동의」를 안내한다)
+    with pytest.raises(NaverEmailRequiredError):
+        naver_auth.normalize_naver_profile({"resultcode": "00", "response": response})
+
+
 class FakeResponse:
     def __init__(self, *, ok: bool, payload: dict | None = None) -> None:
         self.ok = ok
@@ -360,6 +375,109 @@ def test_naver_verifier_rejects_token_endpoint_failure(monkeypatch) -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        # 11/18 실측 — 네이버는 틀린 · 만료된 코드에 HTTP 200 과 error 본문으로 답한다
+        {"error": "invalid_request", "error_description": "no valid data in session"},
+        {"error": "invalid_grant", "error_description": "code expired"},
+    ],
+)
+def test_naver_verifier_treats_error_body_with_http_200_as_bad_code(
+    monkeypatch, payload
+) -> None:
+    monkeypatch.setattr(
+        naver_auth.requests,
+        "post",
+        lambda url, data, timeout: FakeResponse(ok=True, payload=payload),
+    )
+
+    with pytest.raises(naver_auth.InvalidNaverAuthorizationCodeError):
+        naver_auth.exchange_code_for_access_token(
+            "bad-code",
+            "state",
+            "client-id",
+            "client-secret",
+            "http://localhost:5175/로그인/콜백",
+        )
+
+
+class BrokenJsonResponse(FakeResponse):
+    def json(self) -> dict:
+        raise ValueError("not json")
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        BrokenJsonResponse(ok=True),  # 본문 깨짐
+        FakeResponse(ok=True, payload={"token_type": "bearer"}),  # 토큰 없음
+        FakeResponse(
+            ok=True, payload={"access_token": "t", "token_type": "mac"}
+        ),  # 모양 이상
+    ],
+)
+def test_naver_verifier_keeps_502_for_naver_side_failures(
+    monkeypatch, response
+) -> None:
+    monkeypatch.setattr(
+        naver_auth.requests, "post", lambda url, data, timeout: response
+    )
+
+    with pytest.raises(NaverTokenExchangeError):
+        naver_auth.exchange_code_for_access_token(
+            "code",
+            "state",
+            "client-id",
+            "client-secret",
+            "http://localhost:5175/로그인/콜백",
+        )
+
+
+def test_naver_verifier_keeps_502_when_naver_is_unreachable(monkeypatch) -> None:
+    def post(url, data, timeout):
+        raise naver_auth.requests.ConnectionError("down")
+
+    monkeypatch.setattr(naver_auth.requests, "post", post)
+
+    with pytest.raises(NaverTokenExchangeError):
+        naver_auth.exchange_code_for_access_token(
+            "code",
+            "state",
+            "client-id",
+            "client-secret",
+            "http://localhost:5175/로그인/콜백",
+        )
+
+
+def test_naver_login_turns_a_bad_code_into_401(
+    client: TestClient, db_session, monkeypatch
+) -> None:
+    """HTTP 끝-끝: 네이버가 200 + error 본문 → 우리 API 는 401(502 가 아니다). DB 는 건드리지 않는다(11/18)."""
+
+    monkeypatch.setattr(auth.settings, "naver_client_id", "naver-client-id")
+    monkeypatch.setattr(auth.settings, "naver_client_secret", "naver-client-secret")
+    monkeypatch.setattr(
+        auth.settings, "naver_redirect_uri", "https://example.com/callback"
+    )
+    monkeypatch.setattr(
+        naver_auth.requests,
+        "post",
+        lambda url, data, timeout: FakeResponse(
+            ok=True, payload={"error": "invalid_request"}
+        ),
+    )
+
+    response = client.post(
+        "/api/v1/auth/naver", json={"code": "fakecode", "state": "naver.fake"}
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Invalid Naver authorization code."}
+    assert response.headers["cache-control"] == "no-store"
+    assert db_session.added == [] and db_session.commit_count == 0
+
+
 def test_naver_verifier_rejects_profile_endpoint_failure(monkeypatch) -> None:
     def get(url, headers, timeout):
         return FakeResponse(ok=False)
@@ -399,8 +517,10 @@ def test_naver_login_rejects_unusable_email_without_side_effects(
         json={"code": "valid-code", "state": "네이버.state"},
     )
 
+    # 11/18 — 이메일 없음은 code 로 가른다(화면이 「이메일 제공 동의」를 안내). 다른 프로필 오류는 그대로 문장
     assert response.status_code == 401
-    assert response.json() == {"detail": "Invalid Naver profile."}
+    assert response.json()["detail"]["code"] == "email_required"
+    assert "Invalid Naver profile" not in response.text
     assert response.headers["cache-control"] == "no-store"
     assert db_session.added == []
     assert db_session.scalar_calls == []

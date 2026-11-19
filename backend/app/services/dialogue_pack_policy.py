@@ -21,8 +21,8 @@ PM 계약: 일반 대사 팩의 사용 조건은 「G3 승인 + 정책 검사 �
 [GEN-CASE] PM v0.4.15: Client object_name과 NPC proper_nouns(person/place, aliases 포함)를 검사한다.
 검수 목록이 누락되면 UNVERIFIED이며 빈 배열은 유효하다. 내부 ID는 이름으로 취급하지 않는다.
 
-[GEN-WORD] 닉네임 금칙어 검사와 같은 규칙(NFKC · casefold · "_" 제거 · leet · 부분 포함)을 그대로 쓴다(팀 결정 11/4).
-혐오어 목록은 기존에 없다.
+[GEN-WORD] 닉네임 금칙어 검사와 같은 규칙(NFKC · 소문자 · "_" 제거 · leet · 뼈대 부분 포함)을 그대로 쓴다(팀 결정 11/4).
+목록은 11/18부터 화면과 같은 shared/nickname-policy.json(비하·혐오 범주 포함)이다.
 
 [GEN-SYS · GEN-TIME] PM 예시만 쓴다(넓히지 않는다). 공백을 뺀 비교 문자열(`normalize_compact`)에서 찾는다.
 「곧」은 한 낱말로 쓰인 경우만(「곧장」 · 「곧바로」는 낱말이 다르다). 「잠시만 기다려 주세요」는 어느 예시와도 맞지 않는다.

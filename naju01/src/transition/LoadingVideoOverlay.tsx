@@ -9,6 +9,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { useProgress } from "@react-three/drei";
 
+import { COVERED_FPS, setRenderCap } from "@/engine/renderCap";
+
 import {
   canRequestFullscreen,
   isMediaHeld,
@@ -81,6 +83,14 @@ function LoadingCurtain({
   const needsFirstTap = isTouch && !hasFirstTap;
   const isHeldRef = useRef(isHeld);
   const isLifted = !isHeld && (isReadyToLift || (!!sequence.isOpening && isReady && isOpeningDone));
+  // 준비가 끝난 뒤에도 영상은 화면을 덮고 있다(오프닝은 끝까지, 로딩 영상은 최소 시간까지) — 그동안 뒤 장면은 조금만 그린다
+  // (영상 재생과 3D 가 CPU 를 같이 쓰지 않게). 걷히기 시작하면 바로 푼다. 준비 전에는 걸지 않는다(소품 배치 · 준비 판정이 프레임으로 돈다)
+  const isCoveredAfterReady = (waitingFor === READY || isReady) && !isLifted && !keepOpen;
+  useEffect(() => {
+    if (!isCoveredAfterReady) return undefined;
+    setRenderCap("covered", COVERED_FPS);
+    return () => setRenderCap("covered", null);
+  }, [isCoveredAfterReady]);
 
   // 영상 두 칸을 번갈아 쓴다. 한 칸이 트는 동안 다른 칸이 다음 영상을 미리 받아 두고, 끝나기 0.4초 전에
   // 겹쳐 바꾸면 영상 사이에 검은 틈이 없다(한 칸이면 src 를 바꿀 때마다 깜빡인다).

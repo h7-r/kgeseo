@@ -299,8 +299,16 @@ def test_cookie_reuse_me_and_logout_do_not_update(client, db_session):
     finally:
         app.dependency_overrides.pop(current_user, None)
     assert me.status_code == 200
-    # /me 응답은 바뀌지 않는다(5개 필드)
-    assert set(me.json()) == {"user_id", "email", "nickname", "region", "role"}
+    # /me 응답에 세션 · 토큰은 없다(기존 5개 + 11/18 created_at · providers, 계약 account_me_v0.1.md §1)
+    assert set(me.json()) == {
+        "user_id",
+        "email",
+        "nickname",
+        "region",
+        "role",
+        "created_at",
+        "providers",
+    }
     client.cookies.set("waegok_session", "token")
     assert client.post("/api/v1/me/logout").status_code == 204
     _assert_untouched(db_session)

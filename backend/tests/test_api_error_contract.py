@@ -32,8 +32,9 @@ ERROR_MODELS: dict[str, type[BaseModel]] = {
 EXPECTED_ERRORS = {
     ("GET", "/api/v1/health"): set(),
     ("GET", "/api/v1/health/ready"): {503},
-    ("POST", "/api/v1/auth/google"): {401, 403, 409, 422, 503},
-    ("POST", "/api/v1/auth/naver"): {401, 403, 409, 422, 502, 503},
+    # 11/18 소셜 로그인 셋 · 이메일 로그인에 IP 빈도 제한 429(rate_limited). 로그인 429 는 login_locked 와 code 로 가른다
+    ("POST", "/api/v1/auth/google"): {401, 403, 409, 422, 429, 503},
+    ("POST", "/api/v1/auth/naver"): {401, 403, 409, 422, 429, 502, 503},
     ("POST", "/api/v1/auth/register"): {403, 409, 422, 429},
     ("POST", "/api/v1/auth/login"): {401, 403, 422, 429},
     ("GET", "/api/v1/me"): {401},
@@ -84,7 +85,7 @@ EXPECTED_ERRORS = {
     ("POST", "/api/v1/beta-events"): {403, 413, 422, 429},
     ("POST", "/api/v1/auth/email-exists"): {403, 422, 429},
     ("POST", "/api/v1/auth/nickname-exists"): {403, 422, 429},
-    ("POST", "/api/v1/auth/social-onboarding/complete"): {401, 403, 409, 422},
+    ("POST", "/api/v1/auth/social-onboarding/complete"): {401, 403, 409, 422, 429},
     # 11/6 PM: 플레이 API 는 쿠키 주체가 없으면 401, 쓰기 요청은 Origin 이 다르면 403.
     ("POST", "/api/v1/anonymous-sessions"): {403, 429},
     ("POST", "/api/v1/play-sessions"): {401, 403, 404, 409, 410, 422, 500},

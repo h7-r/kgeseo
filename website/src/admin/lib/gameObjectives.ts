@@ -103,7 +103,8 @@ export const funnelLabel = (phase: string): string => FUNNEL_LABELS[phase] ?? ph
 const UNAVAILABLE_REASONS: Readonly<Record<string, string>> = {
   lobby_metrics_not_connected: "로비 집계 연결 전",
   no_time_series_source: "분 단위 기록 원천 없음",
-  withdrawal_not_implemented: "탈퇴 기능 전",
+  // 코드 이름은 서버 계약 그대로(admin_api_v0.2_phase2.md, 미르 11/17) — 탈퇴 기능은 있고(#177) 월별 집계만 아직이다
+  withdrawal_not_implemented: "탈퇴 집계 전",
   suspension_not_implemented: "정지 기능 전",
   no_completed_run: "시작과 사건 완주(풀려남 · 새벽)가 모두 기록된 회차 없음",
   memory_only: "서버 메모리에만 있어 집계 전",

@@ -37,6 +37,9 @@ def validate_deployment(settings):
         raise ValueError("production requires DB and Google/Naver settings (values redacted)")
     if settings.db_user.lower() == "root":
         raise ValueError("production requires a non-root DB account")
+    # https 운영의 로그인 · 게스트 쿠키는 __Host- + Secure 다. 값이 빠지면 Secure 없는 waegok_session 이 나가므로 시작부터 막는다(11/18)
+    if not settings.session_cookie_secure:
+        raise ValueError("production requires SESSION_COOKIE_SECURE=true")
     if not settings.cors_origins or any(not https_origin(origin) or origin.endswith("/") for origin in settings.cors_origins):
         raise ValueError("CORS_ORIGINS requires exact HTTPS origins without trailing slash")
     try:

@@ -24,10 +24,14 @@ from app.services import local_auth, request_rate_limit
 from app.services.request_rate_limit import (
     ANONYMOUS_SESSION_CREATE,
     EMAIL_EXISTS,
+    LOGIN,
     NICKNAME_EXISTS,
     RATE_LIMITED_CODE,
     RATE_LIMITED_MESSAGE,
     REGISTER,
+    SOCIAL_GOOGLE,
+    SOCIAL_NAVER,
+    SOCIAL_ONBOARDING_COMPLETE,
     RateLimitRule,
     SlidingWindowLimiter,
     configured_rule,
@@ -130,6 +134,8 @@ def test_defaults_are_the_confirmed_limits_when_env_is_missing(monkeypatch) -> N
         "RATE_LIMIT_NICKNAME_EXISTS",
         "RATE_LIMIT_REGISTER",
         "RATE_LIMIT_ANONYMOUS_SESSION_CREATE",
+        "RATE_LIMIT_LOGIN",
+        "RATE_LIMIT_SOCIAL_LOGIN",
     ):
         monkeypatch.delenv(key, raising=False)
     built = _settings()
@@ -139,7 +145,9 @@ def test_defaults_are_the_confirmed_limits_when_env_is_missing(monkeypatch) -> N
         built.rate_limit_nickname_exists,
         built.rate_limit_register,
         built.rate_limit_anonymous_session_create,
-    ) == (60, 30, 30, 30, 60)
+        built.rate_limit_login,
+        built.rate_limit_social_login,
+    ) == (60, 30, 30, 30, 60, 60, 30)
 
 
 @pytest.mark.parametrize(
@@ -149,6 +157,8 @@ def test_defaults_are_the_confirmed_limits_when_env_is_missing(monkeypatch) -> N
         ("RATE_LIMIT_NICKNAME_EXISTS", "rate_limit_nickname_exists"),
         ("RATE_LIMIT_REGISTER", "rate_limit_register"),
         ("RATE_LIMIT_ANONYMOUS_SESSION_CREATE", "rate_limit_anonymous_session_create"),
+        ("RATE_LIMIT_LOGIN", "rate_limit_login"),
+        ("RATE_LIMIT_SOCIAL_LOGIN", "rate_limit_social_login"),
         ("RATE_LIMIT_WINDOW_SEC", "rate_limit_window_sec"),
     ],
 )
@@ -172,6 +182,8 @@ def test_values_can_also_come_from_the_env_file(tmp_path, monkeypatch) -> None:
         "RATE_LIMIT_NICKNAME_EXISTS",
         "RATE_LIMIT_REGISTER",
         "RATE_LIMIT_ANONYMOUS_SESSION_CREATE",
+        "RATE_LIMIT_LOGIN",
+        "RATE_LIMIT_SOCIAL_LOGIN",
         "RATE_LIMIT_WINDOW_SEC",
     ],
 )
@@ -204,6 +216,10 @@ def test_running_rules_follow_the_settings() -> None:
     assert configured_rule(ANONYMOUS_SESSION_CREATE) == RateLimitRule(
         ANONYMOUS_SESSION_CREATE, 60, 60
     )
+    # 11/18 — 로그인 · 소셜 셋. 소셜은 한도 값 하나를 규칙 셋이 나눠 쓴다(카운터는 따로)
+    assert configured_rule(LOGIN) == RateLimitRule(LOGIN, 60, 60)
+    for name in (SOCIAL_GOOGLE, SOCIAL_NAVER, SOCIAL_ONBOARDING_COMPLETE):
+        assert configured_rule(name) == RateLimitRule(name, 30, 60)
 
 
 # ── HTTP: 한도 · 독립성 · 동시성 · APP_ENV (DB 대신 존재 확인 함수만 바꾼다) ──
@@ -251,6 +267,24 @@ async def _register_invalid(http) -> httpx.Response:
     return await http.post("/api/v1/auth/register", json={})
 
 
+# 11/18 — 로그인 · 소셜 셋도 같은 자리(Origin 다음 · 본문 검증 앞)라 빈 본문으로 DB 없이 한도를 잰다
+# (로그인 · 구글 · 네이버는 422, 소셜 가입 완료는 빈 증표를 모양 검사에서 401 로 거른다 — 둘 다 DB 전에 끝난다)
+async def _login_invalid(http) -> httpx.Response:
+    return await http.post("/api/v1/auth/login", json={})
+
+
+async def _google_invalid(http) -> httpx.Response:
+    return await http.post("/api/v1/auth/google", json={})
+
+
+async def _naver_invalid(http) -> httpx.Response:
+    return await http.post("/api/v1/auth/naver", json={})
+
+
+async def _onboarding_invalid(http) -> httpx.Response:
+    return await http.post("/api/v1/auth/social-onboarding/complete", json={})
+
+
 def assert_rate_limited(response: httpx.Response, retry_after: int) -> None:
     assert response.status_code == 429
     assert response.json() == RATE_LIMITED
@@ -264,7 +298,15 @@ def assert_rate_limited(response: httpx.Response, retry_after: int) -> None:
 @pytest.mark.anyio
 @pytest.mark.parametrize(
     ("send", "limit", "ok_status"),
-    [(_email, 30, 200), (_nickname, 30, 200), (_register_invalid, 30, 422)],
+    [
+        (_email, 30, 200),
+        (_nickname, 30, 200),
+        (_register_invalid, 30, 422),
+        (_login_invalid, 60, 422),
+        (_google_invalid, 30, 422),
+        (_naver_invalid, 30, 422),
+        (_onboarding_invalid, 30, 401),
+    ],
 )
 async def test_auth_route_limit_then_429_then_allowed_again(
     clock, send, limit, ok_status
@@ -291,6 +333,50 @@ async def test_each_route_has_its_own_counter(clock) -> None:
             await _email(http)
         assert (await _email(http)).status_code == 429
         assert (await _nickname(http)).status_code == 200
+
+
+@pytest.mark.anyio
+async def test_social_routes_share_one_limit_value_but_count_separately(
+    clock, monkeypatch
+) -> None:
+    # 11/18 — RATE_LIMIT_SOCIAL_LOGIN 하나가 셋에 적용되고, 한 API 를 다 써도 다른 둘과 이메일 로그인은 그대로다
+    monkeypatch.setattr(settings, "rate_limit_social_login", 2)
+    async with _client() as http:
+        assert [(await _google_invalid(http)).status_code for _ in range(3)] == [
+            422,
+            422,
+            429,
+        ]
+        assert (await _naver_invalid(http)).status_code == 422
+        assert (await _onboarding_invalid(http)).status_code == 401
+        assert (await _login_invalid(http)).status_code == 422
+        assert [(await _naver_invalid(http)).status_code for _ in range(2)] == [
+            422,
+            429,
+        ]
+        assert [(await _onboarding_invalid(http)).status_code for _ in range(2)] == [
+            401,
+            429,
+        ]
+
+
+@pytest.mark.anyio
+async def test_login_rate_limit_is_counted_before_the_lock_check(
+    clock, monkeypatch
+) -> None:
+    """IP 한도는 이메일 · IP 실패 잠금(login_locked)보다 앞선다 — 잠금 조회(DB)조차 하지 않는다(11/18)."""
+
+    async def never_called(db, request, email):
+        raise AssertionError("lock lookup must not run once the IP is rate limited")
+
+    monkeypatch.setattr(settings, "rate_limit_login", 1)
+    monkeypatch.setattr("app.api.v1.auth.login_lock_remaining_seconds", never_called)
+    async with _client() as http:
+        assert (
+            await _login_invalid(http)
+        ).status_code == 422  # 본문 검증이 먼저 걸러 잠금 조회까지 안 간다
+        blocked = await _login_invalid(http)
+    assert_rate_limited(blocked, retry_after=60)
 
 
 @pytest.mark.anyio
