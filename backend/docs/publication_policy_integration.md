@@ -43,6 +43,12 @@ npc_scenario를 임의로 포함하지 않았다. 정답·힌트·미공개 텍�
 LEAK_CLIENT)와 일반 팩 GEN-LEAK/GEN-CASE는 별도 검사로 유지한다. client_skill에
 가짜 정답을 추가하지 않으며, 혼합 묶음의 다른 값 퍼즐 정답·NG·고유명 검사를 생략하지 않는다.
 
+계약 v0.4.16 §3(상황 대사는 넛지와 같은 PUB 검사)에 따라 NG/U 검사 범위에 `situations[].lines[]`를
+더했다. 상황 대사는 NPC 검사에서 넛지와 같이 PROTECTED_TEXT(정답 예외 없음)를 받는다. 상황 대사에는
+`reveal_when`이 없어(계약 §4) 어느 상태에서나 나올 수 있으므로, 일반 팩 GEN-LEAK과 같은 「아무것도 공개되지
+않은 상태」의 기존 출력 검사로 미공개 단서·힌트 겹침을 보고 UNREVEALED_LEAK으로 막는다. 케이스 팩 대사라
+GEN-CASE(고유명)는 대상이 아니다(계약 §6). fallback_lines·npc_scenario 범위는 바꾸지 않았다.
+
 ## CLI 평가와 실제 실행의 일치
 
 한 CLI 실행은 다음 순서를 따른다.
