@@ -44,6 +44,10 @@ def naver_auth_configured(
     )
 
 
+class NaverEmailRequiredError(InvalidNaverProfileError):
+    """프로필은 정상인데 이메일이 없다(네이버 동의 항목에서 이메일을 안 줌). 화면이 가려 쓸 수 있게 따로 둔다(11/18)."""
+
+
 def verify_naver_authorization_code(
     code: str,
     state: str,
@@ -101,6 +105,11 @@ def exchange_code_for_access_token(
     except ValueError as error:
         raise NaverTokenExchangeError from error
 
+    # 네이버는 코드가 틀리거나 만료돼도 HTTP 200 에 {"error": "invalid_request" | "invalid_grant", ...} 로 답한다(11/18 실측).
+    # 이건 사용자 쪽 문제라 401 이고, 네이버 서버 장애(네트워크 · 본문 깨짐 · 토큰 모양 이상)만 502 로 남긴다.
+    if payload.get("error"):
+        raise InvalidNaverAuthorizationCodeError
+
     access_token = payload.get("access_token")
     token_type = payload.get("token_type")
     if not access_token or token_type != "bearer":
@@ -141,7 +150,7 @@ def normalize_naver_profile(payload: dict[str, Any]) -> GoogleUserResponse:
     if not subject:
         raise InvalidNaverProfileError
     if not str(email or "").strip():
-        raise InvalidNaverProfileError
+        raise NaverEmailRequiredError
 
     return GoogleUserResponse(
         provider="naver",

@@ -39,6 +39,7 @@ from app.services.user_session import (
     login_lock_remaining_seconds,
     record_login_failure,
     require_same_origin,
+    wait_phrase,
 )
 
 router = APIRouter(
@@ -207,7 +208,8 @@ async def withdraw(
             status.HTTP_429_TOO_MANY_REQUESTS,
             detail={
                 "code": "login_locked",
-                "message": "비밀번호 실패가 많아 잠시 막혔습니다. 15분 뒤 다시 시도해 주세요.",
+                # 남은 시간은 Retry-After 와 같은 숫자로 말한다(11/18)
+                "message": f"비밀번호 실패가 많아 잠시 막혔습니다. {wait_phrase(retry_after)} 다시 시도해 주세요.",
             },
             headers={"Cache-Control": "no-store", "Retry-After": str(retry_after)},
         )
