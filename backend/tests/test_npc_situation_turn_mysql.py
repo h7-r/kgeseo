@@ -304,11 +304,20 @@ def test_mysql_puzzle_reports_gate_quiet_but_not_other_situations():
         )
         assert breath.reply is not None
 
-        # 상황 대사는 퍼즐 제안 횟수 · 쿨다운을 쓰지 않는다: 180초 뒤 퍼즐 개입은 그대로 나온다.
+        # 상황 대사는 퍼즐 제안 횟수 · 쿨다운을 쓰지 않는다: 180초 뒤 퍼즐 개입 판단은 그대로 나온다.
+        # main 통합(11/19): 같은 회차에서 이미 반환한 승인 nudge 는 다시 내지 않는다(`used_auto_nudges`). 이 팩은
+        # 그 퍼즐 nudge 가 하나뿐이고 사유가 연속 오답이라 2단계(힌트 안내)로 가는데, 이 시험의 승인 출처에는 일반
+        # 힌트 안내 문장 승인이 없어 reply null(`generic_line_unapproved`). 쿨다운으로 막혔다면 개입 기록
+        # (`auto_intervene`) 자체가 없다 — 판단은 개입이었고, 끼어든 상황 대사(BREATH_LOW)는 쿨다운 · 사용한 nudge 로
+        # 세지 않았다.
         again, record = await puzzle_turn(
             sessions, session_id, shown_at + timedelta(seconds=180)
         )
-        assert again.reply is not None and record["auto_intervened"] is True
+        assert again.reply is None
+        assert record["no_reply_reason"] == "generic_line_unapproved"
+        assert record["auto_intervene"] is not None
+        assert record["auto_intervene"]["level"] == 2
+        assert record["situation_code"] is None
         quiet, _ = await situation_turn(
             sessions, session_id, "QUIET", shown_at + timedelta(seconds=181)
         )
