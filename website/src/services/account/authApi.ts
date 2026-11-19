@@ -34,7 +34,9 @@ export type AccountFailure<Field extends string = never> = {
   field?: Field;
 };
 
-type SignUpResult = { ok: true; user: SessionUser } | AccountFailure<"email" | "nickname">;
+/** 서버가 짚어 줄 수 있는 가입 칸 */
+type SignUpField = "email" | "nickname" | "password";
+type SignUpResult = { ok: true; user: SessionUser } | AccountFailure<SignUpField>;
 type AuthenticateResult = { ok: true; user: SessionUser } | AccountFailure;
 
 interface SignUpInput {
@@ -102,6 +104,9 @@ function tooManyRequestsMessage(result: AuthResponse): string | undefined {
 /** 중복 확인이 요청 제한에 걸렸다 — 「없음」으로 넘기지 않고 칸에 안내를 띄운다. */
 export class DuplicateCheckLimitedError extends Error {}
 
+/** 중복 확인이 서버 답을 못 받았다(통신 실패·5xx). 화면은 입력을 이어 가고, 제출 때 다시 묻는다. */
+export class DuplicateCheckUnavailableError extends Error {}
+
 const BACKEND_PROVIDERS = ["local", "google", "naver"] as const;
 type BackendProvider = (typeof BACKEND_PROVIDERS)[number];
 
@@ -158,19 +163,16 @@ export function toSessionUserFromBackend(body: unknown): SessionUser | null {
 }
 
 /**
- * 이메일·닉네임 중복 확인. 서버에 못 닿으면 「없음」으로 본다 — 가입 요청에서 서버가 다시 막는다.
- * 요청 제한(429)은 「없음」이 아니다 — DuplicateCheckLimitedError 로 알린다.
+ * 이메일·닉네임 중복 확인. 서버가 답한 것만 돌려준다 — 못 닿았으면 던져서 「없음」으로 잘못 기억하지 않게 한다.
+ * 요청 제한(429)은 DuplicateCheckLimitedError, 그 밖의 실패는 DuplicateCheckUnavailableError. 가입 요청에서 서버가 다시 막는다.
  */
 async function existsOnServer(path: "/email-exists" | "/nickname-exists", payload: unknown) {
   const result = await postAuth(path, payload);
   const limited = tooManyRequestsMessage(result);
   if (limited) throw new DuplicateCheckLimitedError(limited);
+  if (!result.ok) throw new DuplicateCheckUnavailableError(result.reason);
   return Boolean(
-    result.ok &&
-    typeof result.body === "object" &&
-    result.body !== null &&
-    "exists" in result.body &&
-    result.body.exists,
+    typeof result.body === "object" && result.body !== null && "exists" in result.body && result.body.exists,
   );
 }
 
@@ -234,6 +236,53 @@ export async function authenticate(email: string, password: string): Promise<Aut
   return user ? { ok: true, user } : { ok: false, reason: SERVER_ERROR_MESSAGE };
 }
 
+// 약관 판이 서버와 다르다(409 terms_version_mismatch). 화면을 새로 받아야 새 판으로 보낸다.
+const TERMS_CHANGED_MESSAGE = "약관이 바뀌었습니다. 새로고침 뒤 다시 시도해 주세요.";
+
+/** 칸을 짚는 가입 실패. 서버가 code 로 알려 주면 그 칸 옆에 안내를 붙일 수 있다. */
+interface FieldFailureRule {
+  field: SignUpField;
+  reason: string;
+  /** 옛 응답은 code 없이 영문 문장만 보낸다. 그 문장도 같은 칸으로 받는다. */
+  sentence?: string;
+}
+
+// 422 형식 오류는 code 만, 409 중복은 code 와 문장 둘 다 온다(BE 가 {code,message} 로 바꾸는 중 — 문장은 유지).
+const SIGNUP_FIELD_FAILURES: Readonly<Record<string, FieldFailureRule>> = {
+  invalid_email: { field: "email", reason: "올바른 이메일 형식이 아닙니다." },
+  invalid_password: { field: "password", reason: "비밀번호 형식을 확인해 주세요." },
+  invalid_nickname: { field: "nickname", reason: "사용할 수 없는 닉네임입니다." },
+  email_taken: {
+    field: "email",
+    reason: "이미 가입된 이메일입니다. 로그인해 주세요.",
+    sentence: "Email already registered.",
+  },
+  nickname_taken: { field: "nickname", reason: "이미 사용 중인 닉네임입니다.", sentence: "Nickname already registered." },
+};
+
+/** 오류 본문의 영문 문장. detail 이 문자열이면 그것, { code, message } 면 message 다. */
+function errorSentence(body: unknown): string | undefined {
+  const detail = errorDetail(body);
+  return typeof detail === "string" ? detail : errorMessage(body);
+}
+
+/** code 가 있으면 code 로만, 없으면(옛 응답) 문장으로 같은 오류인지 본다. 문장을 안 받는 오류는 code 로만 맞춘다. */
+function matchesError(body: unknown, code: string, sentence?: string): boolean {
+  const actualCode = errorCode(body);
+  if (actualCode) return actualCode === code;
+  return sentence !== undefined && errorSentence(body) === sentence;
+}
+
+/** 칸을 짚을 수 있는 실패면 그 칸과 안내를, 아니면 undefined. 중복(문장 있는 규칙)은 409 여야 한다. */
+function signUpFieldFailure(result: AuthResponse): AccountFailure<SignUpField> | undefined {
+  if (result.ok) return undefined;
+  for (const [code, rule] of Object.entries(SIGNUP_FIELD_FAILURES)) {
+    if (rule.sentence && result.status !== 409) continue;
+    if (matchesError(result.body, code, rule.sentence)) return { ok: false, field: rule.field, reason: rule.reason };
+  }
+  return undefined;
+}
+
 export async function signUp({ email, password, nickname, region, consents = {} }: SignUpInput): Promise<SignUpResult> {
   const result = await postAuth("/register", {
     email,
@@ -249,17 +298,10 @@ export async function signUp({ email, password, nickname, region, consents = {} 
   });
 
   if (!result.ok) {
-    const detail = errorDetail(result.body);
-    if (errorCode(result.body) === "invalid_nickname") {
-      return { ok: false, field: "nickname", reason: "사용할 수 없는 닉네임입니다." };
-    }
-    if (result.status === 409 && detail === "Email already registered.") {
-      return { ok: false, field: "email", reason: "이미 가입된 이메일입니다. 로그인해 주세요." };
-    }
-    if (result.status === 409 && detail === "Nickname already registered.") {
-      return { ok: false, field: "nickname", reason: "이미 사용 중인 닉네임입니다." };
-    }
-    if (detail === "Required consent is missing.") {
+    const fieldFailure = signUpFieldFailure(result);
+    if (fieldFailure) return fieldFailure;
+    if (errorCode(result.body) === "terms_version_mismatch") return { ok: false, reason: TERMS_CHANGED_MESSAGE };
+    if (matchesError(result.body, "consent_required", "Required consent is missing.")) {
       return { ok: false, reason: "필수 약관 동의가 빠져 회원가입을 완료하지 못했습니다." };
     }
     const limited = tooManyRequestsMessage(result);

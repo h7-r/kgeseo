@@ -20,8 +20,30 @@ export const SIGNUP_DUPLICATE_CHECKS: Partial<Record<FieldName, AsyncCheck>> = {
   nickname: async (value) => ((await isNicknameTaken(value)) ? "이미 사용 중인 닉네임입니다." : ""),
 };
 
-/** 중복 확인이 던진 오류 중 칸에 보여 줄 것(요청 제한)만 글로 바꾼다. */
-const limitedMessage = (error: unknown) => (error instanceof DuplicateCheckLimitedError ? error.message : "");
+/** 서버 답 하나. 어느 값을 물었는지 같이 둬야 제출 때 같은 값인지 견줄 수 있다. */
+interface CheckAnswer {
+  value: string;
+  message: string;
+}
+
+/** 검사 한 번의 결과. answer 는 서버가 답했을 때만 있고(기억해 둘 값), message 는 칸에 보여 줄 말이다. */
+interface CheckOutcome {
+  answer: CheckAnswer | null;
+  message: string;
+}
+
+/**
+ * 비동기 검사를 한 번 묻는다. 서버가 못 닿았거나 제한에 걸리면 answer 없이 돌려준다 —
+ * 요청 제한만 칸에 알리고, 통신 실패는 입력을 막지 않는다(제출 때 다시 묻는다).
+ */
+async function askCheck(check: AsyncCheck, value: string | undefined): Promise<CheckOutcome> {
+  try {
+    const message = await check(value);
+    return { answer: { value: value ?? "", message }, message };
+  } catch (error) {
+    return { answer: null, message: error instanceof DuplicateCheckLimitedError ? error.message : "" };
+  }
+}
 
 interface UseFormOptions {
   fields: readonly FieldName[];
@@ -53,7 +75,7 @@ interface UseFormResult {
   validateAll: () => Promise<FieldErrors>;
   /** 서버가 짚어 준 칸 오류(「이미 가입된 이메일」)를 그 칸에 띄운다. 값이 바뀌면 다시 검사하며 지워진다 */
   setRemoteError: (name: FieldName, message: string) => void;
-  /** 비밀번호처럼 남겨 두면 안 되는 칸을 비운다. */
+  /** 비밀번호처럼 남겨 두면 안 되는 칸을 비운다. 비워서 생긴 「입력해 주세요」는 다시 만질 때까지 보이지 않는다. */
   clearFields: (names: readonly FieldName[]) => void;
   /** 한 칸만 밖에서 바꾼다(「혹시 gmail.com 인가요?」를 눌러 고칠 때). */
   setField: (name: FieldName, value: string) => void;
@@ -76,16 +98,30 @@ export function useForm({
   const [values, setValues] = useState<FormValues>(() => initialValues ?? {});
   const [touched, setTouched] = useState<Partial<Record<FieldName, boolean>>>({});
   const [submitted, setSubmitted] = useState(false);
+  // 프로그램이 비운 칸. 사람이 다시 만지기 전까지는 제출 뒤라도 오류를 보이지 않는다.
+  const [cleared, setCleared] = useState<Partial<Record<FieldName, boolean>>>({});
   const [remoteErrors, setRemoteErrors] = useState<FieldErrors>({});
   const [checking, setChecking] = useState<Partial<Record<FieldName, boolean>>>({});
   // 늦게 온 이전 요청의 답을 버리기 위한 칸별 최신 요청 번호
   const requestIds = useRef<Partial<Record<FieldName, number>>>({});
   const timers = useRef<Partial<Record<FieldName, number>>>({});
+  // 칸별 마지막 서버 답. 제출 때 같은 값이면 다시 묻지 않는다(blur 와 제출이 같은 요청을 두 번 보내지 않게).
+  const lastAnswers = useRef<Partial<Record<FieldName, CheckAnswer>>>({});
   // 부모가 묶음을 렌더마다 새로 만들어도 내용은 같다. 처음 받은 것을 쓴다.
   const [blurChecks] = useState(asyncChecks);
 
   // 동기 검사는 상태로 들지 않고 매번 계산한다. 값과 어긋날 일이 없다.
   const ruleErrors = validateFields(fields, values, { isLogin });
+
+  /** 같은 값에 대한 서버 답이 있으면 그것을, 없을 때만 서버에 묻는다. blur 와 제출이 같은 요청을 두 번 보내지 않게. */
+  const askKnownOrServer = useCallback(
+    async (name: FieldName, check: AsyncCheck, value: string | undefined): Promise<CheckOutcome> => {
+      const known = lastAnswers.current[name];
+      if (known && known.value === (value ?? "")) return { answer: known, message: known.message };
+      return askCheck(check, value);
+    },
+    [],
+  );
 
   const runAsyncCheck = useCallback(
     (name: FieldName, nextValues: FormValues) => {
@@ -102,19 +138,15 @@ export function useForm({
       requestIds.current[name] = requestId;
       setChecking((prev) => ({ ...prev, [name]: true }));
       timers.current[name] = window.setTimeout(async () => {
-        let message = "";
-        try {
-          message = await check(nextValues[name]);
-        } catch (error) {
-          // 저장소가 막혀도 입력은 이어 가야 한다. 최종 판단은 제출 때 한다. 요청 제한만은 칸에 알린다.
-          message = limitedMessage(error);
-        }
+        // 기다리는 사이 제출이 같은 값을 먼저 물었으면 그 답을 쓴다.
+        const { answer, message } = await askKnownOrServer(name, check, nextValues[name]);
         if (requestIds.current[name] !== requestId) return;
+        if (answer) lastAnswers.current[name] = answer;
         setRemoteErrors((prev) => ({ ...prev, [name]: message }));
         setChecking((prev) => ({ ...prev, [name]: false }));
       }, ASYNC_CHECK_DELAY_MS);
     },
-    [blurChecks, isLogin],
+    [askKnownOrServer, blurChecks, isLogin],
   );
 
   useEffect(() => {
@@ -122,12 +154,20 @@ export function useForm({
     return () => Object.values(pending).forEach((id) => window.clearTimeout(id));
   }, []);
 
+  /** 사람이 칸을 만졌다 — 프로그램이 비워서 감춘 오류를 다시 보여도 된다. */
+  const markHandled = (name: FieldName) => {
+    if (cleared[name]) setCleared((prev) => ({ ...prev, [name]: false }));
+  };
+
   const handleChange = (name: FieldName) => (event: { target: { value: string } }) => {
     let next = normalizeInput(event.target.value);
     const max = MAX_LENGTH[name];
     if (max) next = next.slice(0, max);
     const nextValues = { ...values, [name]: next };
     setValues(nextValues);
+    markHandled(name);
+    // 서버만 짚어 주는 칸(비밀번호 형식)은 다시 물을 검사가 없다. 고치는 순간 그 안내를 거둔다.
+    if (!blurChecks[name] && remoteErrors[name]) setRemoteErrors((prev) => ({ ...prev, [name]: "" }));
     if (touched[name] || submitted) runAsyncCheck(name, nextValues);
   };
 
@@ -135,10 +175,11 @@ export function useForm({
     // 빈 칸을 스치고 지나간 것만으로는 혼내지 않는다.
     if (!values[name] && !submitted) return;
     setTouched((prev) => ({ ...prev, [name]: true }));
+    markHandled(name);
     runAsyncCheck(name, values);
   };
 
-  const isShown = (name: FieldName) => Boolean(touched[name] || submitted);
+  const isShown = (name: FieldName) => Boolean(touched[name] || submitted) && !cleared[name];
   const errorOf = (name: FieldName) => (isShown(name) ? ruleErrors[name] || remoteErrors[name] || "" : "");
   const isValidField = (name: FieldName) =>
     isShown(name) && Boolean(values[name]) && !ruleErrors[name] && !remoteErrors[name] && !checking[name];
@@ -156,37 +197,42 @@ export function useForm({
 
   const validateAll = async () => {
     setSubmitted(true);
+    // 제출은 사람의 뜻이다 — 프로그램이 비워서 감춘 오류도 이제 보여야 아래 안내와 어긋나지 않는다.
+    setCleared({});
     const syncErrors = validateFields(fields, values, { isLogin });
     const results: FieldErrors = { ...syncErrors };
     for (const name of Object.keys(asyncChecks) as FieldName[]) {
       const check = asyncChecks[name];
       if (!check || !fields.includes(name) || syncErrors[name]) continue;
-      try {
-        results[name] = await check(values[name]);
-      } catch (error) {
-        results[name] = limitedMessage(error);
-      }
-      setRemoteErrors((prev) => ({ ...prev, [name]: results[name] }));
+      // blur 가 이미 같은 값을 물었으면 그 답을 쓴다. 안 물었거나 값이 바뀌었으면 여기서 묻는다(안전망).
+      const { answer, message } = await askKnownOrServer(name, check, values[name]);
+      if (answer) lastAnswers.current[name] = answer;
+      results[name] = message;
+      setRemoteErrors((prev) => ({ ...prev, [name]: message }));
     }
     return Object.fromEntries(Object.entries(results).filter(([, message]) => message)) as FieldErrors;
   };
 
-  const clearFields = (names: readonly FieldName[]) =>
-    setValues((prev) => {
-      const next = { ...prev };
-      for (const name of names) next[name] = "";
-      return next;
-    });
+  /** 한 칸을 처음 상태로 — 값·서버 오류를 지우고, 다시 만질 때까지 규칙 오류도 감춘다. */
+  const resetField = (name: FieldName) => {
+    setValues((prev) => ({ ...prev, [name]: "" }));
+    setRemoteErrors((prev) => ({ ...prev, [name]: "" }));
+    setCleared((prev) => ({ ...prev, [name]: true }));
+  };
+
+  const clearFields = (names: readonly FieldName[]) => names.forEach(resetField);
 
   const setField = (name: FieldName, value: string) => {
     const nextValues = { ...values, [name]: value };
     setValues(nextValues);
     setTouched((prev) => ({ ...prev, [name]: true }));
+    markHandled(name);
     runAsyncCheck(name, nextValues);
   };
 
   const setRemoteError = (name: FieldName, message: string) => {
     setTouched((prev) => ({ ...prev, [name]: true }));
+    markHandled(name);
     setRemoteErrors((prev) => ({ ...prev, [name]: message }));
   };
 
