@@ -4,6 +4,7 @@
  */
 import { apiUrl } from "@/config/env";
 import { parseRetryAfter, rateLimitedMessage } from "@/lib/retryAfter";
+import { endLocalSession } from "@/services/session";
 
 export type InquiryCategory = "account" | "gameplay" | "payment" | "tech" | "other";
 
@@ -88,6 +89,8 @@ export async function fetchMyInquiries(signal?: AbortSignal): Promise<MyInquiry[
       headers: { Accept: "application/json" },
       signal,
     });
+    // 서버 세션이 끝났다 — 이 탭의 로그인 표시도 거둔다.
+    if (response.status === 401) endLocalSession();
     if (!response.ok) return null;
     const body = (await response.json()) as { items: MyInquiry[] };
     return body.items;
