@@ -3,6 +3,7 @@ from datetime import datetime
 import pytest
 from sqlalchemy.exc import IntegrityError
 
+from app.core.terms import CURRENT_TERMS_VERSION
 from app.models.account_data import LoginThrottle
 from app.models.app_user import AppUser
 from app.models.auth_identity import AuthIdentity
@@ -68,7 +69,7 @@ def register_payload(
             "terms": True,
             "privacy": True,
             "age": True,
-            "terms_version": "2026-09",
+            "terms_version": CURRENT_TERMS_VERSION,
         },
     }
 
@@ -89,7 +90,7 @@ def test_register_local_account_success(client, db_session):
     user = db_session.added[0]
     identity = db_session.added[1]
     assert user.email == "sejin@example.com"
-    assert user.terms_version == "2026-09"
+    assert user.terms_version == CURRENT_TERMS_VERSION
     assert user.terms_accepted_at is not None
     assert user.privacy_accepted_at is not None
     assert user.age_confirmed_at is not None
@@ -601,7 +602,8 @@ def test_registration_consent_rejects_unknown_keys(client, db_session):
     assert db_session.added == []
 
 
-@pytest.mark.parametrize("version", ["1999-01", "2026-10", "old"])
+# 2026-09 는 11/19 이전 판 — 그 판을 보내는 옛 화면은 새로고침 안내를 받는다.
+@pytest.mark.parametrize("version", ["1999-01", "2026-09", "2026-10", "old"])
 def test_registration_rejects_other_terms_version(client, db_session, version):
     request = register_payload()
     request["consent"]["terms_version"] = version
@@ -619,7 +621,7 @@ def test_registration_without_terms_version_stores_current_version(client, db_se
     response = client.post("/api/v1/auth/register", json=request)
 
     assert response.status_code == 201
-    assert db_session.added[0].terms_version == "2026-09"
+    assert db_session.added[0].terms_version == CURRENT_TERMS_VERSION
 
 
 @pytest.mark.parametrize("region", ["화성시", "전라남도", "Seoul", "서울특별시"])
