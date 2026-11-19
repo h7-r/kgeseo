@@ -3,7 +3,6 @@ import { useState, type CSSProperties } from "react";
 import { FONT } from "@/lib/style";
 import { hasNoErrors, validateFields, type FieldErrors, type FieldName, type FormValues } from "@/lib/validation";
 import { QUERY, ROUTES, useSiteNavigate, withQuery } from "@/navigation/routes";
-import type { InquiryRecord } from "@/services/account/db";
 import { submitInquiry, toCategoryCode } from "@/services/inquiries";
 import { useSessionUser } from "@/services/session";
 import { COLOR, SHADOW } from "@/styles/tokens";
@@ -115,7 +114,7 @@ function InquiryForm() {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitted, setSubmitted] = useState(false);
   // 마지막으로 접수한 문의. 있으면 입력 칸 자리에 접수 완료 카드를 보인다.
-  const [receipt, setReceipt] = useState<InquiryRecord | null>(null);
+  const [receipt, setReceipt] = useState<InquiryReceipt | null>(null);
   const [receiptCount, setReceiptCount] = useState(0);
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState("");
@@ -234,8 +233,21 @@ function InquiryForm() {
   );
 }
 
+/** 방금 접수한 문의 한 건 — 접수 완료 카드가 되짚어 주는 값. 서버에 있으니 브라우저에는 두지 않는다 */
+interface InquiryReceipt {
+  number: string;
+  type: string;
+  title: string;
+  content: string;
+  /** 답변 받을 이메일 */
+  email: string;
+  attachment: string | null;
+  /** 접수 시각(ms) */
+  receivedAt: number;
+}
+
 interface ReceiptCardProps {
-  receipt: InquiryRecord;
+  receipt: InquiryReceipt;
   /** 이번 방문에 접수한 건수 */
   count: number;
   isSignedIn: boolean;

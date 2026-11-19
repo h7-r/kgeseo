@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { createStore, useStore } from "@/app/siteState";
 import { apiUrl } from "@/config/env";
+import { toSessionUserFromMe, type MeBody } from "@/services/account/meProfile";
 
 /**
  * 로그인 세션(화면용). 진짜 세션은 서버 쿠키(waegok_session · HttpOnly · 14일)에 있고,
@@ -19,8 +20,10 @@ export interface SessionUser {
   region?: string;
   joinedAt?: number;
   isTest?: boolean;
-  /** "local" · "google" · "naver" */
+  /** "local" · "google" · "naver" — 로그인 응답이 주는 한 개 */
   provider?: string;
+  /** 연결된 가입 방식 전부(/me providers, 알파벳순). 소셜 전용 판정은 이것으로 */
+  providers?: string[];
   /** 소셜 계정 프로필 사진 주소 */
   picture?: string;
 }
@@ -127,6 +130,7 @@ function writeSession(user: SessionUser) {
     joinedAt: user.joinedAt,
     isTest: user.isTest,
     provider: user.provider,
+    providers: user.providers,
     picture: user.picture,
     signedInAt: Date.now(),
   };
@@ -182,11 +186,11 @@ async function askServer(): Promise<MeAnswer> {
     const response = await fetch(apiUrl("/api/v1/me"), { credentials: "include", cache: "no-store" });
     if (response.status === 401) return { kind: "signedOut" };
     if (!response.ok) return { kind: "unreachable" };
-    const me = (await response.json()) as { user_id: string; email: string; nickname: string; region: string | null };
+    const me = (await response.json()) as MeBody;
     return {
       kind: "signedIn",
-      // provider · picture 는 /me 가 주지 않으니 이 탭에 있던 값을 이어 쓴다.
-      user: { ...readSession(), id: me.user_id, email: me.email, name: me.nickname, region: me.region ?? "" },
+      // 가입일 · 가입 방식은 /me 가 주면 그것, 옛 서버라 없으면 이 탭에 있던 값(picture 포함)을 이어 쓴다.
+      user: { ...readSession(), ...toSessionUserFromMe(me) },
     };
   } catch {
     return { kind: "unreachable" };

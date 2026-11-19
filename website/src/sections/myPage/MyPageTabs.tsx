@@ -1,6 +1,7 @@
 import ComingSoonChip from "@/components/ComingSoonChip";
 import { MY_PAGE_CONTENT, type AccountAction } from "@/data/myPage";
 import { FONT } from "@/lib/style";
+import type { ExportMyDataResult } from "@/services/account/exportMyData";
 import { IS_ACCOUNT_MANAGEMENT_READY } from "@/services/account/manageAccount";
 import { COLOR } from "@/styles/tokens";
 
@@ -8,28 +9,41 @@ import { darkCardStyle, darkRowStyle, labelTextStyle, strongValueTextStyle, subh
 
 // 계정 설정 · 구독 탭. 내 진행 · 업적 · 아이템(서버 저장본)은 ProgressTabs 가 그린다. 껍데기는 MyPagePanel.
 
+/** 「내보내기」 줄의 상태. 파일을 만드는 동안 busy, 못 만들면 왜 못 만들었는지 */
+export type ExportState = "idle" | "busy" | Extract<ExportMyDataResult, { ok: false }>["reason"];
+
+const EXPORT_VALUE: Record<Exclude<ExportState, "idle">, string> = {
+  busy: "파일을 만드는 중…",
+  error: "실패 — 다시 시도",
+  signedOut: "다시 로그인해 주세요",
+};
+
 interface AccountTabProps {
-  emailNotifications: boolean;
+  /** 이메일 비밀번호로 로그인하는 계정인가. 소셜 전용(false)이면 비밀번호 줄을 안내로. 모르면 undefined */
+  hasPassword: boolean | undefined;
+  exportState: ExportState;
   onAction: (action: AccountAction) => void;
 }
 
-export function AccountTab({ emailNotifications, onAction }: AccountTabProps) {
+export function AccountTab({ hasPassword, exportState, onAction }: AccountTabProps) {
   return (
     <>
       {MY_PAGE_CONTENT.account.groups.map((group) => (
         <div key={group.title} style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%" }}>
           <span style={subheadingStyle}>{group.title}</span>
-          {group.items.map(({ label, value, action: listedAction }) => {
-            // 비밀번호 변경은 백엔드가 준비될 때까지 「준비 중」으로 둔다(탈퇴는 목록에서부터 준비 중 — 세진 API 뒤 미르가 시점을 준다)
+          {group.items.map(({ label, value: listedValue, action: listedAction }) => {
+            // 소셜 전용 계정에는 바꿀 비밀번호가 없다(/me providers 에 local 없음)
+            const isSocialOnlyPassword = listedAction === "changePassword" && hasPassword === false;
+            // 비밀번호 변경은 백엔드 API(BE-4)가 생길 때까지 「준비 중」. 탈퇴는 서버(#177)는 있고 연동은 미르 승인 뒤라 목록에서부터 준비 중
             const isPending = !IS_ACCOUNT_MANAGEMENT_READY && listedAction === "changePassword";
-            const action = isPending ? undefined : listedAction;
-            const isSwitch = action === "emailNotifications";
+            const action = isPending || isSocialOnlyPassword ? undefined : listedAction;
+            const value = action === "exportData" && exportState !== "idle" ? EXPORT_VALUE[exportState] : listedValue;
             return (
               <div
                 key={label}
                 className={action ? "interactive-row" : undefined}
-                role={action ? (isSwitch ? "switch" : "button") : undefined}
-                aria-checked={isSwitch ? emailNotifications : undefined}
+                role={action ? "button" : undefined}
+                aria-busy={action === "exportData" && exportState === "busy" ? true : undefined}
                 tabIndex={action ? 0 : undefined}
                 onClick={action ? () => onAction(action) : undefined}
                 onKeyDown={
@@ -50,27 +64,12 @@ export function AccountTab({ emailNotifications, onAction }: AccountTabProps) {
                 }}
               >
                 <span style={{ fontFamily: FONT.mono, fontSize: "16px", color: COLOR.textBright }}>{label}</span>
-                {isSwitch ? (
-                  // 줄 전체가 눌림 판이라 스위치는 그림만 그린다.
-                  <span style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <span
-                      style={{
-                        fontFamily: FONT.mono,
-                        fontSize: "15px",
-                        color: emailNotifications ? "#9aabd8" : COLOR.textDim,
-                      }}
-                    >
-                      {emailNotifications ? "ON" : "OFF"}
-                    </span>
-                    <span
-                      className="toggle-switch"
-                      aria-hidden="true"
-                      aria-checked={emailNotifications}
-                      style={{ display: "inline-block" }}
-                    />
-                  </span>
-                ) : action ? (
+                {action ? (
                   <span style={{ fontFamily: FONT.mono, fontSize: "16px", color: "#9aabd8" }}>{value} →</span>
+                ) : isSocialOnlyPassword ? (
+                  <span style={{ fontFamily: FONT.mono, fontSize: "15px", color: COLOR.textDim }}>
+                    소셜 로그인 계정 · 비밀번호 없음
+                  </span>
                 ) : (
                   <ComingSoonChip label="준비 중" />
                 )}

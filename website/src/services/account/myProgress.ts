@@ -19,10 +19,10 @@ export type MyProgressResult =
   /** 서버에 못 닿았다 */
   | { status: "error" };
 
-class SignedOutError extends Error {}
+export class SignedOutError extends Error {}
 
-/** 본문이 없으면(아직 저장이 없음) null. 401 이면 로그아웃으로 알린다 */
-async function getMine<T>(path: string): Promise<T | null> {
+/** /me 아래 하나를 읽는다. 본문이 없으면(아직 저장이 없음) null. 401 이면 로그아웃으로 알린다 */
+export async function getMine<T>(path: string): Promise<T | null> {
   const response = await fetch(apiUrl(path), { credentials: "include", cache: "no-store" });
   if (response.status === 401) throw new SignedOutError();
   if (!response.ok) throw new Error(`${path} ${response.status}`);
