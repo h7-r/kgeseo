@@ -3,6 +3,7 @@
  * 실제 서비스 개시 전에는 법무 검토를 받아야 한다 — 상호·주소·대표자·사업자번호는 아직 빈 값이다.
  */
 import { SUPPORT_EMAIL } from "./contact";
+import { TERMS_VERSION } from "./termsVersion";
 
 export const TERMS_TABS = [
   { id: "terms", label: "이용약관" },
@@ -49,7 +50,7 @@ const DEMO = {
     "회원 정보와 플레이 기록은 Amazon Web Services 서울 리전에 보관합니다. 다만 웹사이트 · 게임을 전달하는 Vercel(미국)과 도메인 · 메일 전달을 맡는 Cloudflare(미국)를 거치면서 접속 기록(IP 주소 · 접속 시각 등)이 해외 서버를 지날 수 있습니다",
   cookieTools:
     "로그인 유지와 게스트 진행 저장에 필요한 필수 쿠키만 씁니다. 제3자 분석 · 광고 도구는 쓰지 않습니다. 글꼴은 Google Fonts에서 불러오며, 이때 접속 IP 주소가 Google에 전달됩니다",
-  version: "2026-11-demo-v1",
+  version: TERMS_VERSION,
   endDate: "2026년 12월 31일",
   retention: {
     account: "회원 탈퇴 시점 또는 2026년 12월 31일 중 먼저 도래하는 시점까지",

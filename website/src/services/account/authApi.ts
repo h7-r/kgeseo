@@ -2,6 +2,7 @@ import type { SessionUser } from "@/services/session";
 
 import { normalizeEmail, type ConsentKind } from "./db";
 import { apiUrl } from "@/config/env";
+import { TERMS_VERSION } from "@/data/termsVersion";
 import { lockedLoginMessage, parseRetryAfter, rateLimitedMessage } from "@/lib/retryAfter";
 import { parseBackendTimestamp } from "@/lib/serverTime";
 import { TEST_ACCOUNT } from "./testAccount";
@@ -22,9 +23,6 @@ type AuthResponse =
       /** 429 일 때 다시 보내도 되기까지 남은 초(Retry-After) */
       retryAfter?: number;
     };
-
-// 약관 글이 바뀌면 올린다. 동의 기록에 함께 남아 어느 판에 동의했는지 알 수 있다(consent_log.version).
-const TERMS_VERSION = "2026-09";
 
 export type AccountFailure<Field extends string = never> = {
   ok: false;

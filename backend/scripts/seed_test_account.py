@@ -24,6 +24,7 @@ from uuid import UUID
 from sqlalchemy import func, select, text
 
 from app.core.config import settings
+from app.core.terms import CURRENT_TERMS_VERSION
 from app.db.session import AsyncSessionLocal, engine
 from app.models.app_user import AppUser
 from app.models.auth_identity import AuthIdentity
@@ -32,7 +33,6 @@ from app.services.local_auth import hash_password, utc_now
 EMAIL = "test123@naver.com"
 PASSWORD = "test123"
 NICKNAME = "TEST"
-TERMS_VERSION = "2026-09"
 # 웹사이트 쪽 테스트 계정과 같은 아이디 — 팀원 기기마다 같아야 한다.
 USER_ID = str(UUID("00000000-0000-4000-8000-000000000001"))
 IDENTITY_ID = str(UUID("00000000-0000-4000-8000-000000000002"))
@@ -118,7 +118,7 @@ async def seed() -> str:
                 email=EMAIL,
                 nickname=NICKNAME,
                 region="전남",
-                terms_version=TERMS_VERSION,
+                terms_version=CURRENT_TERMS_VERSION,
                 terms_accepted_at=now,
                 privacy_accepted_at=now,
                 age_confirmed_at=now,
