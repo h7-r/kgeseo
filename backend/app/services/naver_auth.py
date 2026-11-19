@@ -29,6 +29,21 @@ class InvalidNaverProfileError(Exception):
     pass
 
 
+def naver_auth_configured(
+    naver_client_id: str,
+    naver_client_secret: str,
+    naver_redirect_uri: str,
+) -> bool:
+    """세 값이 모두 실제 값인지 — 하나라도 비거나 견본 자리표시자면 미설정(/site/status 와 같은 판정)."""
+    return (
+        bool(naver_client_id)
+        and naver_client_id != "YOUR_NAVER_CLIENT_ID"
+        and bool(naver_client_secret)
+        and naver_client_secret != "YOUR_NAVER_CLIENT_SECRET"
+        and bool(naver_redirect_uri)
+    )
+
+
 def verify_naver_authorization_code(
     code: str,
     state: str,
@@ -36,12 +51,8 @@ def verify_naver_authorization_code(
     naver_client_secret: str,
     naver_redirect_uri: str,
 ) -> GoogleUserResponse:
-    if (
-        not naver_client_id
-        or naver_client_id == "YOUR_NAVER_CLIENT_ID"
-        or not naver_client_secret
-        or naver_client_secret == "YOUR_NAVER_CLIENT_SECRET"
-        or not naver_redirect_uri
+    if not naver_auth_configured(
+        naver_client_id, naver_client_secret, naver_redirect_uri
     ):
         raise NaverAuthConfigurationError
 

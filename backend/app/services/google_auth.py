@@ -15,11 +15,16 @@ class InvalidGoogleCredentialError(Exception):
     pass
 
 
+def google_auth_configured(google_client_id: str) -> bool:
+    """클라이언트 ID 가 실제 값인지 — 빈 값 · 견본 자리표시자는 미설정으로 본다(/site/status 와 같은 판정)."""
+    return bool(google_client_id) and google_client_id != "YOUR_GOOGLE_CLIENT_ID"
+
+
 def verify_google_credential(
     credential: str,
     google_client_id: str,
 ) -> GoogleUserResponse:
-    if not google_client_id or google_client_id == "YOUR_GOOGLE_CLIENT_ID":
+    if not google_auth_configured(google_client_id):
         raise GoogleAuthConfigurationError
 
     try:

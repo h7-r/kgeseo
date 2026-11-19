@@ -339,7 +339,10 @@ def test_settings_maintenance_toggle_and_public_status():
             and "user_session_days" in initial["readonly"]
         )
         public = await get_json("/api/v1/site/status")
-        assert public == {"maintenance": {"on": False, "message": ""}}
+        assert public["maintenance"] == {"on": False, "message": ""}
+        # 소셜 준비 여부는 설정값에 따르니 모양만(11/18) — 값 검사는 test_site_status.py
+        assert set(public) == {"maintenance", "social"}
+        assert set(public["social"]) == {"google", "naver"}
 
         # 켜기 → 공개 상태에 바로 보인다 · 기록 update_setting
         turned_on = await put_json(
@@ -351,8 +354,9 @@ def test_settings_maintenance_toggle_and_public_status():
             turned_on.json()["on"] is True
             and turned_on.json()["updated_by"] == "운영자"
         )
-        assert (await get_json("/api/v1/site/status")) == {
-            "maintenance": {"on": True, "message": "새벽 점검 (~06:00)"}
+        assert (await get_json("/api/v1/site/status"))["maintenance"] == {
+            "on": True,
+            "message": "새벽 점검 (~06:00)",
         }
         too_long = await put_json(
             "/api/v1/admin/settings/maintenance_mode",
