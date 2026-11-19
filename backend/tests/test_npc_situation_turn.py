@@ -592,6 +592,36 @@ def test_http_situation_reply_has_no_hint_and_records_code_without_text(
     assert "(가상)" not in str(event.payload_json)
 
 
+def test_http_situation_reply_with_pause_time_is_not_a_used_puzzle_nudge(
+    client,
+    db_session,
+    overrides,  # noqa: F811
+) -> None:
+    """main 통합(11/19): 멈춘 시간(paused_ms)과 situation 을 함께 받고, 상황 대사는 nudge 반복 방지에 세지 않는다."""
+
+    from app.services.npc_turn_service import used_auto_nudges
+
+    approve_all(overrides)
+    use_situation_bundle(overrides)
+    db_session.get_result = session_row()
+
+    response = client.post(
+        URL,
+        json=sit_body(
+            "BREATH_LOW", focus_object_id=None, paused_ms_since_interaction=1500
+        ),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["reply"]["line_id"] == "SIT_BREATH_LOW_01"
+    event = stored(db_session)
+    # 재전송 비교 값: 실은 두 값이 모두 들어간다(같은 client_event_id + 다른 값이면 409)
+    assert event.payload_json["situation"]["code"] == "BREATH_LOW"
+    assert event.payload_json["paused_ms_since_interaction"] == 1500
+    assert event.response_json["situation_replied"] is True
+    assert used_auto_nudges([event]) == frozenset()
+
+
 def test_http_situation_turn_locks_the_session_after_closing_open_reads(
     client,
     db_session,
