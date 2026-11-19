@@ -18,6 +18,7 @@ import {
 } from "@/props/panelWiringState";
 import { requestFlowFocus } from "@/props/shared/flowFocus";
 import { buildLightningGeometry, createLightningMaterial } from "@/props/shared/lightning";
+import { buildWaterFlowGeometry, createWaterFlowMaterial } from "@/props/shared/waterFlow";
 
 import { getConduitPaths, vendingFocus } from "./circuitPaths";
 
@@ -75,8 +76,34 @@ function PathLightning({ path, startedAt, seconds, lingerSeconds }: StrikeProps)
 }
 
 /**
- * 소화전 회로의 전류 연출. 선을 다 잇고 관창을 꽂으면 호스를 타고 소화전으로 가고(화면이 따라가 소화전에 머문다),
- * 핸들을 돌리면 전선관을 타고 자판기로 간다(화면이 따라가 자판기 불빛과 밀림까지 본다).
+ * 길 하나를 타고 가는 물 — 전선관. 핸들을 돌리면 물이 차오르고, 자판기에 닿으면 끝에서 물방울이 튀다가 잦아든다.
+ * 번개 대신 물로 바꾼 것(11/16) — 자판기에 물이 닿아 합선 → 날뜀 → 밀림으로 읽히게
+ */
+function PathWater({ path, startedAt, seconds, lingerSeconds }: StrikeProps) {
+  const length = useMemo(() => path.getLength(), [path]);
+  const geometry = useMemo(() => buildWaterFlowGeometry(path, length), [path, length]);
+  const material = useMemo(() => createWaterFlowMaterial({ throughWalls: true }), []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  useEffect(() => () => material.dispose(), [material]);
+  const meshRef = useRef<THREE.Mesh>(null);
+  useFrame(() => {
+    const now = performance.now() / 1000;
+    const since = now - startedAt;
+    const { uniforms } = material;
+    uniforms.uProg.value = THREE.MathUtils.clamp(since / seconds, 0, 1);
+    uniforms.uTime.value = now;
+    uniforms.uLen.value = length;
+    uniforms.uSurge.value = since >= seconds ? 1 : 0;
+    const fade = 1 - THREE.MathUtils.clamp((since - seconds - lingerSeconds) / FADE_SECONDS, 0, 1);
+    uniforms.uFade.value = fade;
+    if (meshRef.current) meshRef.current.visible = fade > 0;
+  });
+  return <mesh ref={meshRef} geometry={geometry} material={material} frustumCulled={false} renderOrder={5} />;
+}
+
+/**
+ * 소화전 회로의 연출. 선을 다 잇고 관창을 꽂으면 전류가 호스를 타고 소화전으로 가고(화면이 따라가 소화전에 머문다),
+ * 핸들을 돌리면 물이 전선관을 타고 자판기로 간다(화면이 따라가 자판기 불빛과 밀림까지 본다).
  */
 export default function CircuitCurrent() {
   usePanelWiring();
@@ -143,7 +170,7 @@ export default function CircuitCurrent() {
         />
       )}
       {conduitPaths.map((path, i) => (
-        <PathLightning
+        <PathWater
           key={i}
           path={path}
           startedAt={valveAt}

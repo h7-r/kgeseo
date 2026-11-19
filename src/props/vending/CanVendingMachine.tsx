@@ -23,6 +23,7 @@ import {
   type VendingId,
 } from "@/props/vendingMachineState";
 import { getWorldPositionOf } from "@/props/shared/aimTarget";
+import GlowHalo from "@/props/shared/GlowHalo";
 import ToonMaterial from "@/props/shared/ToonMaterial";
 
 import { CAN_FLAVORS } from "./canLabels";
@@ -57,7 +58,7 @@ const BUTTON_TO_CAN = BUTTON_COLORS.map((buttonColor) => {
 });
 const getCanForButton = (button: number) => BUTTON_TO_CAN[button % BUTTON_TO_CAN.length] ?? button % CAN_FLAVORS.length;
 
-// 파란 캔(SODA)이 나오면 밸브 힌트 종이가 같이 나온다.
+// 파란 캔(SODA)이 나오면 자물쇠 힌트 종이가 같이 나온다.
 const HINT_CAN = 0;
 
 const TRIM = 0.28;
@@ -394,7 +395,7 @@ export default function CanVendingMachine({
         </>
       )}
 
-      {/* 밸브 힌트 종이 — 안쪽 끝이 배출구 바닥에 닿고 앞쪽이 들려 덮개 밖으로 걸쳐 있다. 바닥을 파고들지 않는다 */}
+      {/* 자물쇠 힌트 종이 — 안쪽 끝이 배출구 바닥에 닿고 앞쪽이 들려 덮개 밖으로 걸쳐 있다. 바닥을 파고들지 않는다 */}
       {vendingId && machine.hintPaperWaiting && (
         <group position={[canRadius + 0.14, trayFloor + HINT_NOTE_LIFT, halfDepth + 0.12]}>
           <group ref={hintPaperSpotRef} />
@@ -403,7 +404,7 @@ export default function CanVendingMachine({
             radius={0.9}
             reach={6}
             position={() => getWorldPositionOf(hintPaperSpotRef)}
-            label="[E] 힌트 메모"
+            label="[E] 배출구에 낀 쪽지"
             disabled={() => !!getHeldDrink() || !!getHeldCoin()}
             run={() => {
               pickUpPaper();
@@ -411,9 +412,16 @@ export default function CanVendingMachine({
               setHintPaperWaiting(vendingId, false);
             }}
           />
+          {/* 쪽지가 배출구 그늘에 묻혀 못 보고 지나갔다(11/16) — 소화전 핸들과 같은 빛무리를 작게. 종이가 사라지면 같이 사라진다 */}
+          <GlowHalo position={[0, 0.06, 0.04]} visible={() => true} size={[0.3, 0.42]} />
           {/* 배출구 속이 어두워 테가 없으면 흰 종이가 떠 있는 네모로 보인다 — 외곽선용 지오를 같이 넘긴다 */}
           <AimHighlight id={`hintPaper:${vendingId}`} anchor={() => [0, 0, 0]} grow={0.1}>
-            <mesh geometry={HINT_NOTE_GEOMETRY} scale={2.2} rotation={[-Math.PI / 2 - HINT_NOTE_TILT, 0, 0.3]} castShadow>
+            <mesh
+              geometry={HINT_NOTE_GEOMETRY}
+              scale={2.2}
+              rotation={[-Math.PI / 2 - HINT_NOTE_TILT, 0, 0.3]}
+              castShadow
+            >
               <meshBasicMaterial map={makeHintPaperTexture()} side={THREE.DoubleSide} toneMapped={false} />
               <ToonOutline geometry={HINT_NOTE_GEOMETRY} outline={inner} />
             </mesh>

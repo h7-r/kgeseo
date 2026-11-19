@@ -1,8 +1,9 @@
-// 밸브(소화전) 자물쇠에서 오래 막힌 사람에게 단계별로 돕는다 — 미르 플레이 시험 메모(11/8): 「밸브를 보고 스펠링을 추론해내지
-// 못하는 사람들은 튜토공간을 벗어나는 것이 불가능」 → 오래 막히면 「밸브가 영어로 뭐지?」, 그래도 못 풀면 「정답 확인하기」
-// (튜토피드백 검토 01회차).
-//   ① 오답 3번 · 자물쇠를 만진 시간 60초 · 밸브가 다음 장치가 된 뒤 2분 → 「밸브 자물쇠 힌트」(자물쇠 안내에 한 줄 + 힌트함 쪽지)
-//   ② 오답 6번 · 180초 · 5분 → 「정답 확인하기」(창에서 「정답 보기」를 눌러야 보인다 — 새 쪽지는 자동으로 펼쳐지므로)
+// 소화전 자물쇠에서 오래 막힌 사람에게 단계별로 돕는다 — 미르 플레이 시험 메모(11/8): 「밸브를 보고 스펠링을 추론해내지
+// 못하는 사람들은 튜토공간을 벗어나는 것이 불가능」 → 11/17 부터 자물쇠는 캔 라벨 퀴즈(hydrantLockClue). 막히면 캔이 어디 있는지,
+// 번호가 무슨 뜻인지, 그래도 못 풀면 「정답 확인하기」(튜토피드백 검토 01회차 → 11/17 세 단).
+//   ① 오답 3번 · 자물쇠를 만진 시간 60초 · 자물쇠가 다음 장치가 된 뒤 2분 → 「자물쇠 힌트 ①」(자물쇠 안내에 한 줄 + 힌트함 쪽지)
+//   ② 오답 5번 · 120초 · 3분 30초 → 「자물쇠 힌트 ②」
+//   ③ 오답 8번 · 180초 · 5분 → 「정답 확인하기」(창에서 「정답 보기」를 눌러야 보인다 — 새 쪽지는 자동으로 펼쳐지므로)
 // 「밸브가 다음 장치가 된 뒤」 시간(goal): 완전 전원(앞 장치를 다 푼 때)부터, 게임 화면이 조작 중이거나 자물쇠를 만지는 동안만 센다
 // — 자물쇠를 안 만지고 헤매는 사람도 막힌 걸 알아챈다(미르 11/10). 그때 자물쇠 밖이면 게임 화면 가운데에서 묻는다(Y · N).
 // 문턱을 넘으면 넣지 않고 먼저 묻는다 — 「추가 힌트를 받으시겠습니까?」(미르 11/9: 시간이 걸려도 제 힘으로 풀고 싶은 사람에게
@@ -16,6 +17,7 @@ import { useSyncExternalStore } from "react";
 import { exposeDevHook } from "@/debug/devHooks";
 import { createChangeSignal } from "@/lib/changeSignal";
 import { findLockState, getLockControl, getLockState } from "@/props/combinationLockState";
+import { HYDRANT_LOCK_ANSWER } from "@/props/hydrantCabinet/hydrantLockClue";
 import { hasFullPower } from "@/props/workLampPuzzle/workLampState";
 
 import { addHint, flashHints, type Hint } from "./hintBox";
@@ -24,9 +26,11 @@ import { showToast } from "./toast";
 /** 소화전 문 자물쇠 id 앞머리(station/corridor/wallCabinetId) */
 export const isValveLockId = (id: string | null | undefined) => !!id?.startsWith("wallCabinet:hydrant:");
 
+// 11/17 세 단으로(해랑): 쪽지가 「캔 색 + 글자 번호」 퀴즈가 되어, 캔이 어디 있는지 → 번호가 무슨 뜻인지 → 정답 순으로 돕는다
 const STAGES = [
   { wrong: 3, ms: 60_000, goalMs: 120_000 },
-  { wrong: 6, ms: 180_000, goalMs: 300_000 },
+  { wrong: 5, ms: 120_000, goalMs: 210_000 },
+  { wrong: 8, ms: 180_000, goalMs: 300_000 },
 ] as const;
 
 /** 단계마다 주는 쪽지와 받은 순간의 한 줄 */
@@ -34,12 +38,22 @@ const HINTS: readonly { hint: Hint; toast: string }[] = [
   {
     hint: {
       id: "valve:help",
-      name: "밸브 자물쇠 힌트",
+      name: "자물쇠 힌트 ①",
       description:
-        "밸브가 영어로 뭐지?\n\n소화전 손잡이의 이름을 영어 글자로 넣는 자물쇠다. 모르겠으면 검색해 봐도 좋다.",
+        "쪽지의 캔은 자판기에 있다.\n\n색이 같은 캔을 자판기 유리 안에서 찾아 라벨에 적힌 이름을 읽어 볼 것. 뽑아서 손에 들고 봐도 된다.",
       isPhysical: false,
     },
-    toast: "힌트함 [H]에 「밸브 자물쇠 힌트」를 넣었다",
+    toast: "힌트함 [H]에 「자물쇠 힌트 ①」을 넣었다",
+  },
+  {
+    hint: {
+      id: "valve:help2",
+      name: "자물쇠 힌트 ②",
+      description:
+        "캔 아래 번호는 그 캔 이름의 몇 번째 글자인지다.\n\n캔 다섯 개에서 글자를 하나씩 뽑아 차례대로 이으면 다섯 글자가 된다.",
+      isPhysical: false,
+    },
+    toast: "힌트함 [H]에 「자물쇠 힌트 ②」를 넣었다",
   },
   {
     hint: {
@@ -47,17 +61,21 @@ const HINTS: readonly { hint: Hint; toast: string }[] = [
       name: "정답 확인하기",
       description:
         "그래도 모르겠다면 아래 「정답 보기」를 눌러 확인할 수 있다.\n\n다음 무대에서는 동행에게 힌트를 물어볼 수도 있다.",
-      spoiler: "VALVE",
+      spoiler: HYDRANT_LOCK_ANSWER,
       isPhysical: false,
     },
     toast: "힌트함 [H]에 「정답 확인하기」를 넣었다",
   },
 ];
-/** 밸브 자물쇠 쪽지 — 튜토리얼 공간 것이라 본부실에 들어서면 힌트함에서 지운다(tutorial/tutorialHints) */
+/** 소화전 자물쇠 쪽지 — 튜토리얼 공간 것이라 본부실에 들어서면 힌트함에서 지운다(tutorial/tutorialHints) */
 export const VALVE_HELP_HINT_IDS: readonly string[] = HINTS.map(({ hint }) => hint.id);
 
-export const VALVE_HINT_LINE = "힌트: 밸브가 영어로 뭐지?";
-export const VALVE_ANSWER_LINE = "그래도 막혔다면 [H] 힌트함의 「정답 확인하기」";
+/** 자물쇠 안내 아래에 붙는 한 줄 — 받은 단계만큼(HINTS 와 같은 차례) */
+export const VALVE_HINT_LINES: readonly string[] = [
+  "힌트: 쪽지의 캔은 자판기 유리 안에 있다",
+  "힌트: 번호는 그 캔 이름의 몇 번째 글자",
+  "그래도 막혔다면 [H] 힌트함의 「정답 확인하기」",
+];
 
 let wrong = 0;
 /** 바로 앞에 센 틀린 답(자물쇠 id + 글자) — 같은 답을 연달아 내면 다시 안 센다 */

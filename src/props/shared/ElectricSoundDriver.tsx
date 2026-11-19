@@ -1,7 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useEffect } from "react";
 
-import { setElectricSound } from "@/audio/synthSounds";
+import { setElectricSound, setWaterSound } from "@/audio/synthSounds";
 import {
   CONDUIT_FLOW_SECONDS,
   HOSE_FLOW_SECONDS,
@@ -32,7 +32,10 @@ export default function ElectricSoundDriver() {
   // 탭을 숨기면 프레임이 멈춰 소리가 마지막 세기로 남는다 — 그때는 직접 끈다
   useEffect(() => {
     const silenceWhenHidden = () => {
-      if (document.hidden) setElectricSound(0);
+      if (document.hidden) {
+        setElectricSound(0);
+        setWaterSound(0);
+      }
     };
     document.addEventListener("visibilitychange", silenceWhenHidden);
     return () => document.removeEventListener("visibilitychange", silenceWhenHidden);
@@ -54,16 +57,13 @@ export default function ElectricSoundDriver() {
     const hoseStart = getHoseFlowStartedAt();
     const conduitStart = getValveTurnedAt();
     const hoseSurge = computeArrivalSurge(now, hoseStart, HOSE_FLOW_SECONDS, 0.8);
-    const conduitSurge = computeArrivalSurge(now, conduitStart, CONDUIT_FLOW_SECONDS, VENDING_FRENZY_SECONDS);
-    level = Math.max(
-      level,
-      hoseSurge,
-      conduitSurge,
-      computeTravelLevel(now, hoseStart, HOSE_FLOW_SECONDS),
-      computeTravelLevel(now, conduitStart, CONDUIT_FLOW_SECONDS),
-    );
-    surge = Math.max(surge, hoseSurge, conduitSurge);
+    level = Math.max(level, hoseSurge, computeTravelLevel(now, hoseStart, HOSE_FLOW_SECONDS));
+    surge = Math.max(surge, hoseSurge);
     setElectricSound(level, surge);
+    // 전선관은 전류가 아니라 물이 간다(11/16) — 같은 시간표로 물소리만 낸다
+    const conduitSurge = computeArrivalSurge(now, conduitStart, CONDUIT_FLOW_SECONDS, VENDING_FRENZY_SECONDS);
+    const conduitLevel = Math.max(conduitSurge, computeTravelLevel(now, conduitStart, CONDUIT_FLOW_SECONDS));
+    setWaterSound(conduitLevel, conduitSurge);
   });
   return null;
 }
