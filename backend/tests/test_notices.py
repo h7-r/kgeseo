@@ -444,6 +444,24 @@ def test_public_routes_need_no_login_and_set_cache_headers(client):
 # --- 옛 공지 이전 스크립트 ---
 
 
+def _legacy_source_has_notices() -> bool:
+    try:
+        return "export const NOTICES" in legacy.DEFAULT_SOURCE.read_text(
+            encoding="utf-8"
+        )
+    except OSError:
+        return False
+
+
+# 11/16 에 support.ts 의 옛 공지 9건이 지워졌다(64b9f65). 이전은 일회성 작업이라 원본이 있을 때만 실제 9건을 대조한다.
+# 스크립트 자체의 동작은 아래 SAMPLE 테스트들이 본다(11/18)
+needs_legacy_source = pytest.mark.skipif(
+    not _legacy_source_has_notices(),
+    reason="website/src/data/support.ts 에 옛 공지 NOTICES 배열이 없다(11/16 제거) — 실제 원본 대조는 건너뛴다",
+)
+
+
+@needs_legacy_source
 def test_legacy_source_has_nine_notices_without_body():
     notices = legacy.parse_legacy_notices(
         legacy.DEFAULT_SOURCE.read_text(encoding="utf-8")
@@ -553,6 +571,7 @@ class _BoomSession:
         raise AssertionError("DB session must not be opened")
 
 
+@needs_legacy_source
 def test_dry_run_and_execute_without_candidates_never_open_db(monkeypatch, capsys):
     import app.db.session as session_module
     from app.core.config import settings
@@ -601,6 +620,7 @@ def test_source_without_readable_notices_is_usage_error(tmp_path):
     assert legacy.main(["--source", str(missing)]) == 2
 
 
+@needs_legacy_source
 def test_legacy_conversion_of_the_real_nine(capsys):
     """원본 9건의 변환 값(분류 대응 · 게시 시각 = 원본 날짜 00:00 KST) — 등록하지는 않는다."""
 

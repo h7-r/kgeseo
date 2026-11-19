@@ -13,8 +13,8 @@ interface Store<T> {
   subscribe(listener: () => void): () => void;
 }
 
-/** 같은 값이면 알리지 않는다. */
-function createStore<T>(initial: T): Store<T> {
+/** 같은 값이면 알리지 않는다. 세션 복원 상태(services/session)도 이걸 쓴다. */
+export function createStore<T>(initial: T): Store<T> {
   let value = initial;
   const listeners = new Set<() => void>();
 
@@ -32,7 +32,7 @@ function createStore<T>(initial: T): Store<T> {
   };
 }
 
-function useStore<T>(store: Store<T>, serverValue: T): T {
+export function useStore<T>(store: Store<T>, serverValue: T): T {
   return useSyncExternalStore(store.subscribe, store.get, () => serverValue);
 }
 

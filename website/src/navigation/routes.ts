@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { openGameTransition } from "@/app/siteState";
 import { IS_MOBILE_PLAY_READY, openGameStartGuide, openMobilePlayNotice } from "@/mobile/gameStartStore";
 import { isMobileLayout } from "@/mobile/layoutMode";
-import { getSessionUser } from "@/services/session";
+import { confirmServerSession, getSessionUser } from "@/services/session";
 
 export const ROUTES = {
   home: "/",
@@ -87,7 +87,10 @@ export function withQuery(path: RoutePath, params: Record<string, string>): `${R
 /** 게임을 시작하는 단추가 넘기는 값. 로그인 여부에 따라 게임 또는 로그인으로 간다. */
 export const START_GAME = "start-game" as const;
 
-export type NavTarget = RoutePath | `${RoutePath}?${string}` | typeof START_GAME;
+/** 사이트 안 주소(질의 포함). 게임 시작은 START_GAME 으로 따로 넘긴다. */
+export type NavPath = RoutePath | `${RoutePath}?${string}`;
+
+export type NavTarget = NavPath | typeof START_GAME;
 
 // 게임 본편은 별도 앱이라 주소를 환경변수로 받는다. 개발 서버에서는 본편 개발 서버로 간다.
 const GAME_URL = import.meta.env.VITE_GAME_URL || (import.meta.env.DEV ? "http://localhost:5173" : "");
@@ -113,11 +116,19 @@ export function safeNextPath(value: string | null): string | null {
   return value;
 }
 
-/** 게임으로 간다. 게임 주소가 없으면 게임 소개로 보낸다. */
-export function launchGame(navigate: (path: RoutePath) => void) {
+/**
+ * 게임으로 간다. 떠나기 직전에 서버 세션을 한 번 확인한다 — 쿠키가 끝나 있으면(다른 탭 로그아웃 · 만료) 로그인으로.
+ * 게임 주소가 없으면 게임 소개로 보낸다.
+ */
+export async function launchGame(navigate: (path: NavPath) => void): Promise<void> {
   // 모바일 버전 준비 중 — 게임 문서를 열지 않는다(로그인 뒤 /play · 마이페이지 시작 단추도 이 길을 지난다)
   if (!IS_MOBILE_PLAY_READY && isMobileLayout()) {
     openMobilePlayNotice();
+    return;
+  }
+  // 로그인한 줄 알고 눌렀는데 서버 세션이 끝나 있으면 — 게임 문지기에서 튕기기 전에 여기서 로그인으로 보낸다.
+  if (!(await confirmServerSession())) {
+    navigate(withQuery(ROUTES.login, { [QUERY.next]: ROUTES.play }));
     return;
   }
   if (!GAME_URL) {
@@ -150,7 +161,7 @@ export function useSiteNavigate() {
         openMobilePlayNotice();
         return;
       }
-      if (getSessionUser()) launchGame(navigate);
+      if (getSessionUser()) void launchGame(navigate);
       // 게임을 하려던 사람이다 — 로그인·가입을 마치면 지금 페이지가 아니라 게임으로 바로 잇는다.
       else navigate(withQuery(ROUTES.login, { [QUERY.next]: ROUTES.play }));
     },

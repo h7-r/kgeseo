@@ -793,6 +793,13 @@ td.adm-cell.is-mono {
   font-size: 12px;
   letter-spacing: 0.04em;
 }
+/* 값 아래 한 줄 설명(회원 상세의 탈퇴 안내) */
+.adm-field-row__note {
+  display: block;
+  margin-top: 4px;
+  color: var(--admin-text-sub);
+  font-size: 12px;
+}
 
 /* 라디오 · 체크 한 줄(공지 작성의 게시 방식 · 고정) */
 .adm-check-row {

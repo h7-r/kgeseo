@@ -8,7 +8,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import {
   AboutPage,
@@ -34,12 +34,12 @@ import MobilePlayNotice from "@/mobile/MobilePlayNotice";
 import MobileHeader from "@/mobile/MobileHeader";
 import VideoModal from "@/layout/videoPlayer/VideoModal";
 import { dispatchPageChange, scrollToTopSilently } from "@/lib/pageEvents";
-import { ROUTES, isAdminRoute, launchGame, pageTitle } from "@/navigation/routes";
+import { QUERY, ROUTES, isAdminRoute, launchGame, pageTitle, safeNextPath } from "@/navigation/routes";
 import ErrorPage from "@/pages/ErrorPage";
 import HomePage from "@/pages/HomePage";
 import SocialCallbackPage from "@/pages/SocialCallbackPage";
 import { IS_ACCOUNT_MANAGEMENT_READY } from "@/services/account/manageAccount";
-import { getSessionUser, useSessionUser } from "@/services/session";
+import { getSessionUser, useSessionChecking, useSessionUser } from "@/services/session";
 import { useMaintenanceRedirect } from "@/services/siteStatus";
 
 /** 관리자가 점검 모드를 켜면 사이트 화면을 점검 화면으로 보낸다(관리자 주소 · 게임은 예외). */
@@ -77,9 +77,23 @@ export default function App() {
       <PageFrame>
         <Routes>
           <Route path={ROUTES.home} element={<HomePage />} />
-          <Route path={ROUTES.login} element={<AuthPage mode="login" />} />
+          <Route
+            path={ROUTES.login}
+            element={
+              <RedirectIfSession>
+                <AuthPage mode="login" />
+              </RedirectIfSession>
+            }
+          />
           <Route path={ROUTES.socialCallback} element={<SocialCallbackPage />} />
-          <Route path={ROUTES.signup} element={<AuthPage mode="signup" />} />
+          <Route
+            path={ROUTES.signup}
+            element={
+              <RedirectIfSession>
+                <AuthPage mode="signup" />
+              </RedirectIfSession>
+            }
+          />
           <Route path={ROUTES.socialOnboarding} element={<SocialOnboardingPage />} />
           {/* 비밀번호 찾기는 백엔드가 준비될 때까지 막는다 — 주소로 들어와도 로그인으로 보낸다 */}
           <Route path={ROUTES.forgotPassword} element={<PasswordResetRoute mode="forgotPassword" />} />
@@ -115,14 +129,34 @@ export default function App() {
 /** 로그인한 사람을 게임으로 보낸다. 플레이 단추로 로그인·가입을 마친 사람도 여기로 온다. 주소로 바로 들어온 비로그인은 로그인으로. */
 function PlayRedirect() {
   const navigate = useNavigate();
+  // 새 탭으로 /play 를 열면 서버 답이 오기 전엔 로그인 여부를 모른다 — 그때 로그인으로 보내면 로그인된 사람이 로그인 폼을 본다.
+  const isChecking = useSessionChecking();
 
   useEffect(() => {
+    if (isChecking) return;
+    // 사용자를 구독하지 않고 확인이 끝난 순간 한 번만 읽는다 — launchGame 이 끊긴 세션을 지우며 /login?next=/play 로 보낼 때
+    // 여기가 다시 돌아 next 없는 /login 으로 덮어쓰지 않게(복원이 값을 다시 적어도 게임 시작을 두 번 부르지 않는다).
     // replace: 뒤로 가기로 이 중간 자리에 돌아와 다시 튕기지 않게.
-    if (getSessionUser()) launchGame((path) => navigate(path, { replace: true }));
+    if (getSessionUser()) void launchGame((path) => navigate(path, { replace: true }));
     else navigate(ROUTES.login, { replace: true });
-  }, [navigate]);
+  }, [navigate, isChecking]);
 
-  return <p style={{ padding: "160px 24px", textAlign: "center", color: "#8fa0c4" }}>게임으로 이동하고 있습니다…</p>;
+  return (
+    <TransitNotice>{isChecking ? "로그인 상태를 확인하고 있습니다…" : "게임으로 이동하고 있습니다…"}</TransitNotice>
+  );
+}
+
+/** 로그인한 사람에게 로그인 · 가입 폼을 보이지 않는다 — 홈(또는 ?next=)으로 보낸다. */
+function RedirectIfSession({ children }: { children: ReactNode }) {
+  const user = useSessionUser();
+  const [searchParams] = useSearchParams();
+  if (!user) return children;
+  return <Navigate to={safeNextPath(searchParams.get(QUERY.next)) ?? ROUTES.home} replace />;
+}
+
+/** 화면을 옮기는 사이에 한 줄만 보여 주는 자리 */
+function TransitNotice({ children }: { children: ReactNode }) {
+  return <p style={{ padding: "160px 24px", textAlign: "center", color: "#8fa0c4" }}>{children}</p>;
 }
 
 function PasswordResetRoute({ mode }: { mode: "forgotPassword" | "verifyCode" | "resetPassword" }) {
@@ -130,10 +164,16 @@ function PasswordResetRoute({ mode }: { mode: "forgotPassword" | "verifyCode" | 
   return <AuthPage mode={mode} />;
 }
 
-/** 로그인해야 들어가는 화면. 말없이 튕기지 않고 403 화면으로 이유를 알린다. 보안이 아니라 흐름용 잠금이다. */
+/**
+ * 로그인해야 들어가는 화면. 말없이 튕기지 않고 403 화면으로 이유를 알린다. 보안이 아니라 흐름용 잠금이다.
+ * 새 탭 · 즐겨찾기로 열면 서버 /me 답이 올 때까지 로그인 여부를 모른다 — 그 사이엔 403 대신 「확인 중」을 보인다.
+ */
 function RequireSession({ children }: { children: ReactNode }) {
   const user = useSessionUser();
-  return user ? children : <ErrorPage kind="403" />;
+  const isChecking = useSessionChecking();
+  if (user) return children;
+  if (isChecking) return <TransitNotice>로그인 상태를 확인하고 있습니다…</TransitNotice>;
+  return <ErrorPage kind="403" />;
 }
 
 function ReadProgressBar() {

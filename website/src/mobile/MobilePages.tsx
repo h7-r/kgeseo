@@ -10,9 +10,9 @@ import { ABOUT_CONTENT, ABOUT_TABS } from "@/data/about";
 import { SUPPORT_EMAIL } from "@/data/contact";
 import { MY_PAGE_CONTENT, MY_PAGE_TABS } from "@/data/myPage";
 import type { MyProgress } from "@/lib/myProgress";
+import { useMyInquiries, type MyInquiriesState } from "@/sections/myPage/useMyInquiries";
 import { useMyProgress } from "@/sections/myPage/useMyProgress";
-import type { InquiryRecord } from "@/services/account/db";
-import { readAccountData } from "@/services/account/manageAccount";
+import { categoryLabel, formatInquiryDate, inquiryStatusLabel, parseUtc } from "@/services/inquiries";
 import { PRICING } from "@/data/pricing";
 import { useActiveTabInView } from "@/components/useActiveTabInView";
 import { FAQ_ITEMS, SUPPORT_TABS } from "@/data/support";
@@ -347,24 +347,16 @@ export function MobileMyPage() {
   const content = MY_PAGE_CONTENT;
   // 내 진행 · 업적 · 아이템은 서버의 내 저장본에서(데스크톱과 같은 값)
   const { state: progressState } = useMyProgress(user?.id);
-  // 내 문의 — 이 기기에서 이 계정으로 접수한 것(문의 API 전)
-  const [inquiries, setInquiries] = useState<InquiryRecord[]>([]);
-  useEffect(() => {
-    if (!user?.email) return;
-    let isActive = true;
-    void readAccountData(user.email).then((data) => {
-      if (isActive) setInquiries(data?.inquiries ?? []);
-    });
-    return () => {
-      isActive = false;
-    };
-  }, [user?.email]);
+  // 저장이 있을 때만 「이어 하기」 — 데스크톱 ProfileCard 와 같은 기준
+  const hasProgress = progressState.status === "ready" && !progressState.progress.isEmpty;
+  // 내 문의 — 서버(/me/inquiries), 데스크톱과 같은 훅
+  const inquiries = useMyInquiries(user?.id, tab === "inquiries");
   return (
     <Shell>
       <PageHeading eyebrow="My page" title={user ? `${user.name} 님` : "마이페이지"} />
       <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
         <button type="button" style={primaryButtonStyle} onClick={() => navigate(START_GAME)}>
-          이어 하기
+          {hasProgress ? "이어 하기" : "모험 시작하기"}
         </button>
         <button
           type="button"
@@ -393,27 +385,13 @@ export function MobileMyPage() {
           )}
         </div>
       )}
-      {tab === "inquiries" &&
-        (inquiries.length ? (
-          <Rows
-            rows={inquiries.map(
-              (inquiry) =>
-                [
-                  `${inquiry.type} · ${new Date(inquiry.receivedAt).toLocaleDateString("ko-KR")}`,
-                  inquiry.title,
-                ] as const,
-            )}
-          />
-        ) : (
-          <p style={{ ...bodyTextStyle, fontSize: "14px", color: COLOR.textMuted, marginTop: 16 }}>
-            1:1 문의는 {SUPPORT_EMAIL} 로 받고 있습니다.
-          </p>
-        ))}
+      {tab === "inquiries" && <MobileInquiries inquiries={inquiries} />}
       {tab === "account" &&
         content.account.groups.map((group) => (
           <section key={group.title}>
             <h2 style={subheadingStyle}>{group.title}</h2>
-            {/* 단추 글(변경하기 · ON …)은 동작 · 저장값이 없어 쓸 수 있는 기능처럼 보이지 않게 「준비 중」으로 */}
+            {/* 모바일판은 계정 설정에 동작을 아직 안 붙였다(내보내기 · 비밀번호 변경은 데스크톱에서) — 쓸 수 있는 기능처럼 보이지 않게 전부 「준비 중」.
+                탈퇴는 서버(#177)는 있고 화면 연동은 미르 승인 뒤 */}
             <Rows rows={group.items.map((item) => [item.label, "준비 중"] as const)} />
           </section>
         ))}
@@ -422,6 +400,32 @@ export function MobileMyPage() {
         계정 설정(비밀번호 변경 · 로그인 기록 · 탈퇴 등)은 준비 중입니다.
       </p>
     </Shell>
+  );
+}
+
+/** 모바일 내 문의 — 데스크톱 InquiriesTab 과 같은 서버 값 · 같은 안내 문구를 줄로 */
+function MobileInquiries({ inquiries }: { inquiries: MyInquiriesState }) {
+  const noteStyle = { ...bodyTextStyle, fontSize: "14px", color: COLOR.textMuted, marginTop: 16 };
+  if (inquiries === "loading") return <p style={noteStyle}>내 문의를 불러오는 중입니다…</p>;
+  if (inquiries === null) {
+    return (
+      <p style={noteStyle}>내 문의를 불러오지 못했습니다. 새로고침해 주세요. 급하면 {SUPPORT_EMAIL} 로 보내 주세요.</p>
+    );
+  }
+  if (inquiries.length === 0) {
+    return <p style={noteStyle}>아직 접수한 문의가 없습니다. 로그인한 채 접수하면 답변을 여기에서 볼 수 있습니다.</p>;
+  }
+  // 접수 번호가 앞에 있어 같은 날 같은 유형이 여럿이어도 줄이 겹치지 않는다
+  return (
+    <Rows
+      rows={inquiries.map(
+        (inquiry) =>
+          [
+            `${inquiry.number} · ${categoryLabel(inquiry.category)} · ${inquiryStatusLabel(inquiry.status)}`,
+            `${inquiry.title} — ${formatInquiryDate(parseUtc(inquiry.created_at))}`,
+          ] as const,
+      )}
+    />
   );
 }
 

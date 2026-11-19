@@ -4,7 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 
 import { startBackgroundLoading } from "@/app/boot";
 import { isAdminRoute } from "@/navigation/routes";
-import { restoreServerSession } from "@/services/session";
+import { restoreServerSession, startSessionWatch } from "@/services/session";
 
 import App from "./App";
 
@@ -13,7 +13,11 @@ import "@/mobile/mobile.css";
 
 startBackgroundLoading();
 // 관리자 화면은 들어올 때 권한 검사(RequireAdmin)가 /me 를 다시 묻는다. 여기서도 부르면 같은 요청이 두 번 나간다.
-if (!isAdminRoute(window.location.pathname)) void restoreServerSession();
+if (!isAdminRoute(window.location.pathname)) {
+  void restoreServerSession();
+  // 다른 탭의 로그인 · 로그아웃과 탭이 다시 보일 때 서버와 맞춘다 — 세션 상태 동기화(11/18)
+  startSessionWatch();
+}
 
 // 새로고침 때 이전 스크롤 위치로 복원되면 긴 페이지가 중간에서 시작한다.
 if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";

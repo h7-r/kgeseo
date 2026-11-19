@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app.api.v1 import error_responses
 from app.core.config import settings
@@ -28,6 +29,7 @@ from app.services.naver_auth import (
     InvalidNaverAuthorizationCodeError,
     InvalidNaverProfileError,
     NaverAuthConfigurationError,
+    NaverEmailRequiredError,
     NaverProfileError,
     NaverTokenExchangeError,
     verify_naver_authorization_code,
@@ -36,11 +38,16 @@ from app.services.nickname_policy import InvalidNicknameError, validate_nickname
 from app.services.registration_input_policy import (
     InvalidEmailError,
     InvalidPasswordError,
+    InvalidRegionError,
 )
 from app.services.request_rate_limit import (
     EMAIL_EXISTS,
+    LOGIN,
     NICKNAME_EXISTS,
     REGISTER,
+    SOCIAL_GOOGLE,
+    SOCIAL_NAVER,
+    SOCIAL_ONBOARDING_COMPLETE,
     limit_by_ip,
 )
 from app.services.social_auth import (
@@ -59,6 +66,7 @@ from app.services.user_session import (
     record_login_failure,
     require_same_origin,
     start_session,
+    wait_phrase,
 )
 
 
@@ -102,6 +110,8 @@ router = APIRouter(
     "/google",
     response_model=SocialUserResponse | SocialOnboardingRequiredResponse,
     responses=error_responses.GOOGLE_LOGIN,
+    # IP 당 요청 빈도(11/18). 가입과 같은 자리 — Origin 검사 다음, 본문 검증보다 먼저
+    dependencies=[Depends(limit_by_ip(SOCIAL_GOOGLE))],
 )
 async def login_with_google(
     request: GoogleLoginRequest,
@@ -111,7 +121,9 @@ async def login_with_google(
 ) -> SocialUserResponse | SocialOnboardingRequiredResponse:
     response.headers["Cache-Control"] = "no-store"
     try:
-        profile = verify_google_credential(
+        # 구글 인증서 조회는 동기 HTTP 라 스레드 풀에서 돌린다 — 이벤트 루프가 다른 요청을 계속 받는다(11/18)
+        profile = await run_in_threadpool(
+            verify_google_credential,
             request.credential,
             settings.google_client_id,
         )
@@ -144,6 +156,7 @@ async def login_with_google(
     "/naver",
     response_model=SocialUserResponse | SocialOnboardingRequiredResponse,
     responses=error_responses.NAVER_LOGIN,
+    dependencies=[Depends(limit_by_ip(SOCIAL_NAVER))],
 )
 async def login_with_naver(
     request: NaverLoginRequest,
@@ -153,7 +166,9 @@ async def login_with_naver(
 ) -> SocialUserResponse | SocialOnboardingRequiredResponse:
     response.headers["Cache-Control"] = "no-store"
     try:
-        profile = verify_naver_authorization_code(
+        # 네이버 토큰 교환 · 프로필 조회(동기 requests, 최대 10초)를 스레드 풀로 — 이벤트 루프를 막지 않는다(11/18)
+        profile = await run_in_threadpool(
+            verify_naver_authorization_code,
             request.code,
             request.state,
             settings.naver_client_id,
@@ -185,6 +200,16 @@ async def login_with_naver(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Naver profile request failed.",
+            headers={"Cache-Control": "no-store"},
+        ) from error
+    except NaverEmailRequiredError as error:
+        # 프로필은 정상인데 이메일만 없다 — 화면이 「네이버에서 이메일 제공에 동의」로 안내할 수 있게 code 로 가른다(11/18)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "code": "email_required",
+                "message": "네이버 계정에서 이메일을 받지 못했습니다. 이메일 제공에 동의한 뒤 다시 시도해 주세요.",
+            },
             headers={"Cache-Control": "no-store"},
         ) from error
     except InvalidNaverProfileError as error:
@@ -240,15 +265,39 @@ async def register_local_account(
         ) from error
     except InvalidNicknameError as error:
         raise invalid_nickname_exception() from error
+    except InvalidRegionError as error:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "invalid_region",
+                "message": "목록에 있는 지역을 골라 주세요.",
+            },
+            headers={"Cache-Control": "no-store"},
+        ) from error
+    # 중복은 code 로 가른다(11/18). message 는 옛 화면이 비교하던 문장 그대로 둔다.
     except local_auth.EmailAlreadyRegisteredError as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Email already registered.",
+            detail={"code": "email_taken", "message": "Email already registered."},
+            headers={"Cache-Control": "no-store"},
         ) from error
     except local_auth.NicknameAlreadyRegisteredError as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Nickname already registered.",
+            detail={
+                "code": "nickname_taken",
+                "message": "Nickname already registered.",
+            },
+            headers={"Cache-Control": "no-store"},
+        ) from error
+    except local_auth.TermsVersionMismatchError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "terms_version_mismatch",
+                "message": "약관이 바뀌었습니다. 새 약관을 확인하고 다시 동의해 주세요.",
+            },
+            headers={"Cache-Control": "no-store"},
         ) from error
     except local_auth.ConsentRequiredError as error:
         raise HTTPException(
@@ -266,7 +315,11 @@ async def register_local_account(
 
 
 @router.post(
-    "/login", response_model=LocalAuthResponse, responses=error_responses.LOGIN
+    "/login",
+    response_model=LocalAuthResponse,
+    responses=error_responses.LOGIN,
+    # IP 당 요청 빈도(11/18). 이메일 · IP 실패 잠금과 별개로, 잠금 확인 · DB 조회보다 먼저 센다
+    dependencies=[Depends(limit_by_ip(LOGIN))],
 )
 async def login_local_account(
     request: LocalLoginRequest,
@@ -281,7 +334,8 @@ async def login_local_account(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={
                 "code": "login_locked",
-                "message": "로그인 실패가 많아 잠시 막혔습니다. 15분 뒤 다시 시도해 주세요.",
+                # 남은 시간은 Retry-After 와 같은 숫자로 말한다 — 고정 「15분」은 잠금 중반부터 틀렸다(11/18)
+                "message": f"로그인 실패가 많아 잠시 막혔습니다. {wait_phrase(retry_after)} 다시 시도해 주세요.",
             },
             # 잠금이 풀릴 때까지 남은 초(DB 잠금 기록 기준). CORS expose_headers 로 웹사이트가 읽는다.
             headers={"Cache-Control": "no-store", "Retry-After": str(retry_after)},
@@ -385,6 +439,7 @@ def account_link_required_exception() -> HTTPException:
     response_model=SocialUserResponse,
     status_code=201,
     responses=error_responses.SOCIAL_ONBOARDING,
+    dependencies=[Depends(limit_by_ip(SOCIAL_ONBOARDING_COMPLETE))],
 )
 async def complete_social_account(
     request: SocialOnboardingCompleteRequest,

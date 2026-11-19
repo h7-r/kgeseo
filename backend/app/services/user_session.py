@@ -34,6 +34,14 @@ MAX_FAILURES_PER_EMAIL = 5
 MAX_FAILURES_PER_IP = 30
 
 
+def wait_phrase(seconds: int) -> str:
+    """429 본문의 「n초 뒤」 · 「n분 뒤」 — `Retry-After` 와 같은 숫자를 말한다(웹의 waitPhrase 와 같은 셈, 1분 넘으면 분으로 올림)."""
+
+    if seconds < 60:
+        return f"{seconds}초 뒤"
+    return f"{math.ceil(seconds / 60)}분 뒤"
+
+
 def _hash(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 

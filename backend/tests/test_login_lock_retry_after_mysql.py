@@ -18,6 +18,7 @@ from app.services.user_session import (
     MAX_FAILURES_PER_EMAIL,
     MAX_FAILURES_PER_IP,
     THROTTLE_WINDOW,
+    wait_phrase,
 )
 from tests.test_npc_turn_idempotency_mysql import mysql_run, pytestmark  # noqa: F401
 
@@ -26,10 +27,11 @@ PASSWORD = "Synthetic-Only-9!"
 WRONG = "Wrong-Password-9!"
 NOW = datetime(2026, 11, 10, 3, 0, 0)
 WINDOW = int(THROTTLE_WINDOW.total_seconds())
+# 잠금 직후라 Retry-After 는 창 전체(900초) — message 도 같은 숫자 「15분 뒤」(11/18 부터 남은 초로 계산한다)
 LOCKED = {
     "detail": {
         "code": "login_locked",
-        "message": "로그인 실패가 많아 잠시 막혔습니다. 15분 뒤 다시 시도해 주세요.",
+        "message": f"로그인 실패가 많아 잠시 막혔습니다. {wait_phrase(WINDOW)} 다시 시도해 주세요.",
     }
 }
 

@@ -19,6 +19,8 @@ const PILL_FONT_SIZE = 18;
 interface HeaderProps {
   activeId: HeaderMenuId;
   user: SessionUser | null;
+  /** 서버에 로그인 여부를 묻는 중 — 계정 단추의 글자를 비워 둔다 */
+  isCheckingSession?: boolean;
   onAccountClick: () => void;
   onPlay: () => void;
   onSignOut: () => void;
@@ -32,7 +34,16 @@ type MenuPositions = Partial<Record<HeaderMenuId, { left: number; width: number 
  * 머리띠. 메뉴는 모든 페이지에서 여섯 항목이 같아야 밑줄이 옮겨 갈 자리가 있다.
  * 밑줄은 하나만 두고 켜진 항목 아래로 미끄러뜨린다.
  */
-function Header({ activeId, user, onAccountClick, onPlay, onSignOut, onSearch, onMenuNavigate }: HeaderProps) {
+function Header({
+  activeId,
+  user,
+  isCheckingSession = false,
+  onAccountClick,
+  onPlay,
+  onSignOut,
+  onSearch,
+  onMenuNavigate,
+}: HeaderProps) {
   const rowRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Partial<Record<HeaderMenuId, HTMLButtonElement | null>>>({});
   // 애니메이션이 끝나면 꺼야 다음에 눌렀을 때 다시 돈다.
@@ -153,7 +164,9 @@ function Header({ activeId, user, onAccountClick, onPlay, onSignOut, onSearch, o
               <span style={{ fontWeight: 500, opacity: 0.8, fontSize: "0.88em" }}>님</span>
             </span>
           ) : (
-            <span className="button__label">로그인 · 회원가입</span>
+            <span className="button__label" style={isCheckingSession ? { visibility: "hidden" } : undefined}>
+              로그인 · 회원가입
+            </span>
           )}
         </button>
         {user && (

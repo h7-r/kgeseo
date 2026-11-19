@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 
 import { FONT } from "@/lib/style";
+import { PROVIDER_LABEL, providersOf } from "@/services/account/meProfile";
 import type { SessionUser } from "@/services/session";
 import { COLOR, GRADIENT } from "@/styles/tokens";
 
@@ -8,9 +9,6 @@ import { profileStartStyle } from "./myPageStyles";
 
 /** [이름, 숫자, 단위] — 프로필 오른쪽 숫자 칸. 숫자는 표제 글꼴, 단위(%·건·개)는 본문 글꼴로 따로 그린다 */
 export type ProfileStat = readonly [label: string, value: string, unit: string];
-
-/** 가입 방식 이름(서버 provider) */
-const PROVIDER_LABEL: Record<string, string> = { local: "이메일 가입", google: "Google 가입", naver: "네이버 가입" };
 
 interface ProfileCardProps {
   user: SessionUser;
@@ -23,14 +21,15 @@ interface ProfileCardProps {
 
 /** 마이페이지 맨 위. 헤더 알약을 누르고 들어온 사람이 누구의 페이지인지 바로 알게 한다. */
 export default function ProfileCard({ user, stats, hasProgress, onStart, onSignOut }: ProfileCardProps) {
-  // 새 탭에서 로그인이 복원되면(/me) 가입일 · 가입 방식이 없다 — 모르는 칸은 「—」 대신 숨긴다.
+  // 가입일 · 가입 방식은 /me 가 created_at · providers 를 주는 서버(BE-3, 11/18)에서 온다 — 옛 서버로 복원돼 모르면 「—」 대신 숨긴다
   const joined = user.joinedAt
     ? new Date(user.joinedAt)
         .toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" })
         .replace(/\s/g, "")
         .replace(/\.$/, "")
     : null;
-  const provider = user.provider ? PROVIDER_LABEL[user.provider] : undefined;
+  // 연결된 가입 방식마다 칩 하나(이메일 + Google 처럼 둘일 수 있다)
+  const providerChips = providersOf(user).map((provider) => PROVIDER_LABEL[provider] ?? provider);
   const initial = (user.name || "?").slice(0, 1).toUpperCase();
 
   return (
@@ -53,7 +52,11 @@ export default function ProfileCard({ user, stats, hasProgress, onStart, onSignO
               {user.email}
             </span>
             <span style={profileChipStyle}>지역 · {user.region || "미정"}</span>
-            {provider && <span style={profileChipStyle}>{provider}</span>}
+            {providerChips.map((chip) => (
+              <span key={chip} style={profileChipStyle}>
+                {chip}
+              </span>
+            ))}
             {joined && <span style={profileChipStyle}>합류 {joined}</span>}
             {user.isTest && (
               <span style={{ ...profileChipStyle, color: COLOR.warning, borderColor: "rgba(251,191,36,0.4)" }}>

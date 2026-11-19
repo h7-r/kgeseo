@@ -1,14 +1,12 @@
 import { useState, type CSSProperties } from "react";
 
+import ComingSoonChip from "@/components/ComingSoonChip";
 import HeartbeatLine from "@/components/HeartbeatLine";
 import Modal from "@/components/Modal";
-import { modalPrimaryStyle, modalSecondaryStyle } from "@/components/modalButtonStyles";
+import { modalSecondaryStyle } from "@/components/modalButtonStyles";
 import { PRICING, type PlanName, type PricingPlan } from "@/data/pricing";
 import { FONT } from "@/lib/style";
-import { QUERY, ROUTES, useSiteNavigate, withQuery } from "@/navigation/routes";
 import { sectionAnchor } from "@/navigation/subMenus";
-import { readAccountData, writeAccountData } from "@/services/account/manageAccount";
-import { useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
 import BenefitsBlock from "./BenefitsBlock";
@@ -47,8 +45,6 @@ interface PricingPlansProps {
 
 /** 구독 요금제. 플랜 비교 · 결제 정보 · 혜택 안내 세 덩이. */
 export default function PricingPlans({ top }: PricingPlansProps) {
-  const navigate = useSiteNavigate();
-  const user = useSessionUser();
   // 돌린 칸 수. 0 이면 BASIC·PREMIUM·ULTIMATE 원래 순서.
   const [rotation, setRotation] = useState(0);
   // 모달은 닫히며 잠깐 사라지는 동안에도 내용을 그린다. 그래서 플랜은 남겨 두고 열림만 끈다.
@@ -56,19 +52,13 @@ export default function PricingPlans({ top }: PricingPlansProps) {
   const [isSubscribeOpen, setIsSubscribeOpen] = useState(false);
   const [detailPlan, setDetailPlan] = useState<PricingPlan | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [isAlertRequested, setIsAlertRequested] = useState(false);
   const planCount = PRICING.plans.length;
 
   const rotate = (steps: number) => setRotation((value) => (value + steps + planCount) % planCount);
 
-  // 결제(PG)는 서버가 있어야 해서, 그 전까지는 로그인을 받고 오픈 알림 신청을 받는다.
-  const subscribe = async (plan: PricingPlan) => {
-    if (!user) {
-      navigate(withQuery(ROUTES.login, { [QUERY.next]: ROUTES.pricing }));
-      return;
-    }
-    const data = await readAccountData(user.email);
-    setIsAlertRequested(data?.settings.launchAlertPlan === plan.name);
+  // 결제(PG)도 메일 발송도 아직 없다 — 「구독하기」는 그 사실을 알리는 창만 연다.
+  // 브라우저에만 남던 「오픈 알림 신청」흉내는 뺐다(운영팀이 볼 수 없는 신청이었다, 11/18)
+  const subscribe = (plan: PricingPlan) => {
     setSelectedPlan(plan);
     setIsSubscribeOpen(true);
   };
@@ -76,16 +66,7 @@ export default function PricingPlans({ top }: PricingPlansProps) {
   // 자세히 보기의 「구독하기」는 카드 단추와 같은 길로 간다. 겹쳐 뜨지 않게 자세히 보기를 먼저 닫는다.
   const subscribeFromDetail = (plan: PricingPlan) => {
     setIsDetailOpen(false);
-    void subscribe(plan);
-  };
-
-  const handleRequestAlert = async () => {
-    if (!user || !selectedPlan) return;
-    const data = await readAccountData(user.email);
-    await writeAccountData(user.email, {
-      settings: { ...data?.settings, launchAlertPlan: selectedPlan.name, launchAlertAt: Date.now() },
-    });
-    setIsAlertRequested(true);
+    subscribe(plan);
   };
 
   const closeModal = () => setIsSubscribeOpen(false);
@@ -261,7 +242,7 @@ export default function PricingPlans({ top }: PricingPlansProps) {
         open={isSubscribeOpen}
         onClose={closeModal}
         title={`${selectedPlan?.name ?? ""} 플랜 구독`}
-        description="결제는 정식 오픈과 함께 열립니다. 오픈 알림을 신청하면 가입한 이메일로 가장 먼저 알려 드립니다."
+        description="결제는 정식 오픈과 함께 열립니다. 이메일 오픈 알림은 준비 중이라 지금은 신청을 받지 않습니다 — 열리면 고객센터 공지로 먼저 알려 드립니다."
       >
         {selectedPlan && (
           <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
@@ -273,27 +254,11 @@ export default function PricingPlans({ top }: PricingPlansProps) {
                 {selectedPlan.price}
               </span>
             </div>
-            <span style={{ fontFamily: FONT.mono, fontSize: "14px", color: COLOR.textDim }}>
-              받는 곳 · {user?.email}
-            </span>
-            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", alignItems: "center" }}>
+              <ComingSoonChip label="오픈 알림 준비 중" style={{ fontSize: "14px" }} />
               <button type="button" className="button" style={modalSecondaryStyle} onClick={closeModal}>
                 <span className="button__label">닫기</span>
               </button>
-              {isAlertRequested ? (
-                <span style={{ alignSelf: "center", fontFamily: FONT.body, fontWeight: 700, color: COLOR.success }}>
-                  ✓ 오픈 알림 신청됨
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  className="button button--primary"
-                  style={modalPrimaryStyle}
-                  onClick={handleRequestAlert}
-                >
-                  <span className="button__label">오픈 알림 신청</span>
-                </button>
-              )}
             </div>
           </div>
         )}

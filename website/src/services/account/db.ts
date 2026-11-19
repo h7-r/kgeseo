@@ -1,6 +1,11 @@
 /**
- * 브라우저 안 계정 저장소(IndexedDB). 가입·로그인·중복 확인은 백엔드가 맡고,
- * 비밀번호 변경·재설정·탈퇴·기록·설정은 아직 서버 API 가 없어 여기에 둔다 — 진짜 인증이 아니다.
+ * 브라우저 안 계정 저장소(IndexedDB). 가입·로그인·중복 확인·탈퇴·저장본·문의는 백엔드가 맡고,
+ * 비밀번호 변경·재설정만 아직 서버 API 가 없어 여기 흉내로 둔다(IS_ACCOUNT_MANAGEMENT_READY) — 진짜 인증이 아니다.
+ *
+ * 계정별 기록·설정·문의를 이메일 열쇠로 두던 accountData 표는 3판에서 지웠다(11/18) — 서버 값이 생겼거나(문의) 기능을 뺐고(메일 수신 · 오픈 알림),
+ * 이메일 열쇠는 탈퇴 뒤 같은 이메일로 다시 가입하면 옛 값을 물려받았다.
+ * 탈퇴(POST /me/withdrawal 204) 뒤 이 브라우저에서 지울 것: 세션(signOut 이 지움)뿐이다 — 이 표들에는 서버 가입자의 행이 없다.
+ * 게임 출처(play)의 베타 기록 열쇠는 여기서 못 지운다 — /me 가 401 을 돌려줄 때 게임 쪽 규칙으로.
  */
 
 import { TEST_ACCOUNT } from "./testAccount";
@@ -8,11 +13,12 @@ import { TEST_ACCOUNT } from "./testAccount";
 const DB_NAME = "waegok-accounts";
 /** 한글 이름을 쓰던 이전 판의 DB. 로컬 시연용 계정뿐이라 옮기지 않고 지운다. */
 const LEGACY_DB_NAME = "왜곡계정";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
+/** 2판까지 있던 계정별 기록·설정 표. 3판으로 올리며 지운다 */
+const RETIRED_STORE = "accountData";
 
 export const STORE = {
   accounts: "accounts",
-  accountData: "accountData",
   consents: "consents",
   loginAttempts: "loginAttempts",
 } as const;
@@ -35,35 +41,6 @@ export interface AccountRecord {
   isTest: boolean;
 }
 
-export interface AccountSettings {
-  emailNotifications?: boolean;
-  /** 오픈 알림을 신청한 플랜 이름 */
-  launchAlertPlan?: string;
-  launchAlertAt?: number;
-}
-
-/** 이 계정으로 접수한 1:1 문의 한 건. 문의 API 가 붙기 전까지는 이 브라우저에만 남는다. */
-export interface InquiryRecord {
-  number: string;
-  type: string;
-  title: string;
-  content: string;
-  /** 답변 받을 이메일 */
-  email: string;
-  attachment: string | null;
-  /** 접수 시각(ms) */
-  receivedAt: number;
-}
-
-/** 계정별 기록·설정. 계정 표와 같은 열쇠(이메일)로 나눠 둔다. */
-export interface AccountData {
-  email: string;
-  records: unknown[];
-  settings: AccountSettings;
-  /** 접수한 1:1 문의 — 최근 것이 앞 */
-  inquiries?: InquiryRecord[];
-}
-
 export type ConsentKind = "terms" | "privacyCollection" | "over14";
 
 export interface ConsentRecord {
@@ -82,20 +59,16 @@ export const normalizeEmail = (email: unknown) =>
     .trim()
     .toLowerCase();
 
-export const emptyAccountData = (email: string): AccountData => ({ email, records: [], settings: {} });
-
 /**
- * 이 DB 는 이전 판에서 올라오는 경로가 없어 표·색인을 한 번에 만든다.
- * contains 검사가 있어 다음 판을 올릴 때도 이 블록을 그대로 쓸 수 있다.
+ * 표·색인을 한 번에 만든다. contains 검사가 있어 어느 판에서 올라와도 이 블록 하나로 된다.
+ * 3판: accountData 표를 지운다(위 머리말).
  */
 function createSchema(db: IDBDatabase) {
+  if (db.objectStoreNames.contains(RETIRED_STORE)) db.deleteObjectStore(RETIRED_STORE);
   if (!db.objectStoreNames.contains(STORE.accounts)) {
     const accounts = db.createObjectStore(STORE.accounts, { keyPath: "email" });
     // 화면에서 미리 막아도, 두 탭에서 동시에 가입하는 경우까지 막아 주는 마지막 벽이다.
     accounts.createIndex("nicknameKey", "nicknameKey", { unique: true });
-  }
-  if (!db.objectStoreNames.contains(STORE.accountData)) {
-    db.createObjectStore(STORE.accountData, { keyPath: "email" });
   }
   if (!db.objectStoreNames.contains(STORE.consents)) {
     const consents = db.createObjectStore(STORE.consents, { keyPath: "id" });
@@ -112,7 +85,7 @@ function createSchema(db: IDBDatabase) {
  */
 function seedTestAccount(db: IDBDatabase): Promise<void> {
   return new Promise((resolve) => {
-    const transaction = db.transaction([STORE.accounts, STORE.accountData], "readwrite");
+    const transaction = db.transaction(STORE.accounts, "readwrite");
     const accounts = transaction.objectStore(STORE.accounts);
     if (!TEST_ACCOUNT) {
       // 전에 심은 것도 치운다. 남아 있으면 그 기기에선 누구나 그 계정으로 계정 관리 화면을 쓸 수 있다.
@@ -121,10 +94,7 @@ function seedTestAccount(db: IDBDatabase): Promise<void> {
         const current = cursor.result;
         if (!current) return;
         const account = current.value as AccountRecord;
-        if (account.isTest) {
-          current.delete();
-          transaction.objectStore(STORE.accountData).delete(account.email);
-        }
+        if (account.isTest) current.delete();
         current.continue();
       };
     } else {
@@ -141,9 +111,7 @@ function seedTestAccount(db: IDBDatabase): Promise<void> {
       };
       const lookup = accounts.get(testAccount.email) as IDBRequest<AccountRecord | undefined>;
       lookup.onsuccess = () => {
-        if (lookup.result) return;
-        accounts.put(testAccount);
-        transaction.objectStore(STORE.accountData).put(emptyAccountData(testAccount.email));
+        if (!lookup.result) accounts.put(testAccount);
       };
     }
     transaction.oncomplete = () => resolve();

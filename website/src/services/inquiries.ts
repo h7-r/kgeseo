@@ -4,6 +4,7 @@
  */
 import { apiUrl } from "@/config/env";
 import { parseRetryAfter, rateLimitedMessage } from "@/lib/retryAfter";
+import { endLocalSession } from "@/services/session";
 
 export type InquiryCategory = "account" | "gameplay" | "payment" | "tech" | "other";
 
@@ -80,6 +81,9 @@ export interface MyInquiry {
   replies: MyInquiryReply[];
 }
 
+const STATUS_LABEL: Record<MyInquiry["status"], string> = { open: "답변 대기", answered: "답변 완료", closed: "종료" };
+export const inquiryStatusLabel = (status: MyInquiry["status"]): string => STATUS_LABEL[status];
+
 /** 로그인한 계정으로 접수한 문의 전부. 서버가 안 되면 null(화면은 「불러오지 못함」). */
 export async function fetchMyInquiries(signal?: AbortSignal): Promise<MyInquiry[] | null> {
   try {
@@ -88,12 +92,21 @@ export async function fetchMyInquiries(signal?: AbortSignal): Promise<MyInquiry[
       headers: { Accept: "application/json" },
       signal,
     });
+    // 서버 세션이 끝났다 — 이 탭의 로그인 표시도 거둔다.
+    if (response.status === 401) endLocalSession();
     if (!response.ok) return null;
     const body = (await response.json()) as { items: MyInquiry[] };
     return body.items;
   } catch {
     return null;
   }
+}
+
+/** 2026.11.10 16:20 — 보는 사람의 시간대로 */
+export function formatInquiryDate(at: number): string {
+  const date = new Date(at);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}.${pad(date.getMonth() + 1)}.${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 /** 서버 시각은 UTC naive ISO(`2026-11-13T05:10:00`). Z 가 없으면 UTC 로 본다. */

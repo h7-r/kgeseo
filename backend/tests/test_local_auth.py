@@ -9,6 +9,10 @@ from app.models.auth_identity import AuthIdentity
 from app.services import local_auth
 from app.services.local_auth import hash_password
 
+# 409 중복은 code 로 가르고 message 는 옛 화면이 비교하던 문장 그대로다(11/18)
+EMAIL_TAKEN = {"code": "email_taken", "message": "Email already registered."}
+NICKNAME_TAKEN = {"code": "nickname_taken", "message": "Nickname already registered."}
+
 
 def make_user(
     *,
@@ -106,7 +110,8 @@ def test_register_local_account_rejects_duplicate_email(client, db_session):
     response = client.post("/api/v1/auth/register", json=register_payload())
 
     assert response.status_code == 409
-    assert response.json()["detail"] == "Email already registered."
+    assert response.json()["detail"] == EMAIL_TAKEN
+    assert response.headers["cache-control"] == "no-store"
     assert db_session.added == []
 
 
@@ -116,7 +121,7 @@ def test_register_local_account_rejects_duplicate_nickname(client, db_session):
     response = client.post("/api/v1/auth/register", json=register_payload())
 
     assert response.status_code == 409
-    assert response.json()["detail"] == "Nickname already registered."
+    assert response.json()["detail"] == NICKNAME_TAKEN
     assert db_session.added == []
 
 
@@ -158,7 +163,7 @@ def test_register_local_account_race_condition_reports_email_duplicate(
     response = client.post("/api/v1/auth/register", json=register_payload())
 
     assert response.status_code == 409
-    assert response.json()["detail"] == "Email already registered."
+    assert response.json()["detail"] == EMAIL_TAKEN
     assert db_session.rollback_count == 1
 
 
@@ -177,7 +182,7 @@ def test_register_local_account_race_condition_reports_nickname_duplicate(
     response = client.post("/api/v1/auth/register", json=register_payload())
 
     assert response.status_code == 409
-    assert response.json()["detail"] == "Nickname already registered."
+    assert response.json()["detail"] == NICKNAME_TAKEN
     assert db_session.rollback_count == 1
 
 
@@ -531,8 +536,122 @@ def test_login_validation_error_does_not_echo_input(client, db_session, payload,
     assert db_session.scalar_calls == []
 
 
+@pytest.mark.parametrize(
+    "path,payload,code",
+    [
+        ("email-exists", {"email": ""}, "invalid_email"),
+        ("email-exists", {"email": 12345}, "invalid_email"),
+        ("email-exists", {}, "invalid_email"),
+        ("email-exists", {"email": "a" * 255}, "invalid_email"),
+        ("nickname-exists", {}, "invalid_nickname"),
+        ("nickname-exists", {"nickname": ["세진"]}, "invalid_nickname"),
+        ("nickname-exists", {"nickname": "세진", "extra": "x"}, None),
+    ],
+)
+def test_exists_validation_error_does_not_echo_input(
+    client, db_session, path, payload, code
+):
+    """중복 확인 둘의 형식 오류도 register · login 과 같은 {code, message} 다(11/18) — 입력값을 되돌리지 않는다."""
+    response = client.post(f"/api/v1/auth/{path}", json=payload)
+
+    if code is None:
+        # 모르는 키는 그냥 무시된다(기존 그대로)
+        assert response.status_code == 200
+        return
+    assert response.status_code == 422
+    assert set(response.json()["detail"]) == {"code", "message"}
+    assert response.json()["detail"]["code"] == code
+    assert "input" not in response.text
+    assert "12345" not in response.text and "a" * 255 not in response.text
+    assert response.headers["cache-control"] == "no-store"
+    assert db_session.scalar_calls == []
+
+
 def test_other_routes_keep_default_validation_error(client):
-    response = client.post("/api/v1/auth/email-exists", json={"email": ""})
+    response = client.post(
+        "/api/v1/inquiries", json={"category": "bug", "title": "", "body": ""}
+    )
 
     assert response.status_code == 422
     assert isinstance(response.json()["detail"], list)
+
+
+# --- 가입 검증(11/18): 동의 엄격 bool · 약관 판 · 지역 ---
+
+
+@pytest.mark.parametrize("value", ["true", "yes", "on", 1, None])
+def test_registration_consent_requires_boolean(client, db_session, value):
+    request = register_payload()
+    request["consent"]["terms"] = value
+    response = client.post("/api/v1/auth/register", json=request)
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "invalid_input"
+    assert "RightCombination123!" not in response.text
+    assert db_session.added == []
+
+
+def test_registration_consent_rejects_unknown_keys(client, db_session):
+    request = register_payload()
+    request["consent"]["marketing"] = True
+    response = client.post("/api/v1/auth/register", json=request)
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "invalid_input"
+    assert db_session.added == []
+
+
+@pytest.mark.parametrize("version", ["1999-01", "2026-10", "old"])
+def test_registration_rejects_other_terms_version(client, db_session, version):
+    request = register_payload()
+    request["consent"]["terms_version"] = version
+    response = client.post("/api/v1/auth/register", json=request)
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "terms_version_mismatch"
+    assert response.headers["cache-control"] == "no-store"
+    assert db_session.added == [] and db_session.scalar_calls == []
+
+
+def test_registration_without_terms_version_stores_current_version(client, db_session):
+    request = register_payload()
+    del request["consent"]["terms_version"]
+    response = client.post("/api/v1/auth/register", json=request)
+
+    assert response.status_code == 201
+    assert db_session.added[0].terms_version == "2026-09"
+
+
+@pytest.mark.parametrize("region", ["화성시", "전라남도", "Seoul", "서울특별시"])
+def test_registration_rejects_region_outside_list(client, db_session, region):
+    request = register_payload()
+    request["region"] = region
+    response = client.post("/api/v1/auth/register", json=request)
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == {
+        "code": "invalid_region",
+        "message": "목록에 있는 지역을 골라 주세요.",
+    }
+    assert response.headers["cache-control"] == "no-store"
+    assert region not in response.text
+    assert db_session.added == [] and db_session.scalar_calls == []
+
+
+@pytest.mark.parametrize("region", [None, "", "   "])
+def test_registration_blank_region_is_stored_as_none(client, db_session, region):
+    request = register_payload()
+    request["region"] = region
+    response = client.post("/api/v1/auth/register", json=request)
+
+    assert response.status_code == 201
+    assert db_session.added[0].region is None
+    assert response.json()["user"]["region"] is None
+
+
+def test_registration_region_list_matches_shared_json():
+    from app.services.registration_input_policy import REGIONS, REGIONS_PATH
+
+    assert REGIONS_PATH.exists(), "shared/regions.json 이 있어야 화면과 같은 목록이다"
+    assert len(REGIONS) == 17
+    assert {"서울", "세종", "전남", "제주"} <= REGIONS

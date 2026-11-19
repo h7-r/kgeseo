@@ -65,7 +65,7 @@ const SCREEN_LIST = [
     id: "userStats",
     path: "user-stats",
     label: "회원 통계",
-    description: "가입 흐름과 지역 · 로그인 수단 분포를 봅니다. 탈퇴는 기능 전입니다.",
+    description: "가입 흐름과 지역 · 로그인 수단 분포를 봅니다. 탈퇴 집계는 준비 중입니다.",
     status: "live",
   },
   {

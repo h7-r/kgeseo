@@ -70,6 +70,17 @@ function RecentLoginValue({ user }: { user: AdminUserDetail["user"] }) {
   );
 }
 
+/** 탈퇴 회원(계약 account_withdrawal_v0.2.md §11) — 되돌릴 수 없는 상태라 레드로 띄우고, 아래 이메일 · 닉네임이 비식별화된 값임을 한 줄 덧붙인다 */
+function WithdrawnValue({ deletedAt }: { deletedAt: string }) {
+  return (
+    <>
+      <Badge tone="red">탈퇴 회원</Badge>
+      <span className="adm-stamp is-mono">{formatDateTime(deletedAt)}</span>
+      <span className="adm-field-row__note">이메일 · 닉네임은 비식별화된 값입니다.</span>
+    </>
+  );
+}
+
 function UserDetail({ detail }: { detail: AdminUserDetail }) {
   const { user, save, character, items } = detail;
   const sections = listSections(save?.state);
@@ -80,6 +91,11 @@ function UserDetail({ detail }: { detail: AdminUserDetail }) {
       <div className="adm-grid adm-grid--three">
         <Panel title="계정">
           <dl className="adm-fields">
+            {user.deleted_at && (
+              <Field label="상태">
+                <WithdrawnValue deletedAt={user.deleted_at} />
+              </Field>
+            )}
             <Field label="닉네임">{user.nickname}</Field>
             <Field label="이메일" mono>
               {user.email}

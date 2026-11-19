@@ -5,11 +5,17 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class MeResponse(BaseModel):
+    """`GET /me`(계약 docs/contracts/account_me_v0.1.md). 새 탭에서 쿠키로 복원할 때 웹사이트가 이것만으로 프로필을 다시 그린다."""
+
     user_id: str
     email: str
     nickname: str
     region: str | None
     role: str
+    # 가입 시각. 다른 API 와 달리 UTC 표시(`Z`)를 붙여 낸다 — 웹이 Z 없는 값도 UTC 로 읽지만 복원 경로는 명시한다(11/18)
+    created_at: datetime
+    # 로그인 수단(auth_identities.provider 그대로: local · google · naver). 연결한 순서, 중복 없음. 소셜 전용 회원이면 local 이 없다
+    providers: list[str]
 
 
 class WithdrawalRequest(BaseModel):

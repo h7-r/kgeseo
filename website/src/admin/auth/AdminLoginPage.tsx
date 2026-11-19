@@ -3,11 +3,21 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { toAdminError } from "../api/client";
 import { ADMIN_ROLE, fetchMe, loginWithPassword, logout, type LoginResult } from "../api/session";
+import { loginInputError } from "../lib/loginInput";
 import { lockedLoginMessage } from "../lib/loginLock";
 import { adminNextPath } from "../paths";
 
 type FieldErrors = { email?: string; password?: string };
 type FailedLogin = Extract<LoginResult, { ok: false }>;
+
+/** 실패 문구는 비밀번호 칸 아래에 — 422 만 서버 code 가 가리키는 칸(이메일 · 비밀번호)에 붙인다 */
+function loginErrors(result: FailedLogin): FieldErrors {
+  if (result.failure === "input") {
+    const { field, message } = loginInputError(result.code);
+    return { [field]: message };
+  }
+  return { password: loginMessage(result) };
+}
 
 function loginMessage(result: FailedLogin): string {
   switch (result.failure) {
@@ -15,8 +25,6 @@ function loginMessage(result: FailedLogin): string {
       return "이메일 또는 비밀번호가 올바르지 않습니다.";
     case "locked":
       return lockedLoginMessage(result.retryAfterSeconds);
-    case "input":
-      return "이메일 형식을 다시 확인해 주세요.";
     case "offline":
       return "서버에 연결할 수 없습니다. 잠시 뒤 다시 시도해 주세요.";
     default:
@@ -54,7 +62,7 @@ export default function AdminLoginPage() {
     try {
       const result = await loginWithPassword(email.trim(), password);
       if (!result.ok) {
-        setErrors({ password: loginMessage(result) });
+        setErrors(loginErrors(result));
         return;
       }
       const me = await fetchMe();
