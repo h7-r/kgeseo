@@ -116,13 +116,6 @@ function buildCases(policy) {
 }
 
 /**
- * 서버만 막는 닉네임 중 이미 알고 있는 것 — 백엔드가 「황보지○」 실제 이름 예외를 검토 중이다.
- * 백엔드가 고치면 이 줄을 지운다. 이 밖의 「서버만 막음」은 검사 실패다.
- */
-const KNOWN_SERVER_ONLY = /황보지/;
-const isKnownServerOnly = (nickname) => KNOWN_SERVER_ONLY.test(nickname.replace(/[^가-힣]/g, ""));
-
-/**
  * 파이썬 3.9 이상을 찾는다: PYTHON 환경변수 → python3 → python → py -3(윈도우 런처).
  * 맥·리눅스는 python3, 윈도우는 python 이나 py 로 깔리는 경우가 많다.
  */
@@ -175,8 +168,8 @@ export function runParity(judge) {
     backendErrors: server.errors,
     nicknames: {
       total: cases.nicknames.length,
+      // 백엔드도 같은 JSON 을 읽는 11/18부터 「서버만 막음」은 예외 없이 전부 검사 실패다
       serverBlocksScreenPasses: serverOnly,
-      unexpectedServerOnly: serverOnly.filter((nickname) => !isKnownServerOnly(nickname)),
       screenBlocksServerPasses: Object.fromEntries(Object.entries(screenOnly).map(([k, v]) => [k, v.length])),
     },
     passwords: { total: cases.passwords.length, different: passwordDiff.length, examples: passwordDiff.slice(0, 10) },

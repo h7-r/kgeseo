@@ -36,6 +36,7 @@ from app.services.nickname_policy import InvalidNicknameError, validate_nickname
 from app.services.registration_input_policy import (
     InvalidEmailError,
     InvalidPasswordError,
+    InvalidRegionError,
 )
 from app.services.request_rate_limit import (
     EMAIL_EXISTS,
@@ -240,15 +241,39 @@ async def register_local_account(
         ) from error
     except InvalidNicknameError as error:
         raise invalid_nickname_exception() from error
+    except InvalidRegionError as error:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "invalid_region",
+                "message": "목록에 있는 지역을 골라 주세요.",
+            },
+            headers={"Cache-Control": "no-store"},
+        ) from error
+    # 중복은 code 로 가른다(11/18). message 는 옛 화면이 비교하던 문장 그대로 둔다.
     except local_auth.EmailAlreadyRegisteredError as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Email already registered.",
+            detail={"code": "email_taken", "message": "Email already registered."},
+            headers={"Cache-Control": "no-store"},
         ) from error
     except local_auth.NicknameAlreadyRegisteredError as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Nickname already registered.",
+            detail={
+                "code": "nickname_taken",
+                "message": "Nickname already registered.",
+            },
+            headers={"Cache-Control": "no-store"},
+        ) from error
+    except local_auth.TermsVersionMismatchError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "terms_version_mismatch",
+                "message": "약관이 바뀌었습니다. 새 약관을 확인하고 다시 동의해 주세요.",
+            },
+            headers={"Cache-Control": "no-store"},
         ) from error
     except local_auth.ConsentRequiredError as error:
         raise HTTPException(

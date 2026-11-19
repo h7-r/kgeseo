@@ -287,17 +287,24 @@ _SENSITIVE_422 = (
 
 REGISTER = {
     409: error(
-        ErrorMessage,
-        "이미 쓰는 이메일 · 닉네임(문장 구분).",
-        "Email already registered.",
-        "Nickname already registered.",
+        CodedError,
+        "`code`로 구분한다(11/18). 이미 쓰는 이메일 `email_taken` · 닉네임 `nickname_taken`"
+        "(`message`는 옛 화면이 비교하던 문장 `Email already registered.` · `Nickname already registered.` 그대로). "
+        "`consent.terms_version`이 서버의 현재 약관 판과 다르면 `terms_version_mismatch`(소셜 가입과 같다)."
+        + _NO_STORE,
+        "email_taken",
+        "nickname_taken",
+        "terms_version_mismatch",
     ),
     422: error(
         CodedError | ErrorMessage,
-        _SENSITIVE_422 + " 동의 누락 · 그 밖의 입력 오류는 문장(문장 구분).",
+        _SENSITIVE_422
+        + " `region`이 공용 목록(shared/regions.json 17개) 밖이면 `invalid_region`(비우면 미입력으로 받는다)."
+        " `consent`는 엄격 bool 셋만 받고 모르는 키는 `invalid_input`. 동의 누락 · 그 밖의 입력 오류는 문장(문장 구분).",
         "invalid_email",
         "invalid_password",
         "invalid_nickname",
+        "invalid_region",
         "invalid_input",
         "Required consent is missing.",
         "Invalid local account input.",
@@ -338,14 +345,26 @@ def _rate_limited(limit: str) -> dict[int, dict[str, Any]]:
 
 REGISTER.update(_rate_limited("30회"))
 
-EMAIL_EXISTS = _rate_limited("30회")
+# 중복 확인 둘도 형식 오류에 입력값을 되돌려 보내지 않는다(11/18, main.SENSITIVE_INPUT_FIELDS)
+EMAIL_EXISTS = {
+    422: error(
+        CodedError,
+        "요청 형식 오류도 입력값을 되돌려 보내지 않고 `{code, message}`로 답한다"
+        "(`email` 누락 · 형식은 `invalid_email`, 그 밖은 `invalid_input`)." + _NO_STORE,
+        "invalid_email",
+        "invalid_input",
+    ),
+    **_rate_limited("30회"),
+}
 
 NICKNAME_EXISTS = {
     422: error(
-        ValidationErrorResponse | CodedError,
-        _VALIDATION
-        + " 닉네임 정책 위반은 `code: invalid_nickname`(이때만 `Cache-Control: no-store`).",
+        CodedError,
+        "요청 형식 오류도 입력값을 되돌려 보내지 않고 `{code, message}`로 답한다"
+        "(`nickname` 누락 · 형식 · 정책 위반 모두 `invalid_nickname`, 그 밖은 `invalid_input`)."
+        + _NO_STORE,
         "invalid_nickname",
+        "invalid_input",
     ),
     **_rate_limited("30회"),
 }

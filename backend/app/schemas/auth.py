@@ -24,9 +24,13 @@ class GoogleUserResponse(BaseModel):
 
 
 class LocalRegisterConsent(BaseModel):
-    terms: bool
-    privacy: bool
-    age: bool
+    # 소셜 가입과 같은 엄격함(11/18): "true"·1·"on" 은 동의가 아니고, 모르는 키는 거절한다.
+    model_config = ConfigDict(extra="forbid")
+
+    terms: StrictBool
+    privacy: StrictBool
+    age: StrictBool
+    # 비우면 서버의 현재 판으로 본다. 다른 판을 적으면 register_user 가 409 terms_version_mismatch 로 거절한다.
     terms_version: str = Field(
         default=CURRENT_TERMS_VERSION, min_length=1, max_length=32
     )

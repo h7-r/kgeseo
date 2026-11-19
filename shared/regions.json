@@ -1,0 +1,11 @@
+{
+  "$comment": "가입 때 고르는 지역(광역 17개). 화면(website/src/data/regions.ts)과 백엔드(backend/app/services/registration_input_policy.py)가 이 파일 하나로 판정한다. 권역은 화면 선택 상자의 묶음이자 방향키 순서다. 이름을 바꾸면 통계(관리자 회원 지역별)의 묶음도 바뀌니 기존 가입자 값을 함께 옮긴다.",
+  "groups": [
+    { "name": "수도권", "regions": ["서울", "인천", "경기"] },
+    { "name": "강원", "regions": ["강원"] },
+    { "name": "충청", "regions": ["대전", "세종", "충북", "충남"] },
+    { "name": "전라", "regions": ["광주", "전북", "전남"] },
+    { "name": "경상", "regions": ["부산", "대구", "울산", "경북", "경남"] },
+    { "name": "제주", "regions": ["제주"] }
+  ]
+}
