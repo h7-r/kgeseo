@@ -5,7 +5,12 @@
  */
 import { useEffect, useState, type CSSProperties } from "react";
 
+import { getSaveStatus } from "@/save/gameSave";
+import { saveFailureText } from "@/save/saveStatusText";
+
 import { NAVY_FILL, UI, UI_FONT } from "./gameUi";
+
+const LEAVE_FAILED_TEXT = "저장하지 못했어요. 연결을 확인하고 다시 해 보거나, 저장 없이 나갈 수 있어요.";
 
 export type LeaveResult = "left" | "saveFailed";
 
@@ -58,7 +63,7 @@ export default function LeaveToLobby({ action, tone }: { action: LeaveToLobbyAct
     <div style={isCover ? coverBoxStyle : panelBoxStyle} role="group" aria-label="로비로 나가기">
       <p style={questionStyle}>
         {phase === "failed"
-          ? "저장하지 못했어요. 연결을 확인하고 다시 해 보거나, 저장 없이 나갈 수 있어요."
+          ? saveFailureText(getSaveStatus(), LEAVE_FAILED_TEXT)
           : phase === "leaving"
             ? "저장하고 로비로 가는 중…"
             : "로비로 나갈까요?"}

@@ -77,11 +77,13 @@ test("안내 문구는 정한 그대로다", () => {
 test("본편 · 나주 둘 다 — gameSave 가 결과로 저장 여부를 정하고 실패를 알리며, 두 부팅이 안내를 그린다", () => {
   const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
   const gameSave = read("../../src/save/gameSave.ts");
-  assert.match(gameSave, /isLoggedIn = canSaveAfter\(outcome\)/, "실패면 isLoggedIn 거짓 — 저장 멈춤");
+  // 11/18 — isLoggedIn 참 · 거짓 대신 상태(saveStatus)로. 실패면 load_failed 로 저장을 멈춘다(인증 점검 M14)
+  assert.match(gameSave, /saveStatus\.set\(canSaveAfter\(outcome\) \? "saving"/, "불러왔을 때만 저장 중 — 실패면 저장 멈춤");
   assert.match(gameSave, /saveLoadNotice\.report\(outcome\)/);
   for (const boot of ["../../src/boot.tsx", "../src/boot.tsx"]) {
     const source = read(boot);
     assert.match(source, /initGameSave\(\)/, `${boot} 이 저장을 불러온다`);
     assert.match(source, /<SaveLoadFailedNotice \/>/, `${boot} 이 안내를 그린다`);
+    assert.match(source, /<SaveSignedOutNotice \/>/, `${boot} 이 세션 끊김 안내도 그린다`);
   }
 });

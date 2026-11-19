@@ -5,7 +5,8 @@
  * 나주 칸(퍼즐 진행)은 그대로 남아 기차 목적지 창에서 다시 들어가면 이어진다. 저장하지 못하면 붙잡지 않고 부른 쪽이 「그래도 나가기」를 내민다.
  */
 import type { LeaveResult, LeaveToLobbyAction } from "@/game/LeaveToLobby";
-import { isGameSaveEnabled, saveBeforeLeaving, setGameStage } from "@/save/gameSave";
+import { getSaveStatus, isGameSaveEnabled, saveBeforeLeaving, setGameStage } from "@/save/gameSave";
+import { unsavedNote } from "@/save/saveStatusText";
 
 import { noteNajuLeave } from "../beta/najuBeta";
 import { LOBBY_PATH, TRAIN_ENTRY_PATH, markLobbyReturn } from "@/save/lobbyEntry";
@@ -18,7 +19,8 @@ const COVER_THEN_LEAVE_MS = 700;
 let isLeaving = false;
 /**
  * 저장이 필요한가(나주에 들어올 때 로그인했나) — 단추를 만들 때 정한다. 그 뒤 자동 저장 · 나가는 저장에서 로그인이 풀려도(401)
- * 끝까지 지킨다. 저장 없이 나가는 것은 「그래도 나가기」(force)로만(Codex 리뷰)
+ * 끝까지 지킨다. 저장 없이 나가는 것은 「그래도 나가기」(force)로만(Codex 리뷰). 풀린 채 나가려 하면 saveBeforeLeaving 이 먼저
+ * 다시 로그인했는지 보고, 아니면 실패로 돌려 메뉴가 「로그인이 풀려…」를 보인다
  */
 let isSaveRequired = false;
 // 브라우저 「뒤로」로 이 페이지가 캐시에서 되살아나면 다시 나갈 수 있게(Codex 리뷰)
@@ -31,8 +33,7 @@ async function leaveTo(path: string, force = false): Promise<LeaveResult> {
   if (isLeaving) return "left";
   setGameStage("headquarters");
   if (isSaveRequired && !force) {
-    const isSaved = isGameSaveEnabled() && (await saveBeforeLeaving());
-    if (!isSaved) {
+    if (!(await saveBeforeLeaving())) {
       // 남는다 — 단계를 되돌린다(나가지 않았는데 다음 저장이 본부실로 적지 않게)
       setGameStage("naju");
       return "saveFailed";
@@ -65,9 +66,7 @@ export const canLeaveToLobby = () => typeof window !== "undefined" && window.loc
 export function leaveToLobbyAction(): LeaveToLobbyAction {
   isSaveRequired = isGameSaveEnabled();
   return {
-    note: isSaveRequired
-      ? "지금까지 한 것은 저장돼요. 로비의 기차 목적지 창에서 이어서 할 수 있어요."
-      : "로그인하지 않아 지금까지 한 것은 저장되지 않아요.",
+    note: unsavedNote(getSaveStatus()) ?? "지금까지 한 것은 저장돼요. 로비의 기차 목적지 창에서 이어서 할 수 있어요.",
     leave,
   };
 }

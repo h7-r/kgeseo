@@ -7,7 +7,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLaterSurvey } from "@/beta/laterSurvey";
 import { isGamePausedFlag } from "@/engine/input/gamePause";
 import type { LeaveResult, LeaveToLobbyAction } from "@/game/LeaveToLobby";
-import { isGameSaveEnabled } from "@/save/gameSave";
+import { getSaveStatus } from "@/save/gameSave";
+import { restartBlockedReason } from "@/save/saveStatusText";
 
 import { RESTART_FAILED_TEXT, restartNajuCase } from "../app/restartNaju";
 import { leaveToTrain } from "../app/leaveToLobby";
@@ -402,7 +403,8 @@ function ClearScreen({ leaveAction }: EndingLayerProps) {
   const [busy, setBusy] = useState<Busy>(null);
   const [failure, setFailure] = useState<Failure>(null);
   const [isConfirmingRestart, setIsConfirmingRestart] = useState(false);
-  const isSaving = isGameSaveEnabled();
+  const saveStatus = getSaveStatus();
+  const isSaving = saveStatus === "saving";
   const playTime = formatPlayTime(playClock.elapsed());
   // 베타 — 설문을 「나중에」로 미뤘으면 결과 바로 아래 눈에 띄게 다시 권한다(누르면 사라진다)
   const openLaterSurvey = useLaterSurvey();
@@ -507,7 +509,12 @@ function ClearScreen({ leaveAction }: EndingLayerProps) {
             {isConfirmingRestart ? (
               <div className="naju-ending-clear__confirm" role="alertdialog" aria-label={CLEAR_TEXT.restartQuestion}>
                 <p>{CLEAR_TEXT.restartQuestion}</p>
-                <small>{isSaving ? CLEAR_TEXT.restartNote : CLEAR_TEXT.restartNoteGuest}</small>
+                {/* 세션이 끊긴 채면 「로그인하지 않아…」가 아니라 그 까닭을(기록은 지워지지 않는다) */}
+                <small>
+                  {isSaving
+                    ? CLEAR_TEXT.restartNote
+                    : (restartBlockedReason(saveStatus) ?? CLEAR_TEXT.restartNoteGuest)}
+                </small>
                 <div>
                   <button
                     type="button"

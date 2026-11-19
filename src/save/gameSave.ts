@@ -1,12 +1,26 @@
 /**
- * 계정별 게임 저장. 서버(/api/v1/me/game-save)가 쿠키 세션의 사용자 칸에만 읽고 쓴다.
- * 로그인하지 않았으면 조용히 꺼진다 — 게임은 저장 없이 그대로 돈다.
- * 본편과 나주는 페이지가 달라도 같은 저장본의 칸(section)을 나눠 쓴다.
+ * 계정별 게임 저장. 서버(/api/v1/me/game-save)가 쿠키 세션(로그인 때 받는 HttpOnly 쿠키, 14일)의 사용자 칸에만 읽고 쓴다.
+ * 본편과 나주는 페이지가 달라도 같은 저장본의 칸(section)을 나눠 쓴다. 서버 쪽은 backend/app/api/v1/me.py
+ * (계약 문서 backend/docs/contracts/account_me_v0.1.md 는 아직 없다 — 인증 점검 BE-5 묶음에서 신설 예정).
+ *
+ * - 운영은 로그인한 사람만 들어온다(shared/playLoginGate). 처음 불러올 때 401 이면 손님(개발 서버)이라 저장 없이 돈다.
+ * - 저장 중 401 이 오면 세션이 끊긴 것(다른 탭 로그아웃 · 탈퇴 · 만료) — 조용히 멈추지 않고 상태를 signed_out 으로 올려
+ *   안내(SaveSignedOutNotice) · 멈춤 메뉴가 「로그인이 풀렸어요」로 알린다. 다시 로그인하면 이어서 저장한다(resumeSavingAfterLogin).
+ * - PUT 은 revision 을 함께 보낸다. 서버 번호와 다르면 409 {detail:{code:"save_conflict", revision}} — 다른 창이 먼저 쓴 것이라
+ *   그 번호로 한 번 더 쓴다. 그 전에 /me 로 같은 계정인지 본다 — 계정이 바뀌었으면 멈춘다(account_changed). 상태는 saveStatus.ts.
  */
 import { betaLog } from "@/beta/betaLog";
 import { apiUrl } from "@/config/env";
 
 import { canSaveAfter, loadGameSave, saveLoadNotice } from "./gameSaveLoad";
+import {
+  createSaveStatusStore,
+  decideConflictRetry,
+  readAccountId,
+  readConflictRevision,
+  type JsonAnswer,
+  type SaveStatus,
+} from "./saveStatus";
 
 const SAVE_URL = apiUrl("/api/v1/me/game-save");
 const CHARACTER_URL = apiUrl("/api/v1/me/character");
@@ -67,7 +81,12 @@ const sections = new Map<string, GameSaveSection>();
 let storedSections: Record<string, unknown> = {};
 let revision = 0;
 let stage: GameStage | null = null;
-let isLoggedIn = false;
+/** 저장 상태 — guest · load_failed · saving · signed_out · account_changed(saveStatus.ts) */
+const saveStatus = createSaveStatusStore();
+/** 처음 불러올 때 로그인했던 계정 — 409 뒤 다시 쓰기 전 · 다시 로그인했을 때 같은 계정인지 본다. /me 를 못 읽었으면 null */
+let accountId: string | null = null;
+/** bfcache 에서 되살아나 새로 고치는 동안 — 떠나기 전 옛 값을 쓰지 않는다(startGameSaveLoop) */
+let isFrozen = false;
 let lastWritten = "";
 let saveTimer = 0;
 let isWriting = false;
@@ -75,7 +94,7 @@ let isWriting = false;
 let writing: Promise<void> | null = null;
 let isListening = false;
 
-async function requestJson(url: string, init?: RequestInit): Promise<{ status: number; body: unknown }> {
+async function requestJson(url: string, init?: RequestInit): Promise<JsonAnswer> {
   const response = await fetch(url, {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -89,25 +108,40 @@ async function requestJson(url: string, init?: RequestInit): Promise<{ status: n
   }
 }
 
+/** GET /me — 연결 실패는 status 0 으로(던지지 않는다). 409 뒤 · 다시 로그인 확인에서 계정을 보는 데만 쓴다 */
+async function fetchMe(): Promise<JsonAnswer> {
+  try {
+    return await requestJson(ME_URL);
+  } catch {
+    return { status: 0, body: null };
+  }
+}
+
+/** 지금 쓸 수 있나 — 저장 중이고, 새로 고치는 중이 아닐 때 */
+const canSave = () => !isFrozen && saveStatus.get() === "saving";
+
 /**
  * 게임을 그리기 전에 한 번 부른다. 서버가 안 되면 저장 없이 시작한다.
  * 로그인했는데 불러오지 못했으면(401 이 아닌 오류 · 연결 실패) 저장은 멈춘 채 「저장을 불러오지 못했어요」 안내를 띄운다(gameSaveLoad)
  */
 export async function initGameSave(): Promise<void> {
   if (IS_FRESH_RUN) {
-    isLoggedIn = false;
+    saveStatus.set("guest");
     console.info(
       "[저장] ?fresh — 계정 저장을 읽지도 쓰지도 않고 처음부터 시작한다(개발 서버 전용 · 이 탭 동안, 끝내려면 ?fresh=0)",
     );
     return;
   }
   const outcome = await loadGameSave(() => requestJson(SAVE_URL));
-  isLoggedIn = canSaveAfter(outcome);
   if (outcome.kind === "failed") {
     console.warn(`[저장] 저장을 불러오지 못했다(${outcome.reason}) — 저장을 멈추고 새로고침 안내를 띄운다`);
     saveLoadNotice.report(outcome);
   }
-  if (outcome.kind !== "loaded" || !outcome.save) return;
+  saveStatus.set(canSaveAfter(outcome) ? "saving" : outcome.kind === "failed" ? "load_failed" : "guest");
+  if (outcome.kind !== "loaded") return;
+  // 어느 계정의 저장인지 기억한다 — 409 뒤 다시 쓰기 전에 쿠키의 계정과 맞춰 본다
+  accountId = readAccountId(await fetchMe());
+  if (!outcome.save) return;
   const saved = outcome.save as SaveEnvelope;
   revision = saved.revision;
   stage = saved.stage;
@@ -116,7 +150,38 @@ export async function initGameSave(): Promise<void> {
 
 /** 이어서 시작할 단계. 저장이 없으면 null. */
 export const getSavedStage = (): GameStage | null => stage;
-export const isGameSaveEnabled = (): boolean => isLoggedIn;
+/** 지금 저장하고 있나. 끊긴 까닭까지 가르려면 getSaveStatus */
+export const isGameSaveEnabled = (): boolean => saveStatus.get() === "saving";
+export const getSaveStatus = (): SaveStatus => saveStatus.get();
+/** 상태가 바뀌면 알린다(useSyncExternalStore 용) */
+export const subscribeSaveStatus = saveStatus.subscribe;
+
+/** 저장을 멈춘다 — 세션이 끊겼다(401) · 계정이 바뀌었다. 안내 · 멈춤 메뉴가 상태를 보고 알린다 */
+function stopSaving(reason: "signed_out" | "account_changed") {
+  window.clearTimeout(saveTimer);
+  saveStatus.set(reason);
+  // 베타 기록의 사유 이름은 전처럼 — 끊김은 「401」(지난 기록과 이어 세게)
+  noteSaveFailure(reason === "signed_out" ? "401" : reason);
+}
+
+/**
+ * 세션이 끊긴 뒤(signed_out) 다시 로그인했는지 /me 로 본다 — 끊김 안내의 「로그인했어요」 · 떠나기 전 저장이 부른다.
+ * 같은 계정이면 저장을 다시 켜고 지금 값을 바로 쓴다(끊긴 동안의 진행이 들어간다). 다른 계정이면 account_changed 로 멈춘다.
+ * 아직 로그인하지 않았으면 그대로 signed_out
+ */
+export async function resumeSavingAfterLogin(): Promise<SaveStatus> {
+  if (saveStatus.get() !== "signed_out") return saveStatus.get();
+  const current = readAccountId(await fetchMe());
+  if (current === null) return "signed_out";
+  if (accountId !== null && current !== accountId) {
+    stopSaving("account_changed");
+    return "account_changed";
+  }
+  accountId = current;
+  saveStatus.set("saving");
+  scheduleGameSave();
+  return "saving";
+}
 
 /** 칸을 등록하고, 저장된 값이 있으면 바로 넣는다. */
 export function registerSaveSection(name: string, section: GameSaveSection): void {
@@ -204,7 +269,7 @@ export function setGameStage(next: GameStage): void {
   const previous = stage;
   stage = next;
   // 베타 기록 — 단계가 바뀌었다(참여 코드가 없으면 아무 일도 없다). previous 가 null 이면 이 페이지에서 처음 정한 단계
-  betaLog.track("stage_reached", next, { withRun: false, data: { prev: previous, logged_in: isLoggedIn } });
+  betaLog.track("stage_reached", next, { withRun: false, data: { prev: previous, logged_in: isGameSaveEnabled() } });
   scheduleGameSave();
 }
 
@@ -223,7 +288,7 @@ const writtenKey = (state: string) => `${stage}\n${state}`;
 let isFollowUpWanted = false;
 
 function writeNow(keepalive: boolean): Promise<void> {
-  if (!isLoggedIn || !stage) return writing ?? Promise.resolve();
+  if (!canSave() || !stage) return writing ?? Promise.resolve();
   if (isWriting) {
     // 지금 오가는 요청은 그 전 값이다 — 끝난 뒤 최신 값을 놓치지 않게(본부실 첫 진입 단계가 묻히던 것, Codex 리뷰)
     isFollowUpWanted = true;
@@ -260,21 +325,26 @@ async function sendState(state: string, key: string, keepalive: boolean): Promis
     const body = (rev: number) =>
       JSON.stringify({ revision: rev, schema_version: SCHEMA_VERSION, stage: sentStage, state: JSON.parse(state) });
     let answer = await requestJson(SAVE_URL, { method: "PUT", body: body(revision), keepalive });
-    // 다른 창이 먼저 저장했으면 지금 플레이 중인 이쪽 값을 최신 번호로 한 번 더 쓴다.
+    // 다른 창이 먼저 저장했으면 지금 플레이 중인 이쪽 값을 최신 번호로 한 번 더 쓴다 — 단, 쿠키가 다른 계정으로 바뀐 것이면 멈춘다
     if (answer.status === 409) {
-      const conflict = (answer.body as { detail?: { revision?: number } } | null)?.detail;
+      const decision = decideConflictRetry(await fetchMe(), accountId);
+      if (decision !== "retry") {
+        stopSaving(decision);
+        return;
+      }
       answer = await requestJson(SAVE_URL, {
         method: "PUT",
-        body: body(conflict?.revision ?? revision),
+        body: body(readConflictRevision(answer.body) ?? revision),
         keepalive,
       });
+      // 또 409(두 창이 동시에 첫 저장을 하다 서버가 옛 번호를 준 경우 등) — 서버 번호를 기억해 다음 저장이 바로 맞게(L22)
+      if (answer.status === 409) revision = readConflictRevision(answer.body) ?? revision;
     }
     if (answer.status === 200) {
       revision = (answer.body as SaveEnvelope).revision;
       lastWritten = key;
     } else if (answer.status === 401) {
-      isLoggedIn = false;
-      noteSaveFailure("401");
+      stopSaving("signed_out");
     } else {
       noteSaveFailure(String(answer.status));
     }
@@ -289,13 +359,15 @@ async function sendState(state: string, key: string, keepalive: boolean): Promis
  * 저장한 뒤 다시 모아 비교하지 않는다 — 창을 연 동안에도 매 프레임 바뀌는 칸(지게 짐 자리 등)이 있어 성공해도 실패로 보였다(Codex 리뷰).
  * 늦어도 timeoutMs 뒤에는 false 로 끝낸다(떠나는 사람을 붙잡지 않는다). null 이면 결과가 올 때까지 기다린다 — 「처음부터 다시」처럼
  * 시간 넘김을 실패로 보면 늦게 도착한 요청과 어긋나는 곳(Codex 리뷰). 로그인하지 않았으면 바로 false.
+ * 세션이 끊긴 채면 먼저 다시 로그인했는지 본다 — 안내대로 다른 탭에서 로그인한 뒤 「다시 해 보기」를 누르면 여기서 이어진다
  */
 export async function saveBeforeLeaving(timeoutMs: number | null = 2500): Promise<boolean> {
-  if (!isLoggedIn) return false;
+  if (saveStatus.get() === "signed_out") await resumeSavingAfterLogin();
+  if (!canSave()) return false;
   window.clearTimeout(saveTimer);
   const save = (async () => {
     while (writing) await writing;
-    if (!isLoggedIn || !stage) return false;
+    if (!canSave() || !stage) return false;
     const state = collectState();
     const key = writtenKey(state);
     if (key === lastWritten) return true;
@@ -314,7 +386,7 @@ export async function saveBeforeLeaving(timeoutMs: number | null = 2500): Promis
 
 /** 값이 바뀌었을 때 부른다. 잠깐 모아서 한 번만 쓴다. */
 export function scheduleGameSave(): void {
-  if (!isLoggedIn) return;
+  if (!canSave()) return;
   window.clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => void writeNow(false), SAVE_DELAY_MS);
 }
@@ -327,7 +399,7 @@ export function flushGameSave(): Promise<void> {
 
 /** 창을 닫거나 숨길 때와 일정 간격으로 저장한다. 창이 꺼져도 마지막 값이 남게 한다. */
 export function startGameSaveLoop(): void {
-  if (!isLoggedIn || isListening) return;
+  if (!canSave() || isListening) return;
   isListening = true;
   const flush = () => void flushGameSave();
   window.addEventListener("pagehide", flush);
@@ -336,7 +408,7 @@ export function startGameSaveLoop(): void {
   // (11/11 플레이테스트 「뒤로 갔다 다시 들어오니 처음부터」). 쓰지 않고 새로 불러와 서버의 최신 저장으로 시작한다.
   window.addEventListener("pageshow", (event) => {
     if (!event.persisted) return;
-    isLoggedIn = false;
+    isFrozen = true;
     window.clearTimeout(saveTimer);
     window.location.reload();
   });
@@ -350,12 +422,13 @@ export function startGameSaveLoop(): void {
 
 /** 캐릭터를 서버에 둔다. 다른 기기에서도 같은 모습으로 시작한다. 서버에 저장됐으면 true(로그인 안 함 · 실패면 false) */
 export async function saveCharacter(displayName: string, appearance: Record<string, unknown>): Promise<boolean> {
-  if (!isLoggedIn) return false;
+  if (!canSave()) return false;
   try {
     const { status } = await requestJson(CHARACTER_URL, {
       method: "PUT",
       body: JSON.stringify({ display_name: displayName, appearance }),
     });
+    if (status === 401) stopSaving("signed_out");
     return status >= 200 && status < 300;
   } catch {
     return false;
@@ -364,21 +437,16 @@ export async function saveCharacter(displayName: string, appearance: Record<stri
 
 /**
  * 로그인한 계정의 id — 캐릭터 생성 초안을 그 계정 것으로만 이어 만든다(같은 PC 다음 가입자에게 앞 사람 모습이 보였다, 미르 11/10).
- * 로그인 안 함 · 개발 서버 ?fresh(initGameSave 가 저장을 끈다) · 실패면 null.
+ * 처음 불러올 때 읽어 둔 값(accountId)을 주고, 그때 못 읽었으면 한 번 더 본다. 로그인 안 함 · 개발 서버 ?fresh · 실패면 null.
  */
 export async function loadAccountId(): Promise<string | null> {
-  if (!isLoggedIn) return null;
-  try {
-    const { status, body } = await requestJson(ME_URL);
-    const id = status === 200 && body && typeof body === "object" ? (body as { user_id?: unknown }).user_id : null;
-    return typeof id === "string" && id ? id : null;
-  } catch {
-    return null;
-  }
+  if (!canSave()) return null;
+  accountId ??= readAccountId(await fetchMe());
+  return accountId;
 }
 
 export async function loadCharacter(): Promise<Record<string, unknown> | null> {
-  if (!isLoggedIn) return null;
+  if (!canSave()) return null;
   try {
     const { status, body } = await requestJson(CHARACTER_URL);
     return status === 200 && body ? ((body as { appearance: Record<string, unknown> }).appearance ?? null) : null;
