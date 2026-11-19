@@ -4,16 +4,18 @@
  * 빛줄기가 상자로 흘러들어 비늘이 떠오르고, 비늘을 챙긴 뒤 뒷벽 물길에 몸을 맡기면 강가로 올라간다.
  * 치수는 chamberLayout, 그림 · 재질은 chamberArt, 연출 조각은 chamberMotion, 돌 소품은 chamberParts.
  */
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { gameNow } from "@/engine/input/gameClock";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { cameraFocusId, focusCamera } from "../../scene/cameraFocus";
 import { useRememberedState } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
-import { registerInteractable, showNotice } from "../interaction";
+import { interactableFor, noticeFor } from "../interaction";
 import { inventory, useHandItem, useHeldItems } from "../inventory";
 import { setPuzzlePanel } from "../puzzlePanel";
 import { ritual } from "../ritual/ritualState";
@@ -31,7 +33,9 @@ import {
   useCaveShown,
   cave,
   clearBreathAfterLeaving,
+  guardBreathFor,
   holdBreathWhileLeaving,
+  setChamberBackLimit,
 } from "./caveState";
 import { createChamberAssets, disposeChamberAssets } from "./chamberArt";
 import {
@@ -57,6 +61,7 @@ import {
   PANEL_RANGE,
   PEDESTAL_HEIGHT,
   PEDESTAL_VENT,
+  PEDESTAL_VENT_EAST,
   PEDESTAL_X,
   PEDESTAL_Z,
   PRESS_DEPTH,
@@ -69,6 +74,11 @@ import {
   STATUE_Z,
 } from "./chamberLayout";
 
+/** 벽화 돌아보기 — 방 안쪽으로 이만큼(z) 들어서면 · 화면 고정 이름 · 바라볼 자리(유닛, 벽화 가운데) */
+const MURAL_GLANCE_Z = INNER.z[0] + 2.2;
+const MURAL_FOCUS_ID = "chamber-mural";
+const muralTarget = new THREE.Vector3(45 * M, (MURAL.bottom + MURAL.height / 2) * M, MURAL.z * M);
+
 /** 틀리면 깎이는 숨(초) · 받침이 가라앉아 못 누르는 시간(초) */
 const WRONG_PRESS_BREATH = 8;
 const LOCKOUT_SECONDS = 3;
@@ -77,7 +87,12 @@ const SUNK_DEPTH = 0.12;
 import { lampLevel, placePearlBeam, pullIntoExit, scaleHeight, updateCurrent } from "./chamberMotion";
 import { ChamberVents, EntryStatues, ExitRocks, OrbLamps, PearlSocket, Pedestals, StoneBox } from "./chamberParts";
 
-const now = () => performance.now() / 1000;
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("chamber");
+const registerInteractable = interactableFor("chamber");
+
+// 게임 시계 — 「전부 멈춤」(창 · 게임 밖 · PC 일시정지) 동안은 흐르지 않는다. 실제 시계면 오래 멈췄다 돌아올 때 차례 시범이 건너뛰어졌다(Codex 리뷰)
+const now = () => gameNow() / 1000;
 
 export default function InnerChamber() {
   const isShown = useCaveShown();
@@ -88,6 +103,21 @@ export default function InnerChamber() {
   const [isScaleTaken, setIsScaleTaken] = useRememberedState("chamber.isScaleTaken", false);
   /** 큰 진주로 홈을 밝혔나 — 그때부터 비늘이 떠오른다 */
   const [isShone, setIsShone] = useRememberedState("chamber.isShone", false);
+  // 받침을 다 맞히기 전엔 받침 줄 너머(어둠)로 못 들어가게 막는다 — 들어가면 캄캄한 채 헤매 멈춘 것처럼 보였다(11/11)
+  useEffect(() => {
+    setChamberBackLimit(isShown && !isSolved ? BACK_DARK_Z - 0.2 : null);
+    return () => setChamberBackLimit(null);
+  }, [isShown, isSolved]);
+  // 석실에 처음 들어서 아치 위 벽화를 한 번 돌아봤나 — 다 본 뒤에 적는다(다른 연출에 밀려 못 봤으면 다음에 다시)
+  const [isMuralGlanced, setIsMuralGlanced] = useRememberedState("chamber.muralGlanced", false);
+  const muralGlance = useRef<"idle" | "focusing" | "done">(isMuralGlanced ? "done" : "idle");
+  // 벽화를 건너뛰는 것은 불러온 저장이 이미 받침을 눌렀거나 풀었을 때만 — 처음 그릴 때 한 번 정한다. 지금 판에서 먼저 누른 것은 까닭이
+  // 아니다: 받침은 들어서자마자 닿아(reach 2.8 m + 받침 0.4 m) 바로 누르면 벽화를 영영 못 봤다(미르 11/11 「석실 입장 시 벽화 한 번 강제로」)
+  const [isGlanceSkippedBySave] = useState(() => progress > 0 || isSolved);
+  /** 벽화를 보기 전에 받침을 누르려 했다 — 그 누름은 먹고, 들어온 자리 그대로 벽화부터 */
+  const isGlanceRequested = useRef(false);
+  /** 벽화를 처음 돌아보기 시작할 때의 시선 — 끊겼다 다시 돌아도 여기로 돌아온다 */
+  const glanceHome = useRef<THREE.Quaternion | null>(null);
   // 이어 하기: 이미 끝난 연출은 페이지 시작 때 끝난 것으로 친다(0 이면 충분히 지났다).
   const shoneAt = useRef(isShone ? 0 : -1);
   const progressRef = useRef(progress);
@@ -137,6 +167,8 @@ export default function InnerChamber() {
   const solve = () => {
     setIsSolved(true);
     solvedAt.current = now();
+    // 상자 옆 등이 켜지는 것을 보는 동안은 숨이 줄지 않는다(미르 11/10)
+    guardBreathFor("chamber-solve", 2.5);
     audio.play("징");
     showNotice(
       "받침 넷이 다 맞았다. 상자 옆 등에 불이 들었지만 상자 면은 아직 맨 돌이다 — 오른쪽 바위에 둥근 홈이 보인다.",
@@ -149,6 +181,8 @@ export default function InnerChamber() {
     if (solvedAt.current < 0 || shoneAt.current >= 0) return;
     shoneAt.current = now();
     setIsShone(true);
+    // 빛줄기가 상자로 흘러들고 비늘이 떠오르는 동안 — 숨이 줄지 않는다(미르 11/10)
+    guardBreathFor("chamber-shine", SCALE_DELAY + SCALE_RISE_SECONDS);
     audio.play("징");
     showNotice("진주가 홈에 딸깍 들어맞았다. 빛줄기가 상자 벽화로 흘러든다 — 구멍 깊은 곳에서 푸른 것이 떠오른다.", 5);
   };
@@ -156,18 +190,23 @@ export default function InnerChamber() {
   const takeScale = () => {
     if (shoneAt.current < 0 || now() - shoneAt.current < SCALE_DELAY + SCALE_RISE_SECONDS * 0.8) return;
     if (!inventory.add("scale")) {
-      showNotice("소지품이 가득 찼다.");
+      showNotice("소지품이 가득 찼다.", 3.2, { urgent: true, fleeting: true });
       return;
     }
     setIsScaleTaken(true);
     audio.play("단서");
-    showNotice("푸른 눈물을 챙겼다. 얼음처럼 차고, 손안에서 희미하게 빛난다 — 아랑사가 남긴 것이다.", 5);
+    showNotice("푸른 눈물을 챙겼다. 차갑고 희미하게 빛난다. 누구의 흔적일까.", 5);
   };
 
   const press = (k: number) => {
     if (isSolved) return;
+    // 벽화를 아직 못 봤다 — 이 누름은 정답 진행 · 오답 피해 없이 먹고 벽화부터 보여 준다(한 번)
+    if (muralGlance.current !== "done" && !isGlanceSkippedBySave) {
+      isGlanceRequested.current = true;
+      return;
+    }
     if (now() < lockedUntil.current) {
-      showNotice("받침이 가라앉아 꿈쩍 않는다 — 물살이 잦아들 때까지 기다리자.", 2.5);
+      showNotice("받침이 가라앉아 꿈쩍 않는다 — 물살이 잦아들 때까지 기다리자.", 2.5, { urgent: true, fleeting: true });
       return;
     }
     pressedAt.current[k] = now();
@@ -184,8 +223,8 @@ export default function InnerChamber() {
       if (count === ORDER.length) solve();
       // 화면은 돌리지 않는다(11/4) — 석상 불·벽화는 안내문과 빛으로만 알린다
       else if (count === 1)
-        showNotice("받침이 맞물리자 벽화에 다음 장면이 번지고, 아랑사 석상이 든 초롱에 불이 든다.", 3.5);
-      else if (count === 3) showNotice("아비사 석상의 노 끝, 바닥에 닿은 날에서 빛이 번진다.", 3.5);
+        showNotice("받침이 맞물리자 벽화에 다음 장면이 번지고, 아비사 석상이 든 초롱에 불이 든다.", 3.5);
+      else if (count === 3) showNotice("아랑사 석상의 노 끝, 바닥에 닿은 날에서 빛이 번진다.", 3.5);
       else showNotice("아치 위 벽화에 다음 장면이 번져 나온다.", 3);
       return;
     }
@@ -204,6 +243,7 @@ export default function InnerChamber() {
     showNotice(
       `순서가 틀렸다 — 받침의 빛이 모두 꺼지고 물살이 거세져 숨이 밀려 나간다(숨 −${WRONG_PRESS_BREATH}초). 받침이 가라앉는다. 아치 위 벽화의 이야기를 다시 보자.`,
       4.5,
+      { urgent: true },
     );
   };
 
@@ -223,20 +263,25 @@ export default function InnerChamber() {
     clearBreathAfterLeaving();
     teleportPlayer(SHORE.x, SHORE.z, "-Z");
     audio.play("전환");
-    // 물살에 떠밀려 나오며 손에 쥐여 있던 것 — 아랑사가 아비사에게 쓴 편지가 든 나무 함(청동 자물통으로 잠겼다)
-    if (inventory.add("letterBox")) {
-      const box = inventory.held().find((entry) => entry.kind === "letterBox");
-      if (box) inventory.takeOut(box.uid);
-    } else {
+    // 물살에 떠밀려 나오며 챙긴 것 — 아랑사가 아비사에게 쓴 편지가 든 나무 함(청동 자물통으로 잠겼다).
+    // 손에 쥐여 주지 않고 소지품에 — 손에 들면 E 를 누를 때마다 땅에 떨어져 「내려서 뭘 해야 하나」 헷갈렸다(박람회판 정리 · 미르 11/8).
+    // 능선의 불탄 평상을 겨누고 E 면 꺼내 올린다
+    const isStored = inventory.add("letterBox");
+    if (!isStored)
       inventory.spawn("letterBox", new THREE.Vector3(SHORE.x * M, groundY(SHORE.x, SHORE.z) * M, SHORE.z * M));
-    }
+    // 칸이 차 있으면 add 가 손에 쥐여 준다 — 실제로 간 곳대로 알린다(Codex 04)
+    const boxWhere = !isStored
+      ? "청동 자물통이 채워진 나무 함이 발치에 떠밀려 와 있다"
+      : inventory.hand()?.kind === "letterBox"
+        ? "소지품이 가득 차 청동 자물통이 채워진 나무 함을 손에 쥐고 나왔다"
+        : "청동 자물통이 채워진 나무 함을 소지품에 챙겼다";
     // 물굴은 다시 못 들어온다 — 바닥에 두고 온 물건도 물살에 함께 떠밀려 나온다
     inventory.bringAlong(SHORE.x, SHORE.z);
     // 안 주운 채 남은 물굴 물건은 함께 사라진다 — 두면 물이 닫힌 뒤 강물 위로 떠오른다
     for (const item of inventory.world())
       if (cave.contains(item.position.x / M, item.position.z / M)) inventory.removeFromWorld(item.uid);
     showNotice(
-      "물살이 몸을 밀어 올렸다. 강가로 돌아왔다 — 손에 청동 자물통이 채워진 나무 함이 쥐여 있다. 안에서 무언가 달그락거린다.",
+      `물살이 몸을 밀어 올렸다. 강가로 돌아왔다 — ${boxWhere}. 안에서 무언가 달그락거린다. 이 함을 열면 그 밤 일을 알 수 있을지도 모른다 — 여는 법은 능선에서 찾자.`,
       6,
     );
   };
@@ -363,6 +408,8 @@ export default function InnerChamber() {
       { x: SOCKET.x - sx * 0.45, z: SOCKET.z - sz * 0.45, radius: 0.55, top: INNER_FLOOR + 1.6, name: "바위" },
       { x: CRACK.x, z: CRACK.z, radius: 0.5, top: INNER_FLOOR + 0.85, name: "바위" },
       { x: PEDESTAL_VENT.x, z: PEDESTAL_VENT.z, radius: 0.3, top: INNER_FLOOR + 0.55, name: "바위" },
+      // 동쪽 숨구멍도 같은 바위 틈 — 충돌이 빠져 있어 몸이 바위를 지나갔다
+      { x: PEDESTAL_VENT_EAST.x, z: PEDESTAL_VENT_EAST.z, radius: 0.3, top: INNER_FLOOR + 0.55, name: "바위" },
     ]);
   }, [isShown]);
 
@@ -409,13 +456,53 @@ export default function InnerChamber() {
       enteredAt.current = time;
       audio.play("단서");
     }
+    // 처음 들어서 방 안쪽으로 2 m 쯤 오면 — 들어온 아치 위 벽화(받침 순서의 단서)를 한 번 돌아보고 원래 보던 쪽으로(미르 11/10).
+    // 입구에서 바로 돌면 벽화가 너무 가까워 잘린다(Codex 01). 이미 받침을 누르기 시작한 저장본은 건너뛴다
+    // 받침을 먼저 누르려 했으면 2 m 를 기다리지 않고 그 자리에서 — 벽이 가까워 위로 많이 올려다보므로 시야를 조금 넓힌다
+    if (muralGlance.current === "idle" && enteredAt.current >= 0 && !isSucking) {
+      if (isGlanceSkippedBySave) {
+        muralGlance.current = "done";
+        setIsMuralGlanced(true);
+      } else if (
+        (pz > MURAL_GLANCE_Z || isGlanceRequested.current) &&
+        px > INNER.x[0] &&
+        px < INNER.x[1] &&
+        time - enteredAt.current > LIGHT_UP_SECONDS
+      ) {
+        const isNearWall = pz < MURAL_GLANCE_Z;
+        const isFocused = focusCamera({
+          id: MURAL_FOCUS_ID,
+          target: muralTarget,
+          hold: 2.4,
+          turnIn: 0.8,
+          turnOut: 0.7,
+          zoom: isNearWall ? 1.2 : 1.08,
+          returnHome: true,
+          home: glanceHome.current ?? camera.quaternion,
+          // 끝까지 다 돌았을 때만 본 것으로 적는다 — 끊겼으면(취소 · 다른 연출이 이어 걸림) 다음에 다시
+          onComplete: () => {
+            muralGlance.current = "done";
+            setIsMuralGlanced(true);
+          },
+        });
+        if (isFocused) {
+          muralGlance.current = "focusing";
+          glanceHome.current ??= camera.quaternion.clone();
+          showNotice("아치 위에 그림이 이어져 있다. 실제 사건을 그린 것인지는 아직 알 수 없다.", 4, { urgent: true });
+        }
+      }
+    } else if (muralGlance.current === "focusing" && cameraFocusId() !== MURAL_FOCUS_ID) {
+      // 끝까지 못 보고 끊겼다 — 다시 기다린다(다 돌았으면 onComplete 가 이미 done 으로 바꿨다)
+      muralGlance.current = "idle";
+    }
     const light =
       enteredAt.current < 0 ? 0 : THREE.MathUtils.smootherstep((time - enteredAt.current) / LIGHT_UP_SECONDS, 0, 1);
-    // 석상 빛 — 받침 하나를 맞히면 아랑사의 초롱, 셋째까지 맞히면 아비사의 노 날. 틀려 처음으로 돌아가면 꺼진다
     const solved = solvedAt.current >= 0;
     const follow = Math.min(1, dt * 2.2);
-    arangsaGlow.current += ((solved || progressRef.current >= 1 ? light : 0) - arangsaGlow.current) * follow;
-    abisaGlow.current += ((solved || progressRef.current >= 3 ? light : 0) - abisaGlow.current) * follow;
+    // 석상 빛 — 받침 하나를 맞히면 아비사의 초롱, 셋째까지 맞히면 아랑사의 노 날(석상 이름을 기획대로: 노 젓는 어부 = 아랑사 ·
+    // 초롱 든 처녀 = 아비사 — 뒤바뀌어 있던 것을 바로잡았다, 박람회 출품판 23회차). 틀려 처음으로 돌아가면 꺼진다
+    abisaGlow.current += ((solved || progressRef.current >= 1 ? light : 0) - abisaGlow.current) * follow;
+    arangsaGlow.current += ((solved || progressRef.current >= 3 ? light : 0) - arangsaGlow.current) * follow;
     // 받침 너머 어둠 — 다 맞히면 걷히며 안쪽(돌 상자 · 진주 홈)이 드러난다
     if (backVeil.current) {
       const reveal =
@@ -541,7 +628,7 @@ export default function InnerChamber() {
       setPuzzlePanel("cave-chamber", {
         distance,
         title: "석실 받침",
-        rule: `들어온 아치 위 벽화에 있는 장면의 받침을 [E] 로 누른다.\n맞히면 벽화에 다음 장면이 나타난다. 틀리면 첫 장면만 남고, 물살에 숨이 ${WRONG_PRESS_BREATH}초 깎이며 받침이 ${LOCKOUT_SECONDS}초 가라앉는다.`,
+        rule: `들어온 아치 위 벽화에 있는 장면의 받침을 [E] 로 누른다.\n맞히면 벽화에 다음 장면이 나타난다. 틀리면 첫 장면만 남고, 물살에 숨이 ${WRONG_PRESS_BREATH}초 깎이며 받침이 ${LOCKOUT_SECONDS}초 가라앉는다.\n숨은 입구 양옆 모서리 바위 틈에서 채운다.`,
         rows: [
           ...GLYPHS.map((symbol, k) => ({
             label: `받침 ${k + 1} — ${symbol}`,

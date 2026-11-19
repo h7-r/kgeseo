@@ -8,28 +8,10 @@ import * as THREE from "three";
 
 import { playerView } from "@/engine/playerView";
 
+import { getBeamFade } from "./beamFade";
 import { FLOOR_MARKER_RADIUS, TUTORIAL_COLOR, TUTORIAL_STEPS, tickTutorial, useTutorial } from "./tutorialState";
 
 const MARKER_COLOR = new THREE.Color(TUTORIAL_COLOR);
-
-/** 빛기둥이 위로 갈수록 스러지게 하는 세로 그라데이션. 한 장을 함께 쓴다 */
-let beamFade: THREE.CanvasTexture | null = null;
-function getBeamFade() {
-  if (beamFade) return beamFade;
-  const canvas = document.createElement("canvas");
-  canvas.width = 2;
-  canvas.height = 64;
-  const context = canvas.getContext("2d");
-  if (context) {
-    const gradient = context.createLinearGradient(0, 0, 0, 64);
-    gradient.addColorStop(0, "#000");
-    gradient.addColorStop(1, "#fff");
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, 2, 64);
-  }
-  beamFade = new THREE.CanvasTexture(canvas);
-  return beamFade;
-}
 
 type BasicMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
 

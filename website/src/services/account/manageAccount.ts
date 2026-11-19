@@ -13,6 +13,7 @@ import {
   type AccountSettings,
   type ConsentKind,
   type ConsentRecord,
+  type InquiryRecord,
 } from "./db";
 
 /**
@@ -30,7 +31,6 @@ interface ExportedAccountData {
   계정: { 아이디: string; 이메일: string; 이름: string; 지역?: string; 가입때?: number; 테스트: boolean };
   설정: Record<string, unknown>;
   플레이기록: unknown[];
-  로그인기록: { 때: string; 기기: string }[];
   동의기록: { 종류: string; 판: string; 동의: boolean; 동의때: string; 철회때: string | null }[];
 }
 
@@ -91,6 +91,12 @@ export async function readAccountData(email: string): Promise<AccountData | null
     (store) => store.get(normalizeEmail(email)) as IDBRequest<AccountData | undefined>,
   );
   return data ?? null;
+}
+
+/** 접수한 문의를 이 계정 기록 맨 앞에 더한다. 최근 50건만 둔다. */
+export async function saveInquiry(accountEmail: string, inquiry: InquiryRecord): Promise<void> {
+  const current = await readAccountData(accountEmail);
+  await writeAccountData(accountEmail, { inquiries: [inquiry, ...(current?.inquiries ?? [])].slice(0, 50) });
 }
 
 /** 이 계정의 데이터 쓰기. 넘긴 항목만 덮어쓴다. */
@@ -198,7 +204,6 @@ export async function exportMyData(email: string): Promise<ExportedAccountData |
       Object.entries(data?.settings ?? {}).map(([name, value]) => [SETTING_LABEL_MAP.get(name) ?? name, value]),
     ),
     플레이기록: data?.records ?? [],
-    로그인기록: (data?.logins ?? []).map((entry) => ({ 때: new Date(entry.at).toISOString(), 기기: entry.device })),
     동의기록: consents.map(({ kind, version, agreed, agreedAt, withdrawnAt }) => ({
       종류: CONSENT_LABELS[kind],
       판: version,

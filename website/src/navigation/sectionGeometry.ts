@@ -74,7 +74,6 @@ function measureSteadyTranslateY(element: HTMLElement): number {
 
 interface SectionPosition extends SectionBounds {
   id: string;
-  label: string;
   /** 핀이 풀리는 스크롤 자리(px). */
   pinEnd: number;
   /** 이 덩이에 맞출 때의 스크롤 자리(px). */
@@ -89,7 +88,7 @@ export function measureSectionPositions(path: string, scale: number, headerHeigh
   const result: SectionPosition[] = [];
   for (const item of menu.items) {
     if (!item.selector) {
-      result.push({ id: item.id, label: item.label, top: 0, height: 0, pinEnd: 0, isPageTop: true, snapTop: 0 });
+      result.push({ id: item.id, top: 0, height: 0, pinEnd: 0, isPageTop: true, snapTop: 0 });
       continue;
     }
     const element = document.querySelector(item.selector);
@@ -97,7 +96,6 @@ export function measureSectionPositions(path: string, scale: number, headerHeigh
     const bounds = measureSectionBounds(element, scale);
     result.push({
       id: item.id,
-      label: item.label,
       ...bounds,
       pinEnd: bounds.top + (item.pinLength ?? 0) * scale,
       snapTop: computeSnapScrollTop(bounds, headerHeight),

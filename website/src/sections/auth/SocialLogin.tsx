@@ -1,12 +1,12 @@
-import { useState, type CSSProperties } from "react";
+import { useState } from "react";
 
 import { FONT } from "@/lib/style";
-import { startNaverLogin } from "@/services/account/naverAuth";
 import type { OnboardingRequired } from "@/services/account/socialAuthApi";
 import type { SessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
 import GoogleButton from "./GoogleButton";
+import NaverButton from "./NaverButton";
 
 interface SocialLoginProps {
   /** 구글은 이 화면에서 끝나므로 로그인한 사용자를 넘긴다. 네이버는 콜백 화면이 맡는다. */
@@ -22,11 +22,6 @@ export default function SocialLogin({ onSignedIn, onOnboardingRequired, returnTo
   const [message, setMessage] = useState("");
   const [isBusy, setIsBusy] = useState(false);
 
-  const handleNaver = () => {
-    if (isBusy) return;
-    setMessage(startNaverLogin(returnTo));
-  };
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px", alignItems: "center", width: "100%" }}>
       <div style={{ display: "flex", gap: "12px", alignItems: "center", justifyContent: "center" }}>
@@ -41,16 +36,14 @@ export default function SocialLogin({ onSignedIn, onOnboardingRequired, returnTo
           }}
           onError={setMessage}
         />
-        <button
-          type="button"
-          className="button"
-          style={{ ...socialButtonStyle, background: "#03c75a", borderColor: "#03c75a" }}
-          onClick={handleNaver}
-          title="네이버로 계속하기 (네이버 화면으로 이동)"
-          aria-label="네이버로 계속하기 (네이버 화면으로 이동)"
-        >
-          <span style={naverMarkStyle}>N</span>
-        </button>
+        <NaverButton
+          returnTo={returnTo}
+          action="로그인"
+          onMessage={(next) => {
+            // 구글 창이 떠 있는 동안은 네이버로 떠나지 않는다.
+            if (!isBusy) setMessage(next);
+          }}
+        />
       </div>
       {message && (
         <span style={{ fontFamily: FONT.mono, fontSize: "15px", color: COLOR.textMuted, textAlign: "center" }}>
@@ -61,24 +54,3 @@ export default function SocialLogin({ onSignedIn, onOnboardingRequired, returnTo
   );
 }
 
-const socialButtonStyle: CSSProperties = {
-  width: "44px",
-  height: "44px",
-  borderRadius: "22px",
-  border: "1px solid rgba(50,82,150,0.18)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  cursor: "pointer",
-  boxSizing: "border-box",
-};
-// 네이버 표식은 초록 바탕에 흰 굵은 N 이 공식 모양이다.
-const naverMarkStyle: CSSProperties = {
-  fontFamily: "'Inter', system-ui, sans-serif",
-  fontWeight: 800,
-  fontSize: "19px",
-  lineHeight: 1,
-  color: COLOR.white,
-  letterSpacing: "-0.5px",
-  transform: "translateY(-0.5px)",
-};

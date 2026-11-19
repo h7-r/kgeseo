@@ -7,6 +7,9 @@
  *   scenes  — 장면 번호(`SCENE_TITLES` 의 열쇠, 문자열)
  *   objects — 배치 키 `<무리 이름>#<번호>`. 실제로 그려진 인스턴스 번호(`InstanceGroup.batches[].ids`)를 그대로 쓴다.
  *             손 편집(지움 · 더함)을 얹은 뒤의 번호이고, 연출(`scene/immersion/director.ts`)이 단서를 세는 키와 같다.
+ *   진행 동기화 대응표(`progress/najuIdTable.ts`)의 왼쪽 열 — 퍼즐 코드가 서버로 보내는 구역 · 대표 물건 이름
+ *             (`cave-hall` · `clam-holes` 등). 도면 code 와 같은 이름(Z1 등)은 한 번만 들어간다 — 같은 값이 두 출처에
+ *             있는 것은 번호 충돌이 아니다.
  *
  * 값을 지어내지 않는다. 같은 키가 둘이면(번호 충돌) 목록을 믿을 수 없으므로 문제로 돌려준다 — 부르는 쪽이 멈춘다.
  * `registerInteractable` id(`cave-jar` 등 코드로 만든 물건)는 idmap 이 받는 형식이 아니라 여기 넣지 않는다.
@@ -32,6 +35,8 @@ export interface LocalIdSources {
   blockers: readonly Coded[];
   sceneNumbers: readonly (string | number)[];
   groups: readonly LocalIdGroup[];
+  /** 진행 동기화 대응표의 왼쪽 열(로컬 ID) — 없으면 넣지 않는다 */
+  progress?: { zones: readonly string[]; objects: readonly string[] };
 }
 
 export interface LocalIdResult {
@@ -84,12 +89,12 @@ export function collectLocalIds(sources: LocalIdSources): LocalIdResult {
     }
     objectCounts[group.groupId] = (objectCounts[group.groupId] ?? 0) + count;
   }
+  // 대응표 이름 — 그 안에서 겹치면 문제, 도면 · 배치 쪽에 이미 있으면 한 번만 넣는다
+  const progressZones = unique("zones", sources.progress?.zones ?? [], problems);
+  const progressObjects = unique("objects", sources.progress?.objects ?? [], problems);
+  const siteZones = sources.zones.map((zone) => zone.code);
   const list: LocalIdList = {
-    zones: unique(
-      "zones",
-      sources.zones.map((zone) => zone.code),
-      problems,
-    ),
+    zones: unique("zones", [...siteZones, ...progressZones.filter((zone) => !siteZones.includes(zone))], problems),
     navigation: unique(
       "navigation",
       sources.paths.map((path) => path.code),
@@ -100,7 +105,11 @@ export function collectLocalIds(sources: LocalIdSources): LocalIdResult {
       sources.blockers.map((blocker) => blocker.code),
       problems,
     ),
-    objects: unique("objects", objects, problems),
+    objects: unique(
+      "objects",
+      [...objects, ...progressObjects.filter((object) => !objects.includes(object))],
+      problems,
+    ),
     scenes: unique("scenes", sources.sceneNumbers.map(String), problems),
   };
   for (const kind of LOCAL_ID_KINDS) if (list[kind].length === 0) problems.push(`${kind}:none`);

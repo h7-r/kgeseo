@@ -74,6 +74,13 @@ interface TripoSources {
 }
 
 /** Tripo 동작 파일 여러 개 — 같은 이름 클립은 앞 파일이 이긴다. 클립마다 제 파일의 리그를 쓴다. */
+/** clipFor 에 이 접두사를 붙이면 Tripo 에 같은 이름이 있어도 Quaternius 범용 애니메이션 클립을 쓴다 */
+/** 점프 공중 자세 — 이 클립들만 위팔을 내린다 · 내리는 각(도) */
+const JUMP_AIR_CLIPS = new Set(["Jump_Start", "Jump_Loop"]);
+const JUMP_ARM_DROP = 42;
+
+export const QUATERNIUS_PREFIX = "Quaternius:";
+
 export function loadTripoSources(tripoGltfs: LoadedGltf[] | null): TripoSources {
   const sources: TripoSource[] = (tripoGltfs ?? [])
     .map((g) => {
@@ -145,6 +152,10 @@ export function createClipLibrary({
   // 그냥 서 있는 대기(Idle_Loop)만 따로 편다 — 걷기·달리기는 손대지 않는다.
   const idleValues: CorrectionValues = { ...tripoValues, ...(tripoValues.idleOverrides ?? {}) };
   const idleTable = tripoSkin ? computeCorrectionTable(retargetSkin, idleValues) : null;
+  // 점프(뛰어오르기 · 공중)는 원본 클립이 두 팔을 양옆 수평으로 쭉 뻗는다 — 3인칭에서 허수아비처럼 굳어 보였다(11/11 움직임 점검).
+  // 위팔을 몸 쪽으로 내려 균형 잡는 자세로 만든다. 착지 · 다른 동작은 그대로
+  const jumpValues: CorrectionValues = { ...correction, armSpread: correction.armSpread - JUMP_ARM_DROP };
+  const jumpTable = computeCorrectionTable(retargetSkin, jumpValues);
   attachSkeleton(source, sourceSkin.skeleton);
   const sourceClips = new Map(motionGltf.animations.map((clip) => [clip.name, clip]));
   // 옷만 바뀐 것이면 앞서 계산한 리타깃·보폭·접지를 그대로 쓴다.
@@ -153,8 +164,11 @@ export function createClipLibrary({
   const clipFor = (name: string): THREE.AnimationClip | null => {
     const cached = retargeted.get(name);
     if (cached) return cached;
-    const tripo = tripoClips.get(name);
-    const sourceClip = tripo?.clip ?? sourceClips.get(name);
+    // "Quaternius:이름" — Tripo 에 같은 이름이 있어도 Quaternius 범용 애니메이션 쪽을 쓴다(남성 대기 등)
+    const fromLibrary = name.startsWith(QUATERNIUS_PREFIX);
+    const clipName = fromLibrary ? name.slice(QUATERNIUS_PREFIX.length) : name;
+    const tripo = fromLibrary ? undefined : tripoClips.get(clipName);
+    const sourceClip = tripo?.clip ?? sourceClips.get(clipName);
     if (!sourceClip) return null;
     const clipSource = tripo ? tripo.source.scene : source;
     const clipSourceSkin = tripo ? tripo.source.skin : sourceSkin;
@@ -168,9 +182,10 @@ export function createClipLibrary({
     // 클립마다 쓸 보정 — 팔짱·대기는 그 클립 전용 값이 있다.
     let table: CorrectionTable | null = tripo ? tripoTable : baseTable;
     let values = tripo ? tripoValues : correction;
-    if (tripo && name === "Idle_Fold_Loop") [table, values] = [foldTable, foldValues];
-    if (tripo && name === "Idle_Loop") [table, values] = [idleTable, idleValues];
-    if (correction.enabled) applyClipCorrection(result, table, name, values);
+    if (tripo && clipName === "Idle_Fold_Loop") [table, values] = [foldTable, foldValues];
+    if (tripo && clipName === "Idle_Loop") [table, values] = [idleTable, idleValues];
+    if (!tripo && JUMP_AIR_CLIPS.has(clipName)) [table, values] = [jumpTable, jumpValues];
+    if (correction.enabled) applyClipCorrection(result, table, clipName, values);
     retargeted.set(name, result);
     return result;
   };

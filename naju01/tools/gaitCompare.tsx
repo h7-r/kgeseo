@@ -5,7 +5,7 @@
  * 같은 클립을 같은 시각으로 고정해 넣어야 「기준은 멀쩡한데 이쪽만 이상한」 항목을 가려낸다.
  * 뼈는 멀쩡한데 살만 찌그러지는지 보려면 스켈레톤 표시를 켠다.
  */
-import { Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { type CSSProperties, type RefObject, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
@@ -16,7 +16,7 @@ import type { AvatarLink } from "@/engine/avatarLink";
 import ChibiGameAvatar from "../src/avatar/ChibiGameAvatar";
 import SidekickGameAvatar from "../src/avatar/SidekickGameAvatar";
 import { normalizeMeshConfig, type MotionSource } from "../src/avatar/meshAppearance";
-import { normalizeSidekickConfig } from "../src/avatar/sidekickOptions";
+import { AUTO_MOTION, normalizeSidekickConfig } from "../src/avatar/sidekickOptions";
 import { DEFAULT_TOON } from "../src/avatar/toonMaterial";
 import { DEFAULT_OUTLINE } from "../src/avatar/toonOutline";
 
@@ -118,6 +118,40 @@ function GaitDevHook() {
   return null;
 }
 
+/**
+ * ?move=1 — 머리 찰랑임 보기용. 두 Meshy 아바타가 제자리(1초) → 오른쪽으로 걷기(1 m) → 멈춤 → 돌아서기 → 왼쪽으로 걷기 → 멈춤을
+ * 되풀이한다(한 바퀴 8초). 동작은 자동 고르기라 걷기·대기가 실제로 바뀐다. 측면 보기에서 잘 보인다.
+ */
+const MOVE_SPEED = 1.1;
+const MOVE_DISTANCE = 1.0;
+function MoveDriver({ states }: { states: { ref: RefObject<AvatarLink>; homeX: number }[] }) {
+  const clock = useRef(0);
+  // 캡처 도구가 한 바퀴의 같은 자리에서 찍기 시작하도록 시각을 연다
+  useEffect(() => exposeDevHook("gaitMove", { time: () => clock.current % 8 }), []);
+  useFrame((_, delta) => {
+    clock.current += delta;
+    const walkTime = MOVE_DISTANCE / MOVE_SPEED;
+    // [시작, 끝, 상태] — 오른쪽 = facing π/2
+    const t = clock.current % 8;
+    const leg = (start: number) => Math.min(1, Math.max(0, (t - start) / walkTime));
+    const outbound = leg(1);
+    const inbound = leg(4.6);
+    const along = MOVE_DISTANCE * (outbound - inbound);
+    const walking = (t > 1 && t < 1 + walkTime) || (t > 4.6 && t < 4.6 + walkTime);
+    // 돌아서기 — 멈춘 뒤 0.4초에 걸쳐 돈다
+    const turn = (start: number) => Math.min(1, Math.max(0, (t - start) / 0.4));
+    const facing = Math.PI / 2 + Math.PI * (turn(3.6) - turn(7.2));
+    states.forEach(({ ref, homeX }) => {
+      const state = ref.current;
+      state.position.set(homeX + along, 0, 0);
+      state.facing = facing;
+      state.moving = walking;
+      state.speed = walking ? MOVE_SPEED : 0;
+    });
+  });
+  return null;
+}
+
 /** 세 아바타가 같은 시각을 받도록 한 곳에서만 시간을 굴린다 */
 function GaitClock({
   isPaused,
@@ -160,16 +194,21 @@ function GaitStage() {
   // ?toon=1 이면 툰 재질을 켠다(피부·의상 표식 색칠은 툰 재질에서만 된다).
   const query = useMemo(() => Object.fromEntries(new URLSearchParams(window.location.search)), []);
   const isToonOn = query.toon === "1";
+  const isMoveDemo = query.move === "1";
   const isOutlineOn = query.outline === "1";
   const sidekickConfig = useMemo(() => ({ ...normalizeSidekickConfig(null), motion }), [motion]);
   const motionSource: MotionSource = useTripo ? "tripo" : "sidekick";
   const meshConfig = useMemo(
-    () => ({ ...normalizeMeshConfig(query), motion, motionSource }),
-    [motion, query, motionSource],
+    () => ({ ...normalizeMeshConfig(query), motion: isMoveDemo ? AUTO_MOTION : motion, motionSource }),
+    [motion, query, motionSource, isMoveDemo],
   );
   const feminineConfig = useMemo(
-    () => ({ ...normalizeMeshConfig({ ...query, gender: "feminine" }), motion, motionSource }),
-    [motion, query, motionSource],
+    () => ({
+      ...normalizeMeshConfig({ ...query, gender: "feminine" }),
+      motion: isMoveDemo ? AUTO_MOTION : motion,
+      motionSource,
+    }),
+    [motion, query, motionSource, isMoveDemo],
   );
   const rotation = VIEWS.find(([id]) => id === view)?.[2] ?? 0;
 
@@ -295,6 +334,14 @@ function GaitStage() {
         <GaitCamera view={view} zoom={zoom} />
         <GaitClock isPaused={isPaused} speed={speed} setTime={setTime} />
         <SkeletonOverlay enabled={showSkeleton} />
+        {isMoveDemo && (
+          <MoveDriver
+            states={[
+              { ref: meshState, homeX: 0 },
+              { ref: feminineState, homeX: SPACING },
+            ]}
+          />
+        )}
         <ambientLight intensity={0.85} />
         <hemisphereLight args={["#eef3ff", "#6d6a63", 0.55]} />
         <directionalLight position={[3, 6, 4]} intensity={1.15} />
@@ -305,7 +352,7 @@ function GaitStage() {
             playerRef={meshState}
             config={meshConfig}
             scale={1}
-            fixedTime={time}
+            fixedTime={isMoveDemo ? null : time}
             body="meshy"
             toon={toon}
             outline={outline}
@@ -316,7 +363,7 @@ function GaitStage() {
             playerRef={feminineState}
             config={feminineConfig}
             scale={1}
-            fixedTime={time}
+            fixedTime={isMoveDemo ? null : time}
             body="meshy"
             toon={toon}
             outline={outline}

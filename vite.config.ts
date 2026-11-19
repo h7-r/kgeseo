@@ -6,6 +6,8 @@ import { defaultLookReceiverPlugin } from "./naju01/vite/defaultLookPlugin";
 import { dropLocalOnlyPlugin } from "./naju01/vite/dropLocalOnlyPlugin";
 import { editFileServerPlugin } from "./naju01/vite/editFilePlugin";
 import { sharedAssetBuildPlugin } from "./tools/shared-asset-build.mjs";
+import { lobbyBuildPlugin } from "./vite.lobby-standins";
+import { startLookSavePlugin } from "./vite.start-looks";
 
 /**
  * leva 의 useValuesForPath 는 자기 폴더 값 몇 개를 읽으려고 스토어 전체(본부실 1,190개)를 매번 복사한다.
@@ -65,9 +67,24 @@ function levaSelectorPrebundlePatch() {
 
 export default defineConfig({
   // 텔레포트가 본편 안의 /naju01/ 로 넘어가므로 이 서버도 나주 손 배치를 내준다(저장은 나주 서버 5174 에서만)
-  plugins: [sharedAssetBuildPlugin(), levaSelectorPatch(), react(), editFileServerPlugin({ writable: false }), defaultLookReceiverPlugin(), dropLocalOnlyPlugin()],
+  plugins: [
+    sharedAssetBuildPlugin(),
+    lobbyBuildPlugin(),
+    levaSelectorPatch(),
+    react(),
+    editFileServerPlugin({ writable: false }),
+    defaultLookReceiverPlugin(),
+    // 캐릭터 생성 시작 모습 창(start-look.html)의 저장 창구 — 개발 서버 전용
+    startLookSavePlugin(),
+    dropLocalOnlyPlugin(),
+  ],
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // 기차에서 고른 나주(/naju01/)를 이 서버가 내줄 때 동행 NPC 가 쓰는 경로 — naju01/vite.config.ts 와 같게.
+      // 없으면 「전설 속으로」 뒤 나주가 「@npc/behaviorState 를 못 찾음」으로 멈춘다(배포 빌드는 나주 설정으로 따로 빌드해 괜찮았다)
+      "@npc": fileURLToPath(new URL("./prototypes/npc-follow/src/npc", import.meta.url)),
+    },
   },
   // 본편·나주 의존성을 서버 켤 때 한 번에 묶는다 — 나주 첫 진입 때 다시 묶으며 새로고침하는 긴 멈춤을 없앤다
   optimizeDeps: {

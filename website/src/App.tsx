@@ -12,7 +12,9 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-
 
 import {
   AboutPage,
+  AdminApp,
   AuthPage,
+  CreditsPage,
   MediaPage,
   MyPage,
   PricingPage,
@@ -25,24 +27,53 @@ import { useReadProgress } from "@/hooks/motion";
 import GameTransition from "@/layout/GameTransition";
 import HeaderLayer from "@/layout/HeaderLayer";
 import SiteBackdrop from "@/layout/SiteBackdrop";
+import { useIsMobileLayout } from "@/mobile/layoutMode";
+import MobileBackdrop from "@/mobile/MobileBackdrop";
+import GameStartGuide from "@/mobile/GameStartGuide";
+import MobilePlayNotice from "@/mobile/MobilePlayNotice";
+import MobileHeader from "@/mobile/MobileHeader";
 import VideoModal from "@/layout/videoPlayer/VideoModal";
 import { dispatchPageChange, scrollToTopSilently } from "@/lib/pageEvents";
-import { ROUTES, launchGame, pageTitle } from "@/navigation/routes";
+import { ROUTES, isAdminRoute, launchGame, pageTitle } from "@/navigation/routes";
 import ErrorPage from "@/pages/ErrorPage";
 import HomePage from "@/pages/HomePage";
 import SocialCallbackPage from "@/pages/SocialCallbackPage";
 import { IS_ACCOUNT_MANAGEMENT_READY } from "@/services/account/manageAccount";
 import { getSessionUser, useSessionUser } from "@/services/session";
+import { useMaintenanceRedirect } from "@/services/siteStatus";
+
+/** 관리자가 점검 모드를 켜면 사이트 화면을 점검 화면으로 보낸다(관리자 주소 · 게임은 예외). */
+function MaintenanceGate() {
+  useMaintenanceRedirect();
+  return null;
+}
 
 export default function App() {
+  // 모바일 배치 — 머리띠 · 배경을 모바일판으로 바꾼다. 3D 배경은 휴대폰 GPU · 배터리 몫이라 정지 배경으로(계획서 5.3)
+  const isMobile = useIsMobileLayout();
+  const { pathname } = useLocation();
+  // 관리자 화면은 사이트 장식(3D 배경 · 머리띠) 없이 자기 틀만 그린다. 훅을 다 부른 뒤에 가른다.
+  if (isAdminRoute(pathname)) {
+    return (
+      <RouteErrorBoundary>
+        <Suspense fallback={null}>
+          <AdminApp />
+        </Suspense>
+      </RouteErrorBoundary>
+    );
+  }
   return (
     <>
       {/* 쪽 전환 바깥에 둬야 화면을 옮겨도 3D 배경이 다시 만들어지지 않는다. */}
-      <SiteBackdrop />
+      {isMobile ? <MobileBackdrop /> : <SiteBackdrop />}
       <ReadProgressBar />
-      <HeaderLayer />
+      <MaintenanceGate />
+      {isMobile ? <MobileHeader /> : <HeaderLayer />}
       <VideoModal />
       <GameTransition />
+      {/* 모바일에서 연 안내가 창 크기 변경으로 데스크톱이 돼도 닫히지 않게 늘 둔다(열린 것이 없으면 그리지 않는다) */}
+      <GameStartGuide />
+      <MobilePlayNotice />
       <PageFrame>
         <Routes>
           <Route path={ROUTES.home} element={<HomePage />} />
@@ -56,6 +87,7 @@ export default function App() {
           <Route path={ROUTES.resetPassword} element={<PasswordResetRoute mode="resetPassword" />} />
           <Route path={ROUTES.about} element={<AboutPage />} />
           <Route path={ROUTES.terms} element={<TermsPage />} />
+          <Route path={ROUTES.credits} element={<CreditsPage />} />
           <Route path={ROUTES.support} element={<SupportPage />} />
           <Route path={ROUTES.pricing} element={<PricingPage />} />
           <Route

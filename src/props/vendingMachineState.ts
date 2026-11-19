@@ -7,6 +7,7 @@ import { useSyncExternalStore } from "react";
 
 import { playSound } from "@/audio/sound";
 import { exposeDevHook } from "@/debug/devHooks";
+import { showToast } from "@/game/toast";
 import { createChangeSignal } from "@/lib/changeSignal";
 
 export type VendingId = "drink" | "coffee";
@@ -63,6 +64,21 @@ const getMachineState = (id: VendingId) => {
   return state;
 };
 
+/**
+ * 자판기 전원 — 복도 완전 전원(분리수거 → 창문 스위치, workLampState fullPower)이 들어와야 동전을 받고 음료를 낸다
+ * (미르 플레이 시험 11/8 「건너뛰고 자판기로 가서 동전을 넣더라도 음료가 나오지 않고 완료되지 않은 미션이 있다는 것을 암시」,
+ * 튜토피드백 검토 01회차). 전원을 아는 쪽(workLampState)이 이 모듈을 가져오므로 거꾸로 가져오지 않고 확인 함수를 꽂아 받는다.
+ * 꽂기 전(다른 화면에서 자판기만 쓸 때)은 켜진 것으로 본다.
+ */
+let powerSource: () => boolean = () => true;
+export function setVendingPowerSource(source: () => boolean) {
+  powerSource = source;
+}
+export const isVendingPowered = () => powerSource();
+export const VENDING_UNPOWERED_MESSAGE = "자판기에 전원이 들어오지 않는다. 복도에 아직 끝내지 않은 일이 있는 것 같다.";
+/** 전원 없는 자판기를 만졌을 때(동전 · 버튼) 까닭을 알린다 */
+export const noticeVendingUnpowered = () => showToast(VENDING_UNPOWERED_MESSAGE);
+
 export const vendingMachineStore = {
   get: getMachineState,
   version: signal.version,
@@ -89,6 +105,13 @@ export function pressButton(
   state.pressedAt = performance.now();
   state.pressPaid = state.hasCoin;
   playSound("button", { volume: 0.9 });
+  // 전원이 없으면 눌리기만 한다 — 왜 아무 일도 없는지 알린다
+  if (!isVendingPowered()) {
+    state.pressPaid = false;
+    noticeVendingUnpowered();
+    signal.notify();
+    return;
+  }
   if (state.hasCoin) {
     state.hasCoin = false;
     if (kind === "drink") {

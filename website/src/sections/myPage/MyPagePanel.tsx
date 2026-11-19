@@ -1,23 +1,23 @@
 import { useEffect, useState, type CSSProperties } from "react";
 
-import Modal from "@/components/Modal";
-import { modalSecondaryStyle } from "@/components/modalButtonStyles";
 import TabBar from "@/components/TabBar";
-import { MY_PAGE_CONTENT, MY_PAGE_TABS, type AccountAction, type MyPageTabId } from "@/data/myPage";
+import { MY_PAGE_TABS, type AccountAction, type MyPageTabId } from "@/data/myPage";
 import { FONT } from "@/lib/style";
-import { ROUTES, launchGame, useSiteNavigate } from "@/navigation/routes";
+import { QUERY, ROUTES, launchGame, useSiteNavigate, withQuery } from "@/navigation/routes";
 import type { AccountData } from "@/services/account/db";
-import { deleteAccount, exportMyData, readAccountData, writeAccountData } from "@/services/account/manageAccount";
+import { exportMyData, readAccountData, writeAccountData } from "@/services/account/manageAccount";
+import { fetchMyInquiries, type MyInquiry } from "@/services/inquiries";
 import { signOut, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
-import LoginHistoryModal from "./LoginHistoryModal";
-import { AccountTab, AchievementsTab, HistoryTab, ItemsTab, SubscriptionTab } from "./MyPageTabs";
+import { InquiriesTab } from "./InquiriesTab";
+import { AccountTab, SubscriptionTab } from "./MyPageTabs";
 import PasswordModal from "./PasswordModal";
-import ProfileCard, { type ProfileStats } from "./ProfileCard";
-import { modalDangerStyle } from "./myPageStyles";
+import ProfileCard, { type ProfileStat } from "./ProfileCard";
+import { AchievementsTab, ItemsTab, ProgressGate, ProgressTab } from "./ProgressTabs";
+import { useMyProgress } from "./useMyProgress";
 
-type OpenModal = "password" | "loginHistory" | "deleteAccount" | null;
+type OpenModal = "password" | null;
 
 interface MyPagePanelProps {
   tab: MyPageTabId;
@@ -32,18 +32,20 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
   const user = useSessionUser();
   const startGame = () => launchGame(navigate);
 
-  const records = MY_PAGE_CONTENT.history.records;
-  const stats: ProfileStats = {
-    solved: records.filter((record) => record.result === "성공").length,
-    best: records.map((record) => record.clearTime).sort()[0] ?? "—",
-  };
+  // 내 진행 · 업적 · 아이템은 서버의 내 저장본에서 — 계정이 바뀌면 새로 읽는다.
+  const { state: progressState, reload: reloadProgress } = useMyProgress(user?.id);
+  const progress = progressState.status === "ready" ? progressState.progress : null;
+  // 읽는 중에는 숫자 자리에 「—」만(단위 없이)
+  const stat = (label: string, value: number | undefined, unit: string): ProfileStat =>
+    value === undefined ? [label, "—", ""] : [label, String(value), unit];
+  const stats: readonly ProfileStat[] = [
+    stat("사건 진행률", progress ? (progress.naju?.percent ?? 0) : undefined, "%"),
+    stat("해결한 사건", progress ? (progress.naju?.isCleared ? 1 : 0) : undefined, "건"),
+    stat("획득한 배지", progress?.badges.filter((badge) => badge.isEarned).length, "개"),
+  ];
 
   const [openModal, setOpenModal] = useState<OpenModal>(null);
-  const [deleteWarning, setDeleteWarning] = useState("");
-  const closeModal = () => {
-    setOpenModal(null);
-    setDeleteWarning("");
-  };
+  const closeModal = () => setOpenModal(null);
 
   const [accountData, setAccountData] = useState<AccountData | null>(null);
   useEffect(() => {
@@ -57,6 +59,20 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
     };
   }, [user?.email]);
   const emailNotifications = accountData?.settings?.emailNotifications ?? true;
+  // 서버의 내 문의 — 탭을 열 때 받는다(문의 서버, 11/13). 로그아웃하면 비운다
+  // 받은 결과에 「누구 · 몇 번째 열기」표식을 붙여 둔다 — 표식이 다르면 아직 받는 중으로 본다(효과 안에서 바로 setState 하지 않게)
+  const inquiriesKey = `${user?.id ?? ""}:${tab === "inquiries" ? "open" : "closed"}`;
+  const [loadedInquiries, setLoadedInquiries] = useState<{ key: string; items: MyInquiry[] | null } | null>(null);
+  useEffect(() => {
+    if (!user?.id || tab !== "inquiries") return;
+    const controller = new AbortController();
+    fetchMyInquiries(controller.signal).then((items) => {
+      if (!controller.signal.aborted) setLoadedInquiries({ key: inquiriesKey, items });
+    });
+    return () => controller.abort();
+  }, [user?.id, tab, inquiriesKey]);
+  const myInquiries: MyInquiry[] | null | "loading" =
+    loadedInquiries?.key === inquiriesKey ? loadedInquiries.items : "loading";
 
   const handleSignOut = () => {
     signOut();
@@ -66,8 +82,6 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
   const handleAccountAction = async (action: AccountAction) => {
     if (action === "signOut") handleSignOut();
     else if (action === "changePassword") setOpenModal("password");
-    else if (action === "loginHistory") setOpenModal("loginHistory");
-    else if (action === "deleteAccount") setOpenModal("deleteAccount");
     else if (!user) return;
     else if (action === "emailNotifications") {
       const saved = await writeAccountData(user.email, {
@@ -80,21 +94,17 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
     }
   };
 
-  // 계정과 그 데이터를 실제로 지운다. 동의 기록은 철회로 남는다. 못 지웠으면 로그인을 유지한 채 까닭을 보여 준다.
-  const handleDeleteAccount = async () => {
-    if (user?.email) {
-      const result = await deleteAccount(user.email);
-      if (!result.ok) {
-        setDeleteWarning(result.reason);
-        return;
-      }
-    }
-    handleSignOut();
-  };
-
   return (
     <section style={{ ...rootStyle, top: `${top}px` }}>
-      {user && <ProfileCard user={user} stats={stats} onStart={startGame} onSignOut={handleSignOut} />}
+      {user && (
+        <ProfileCard
+          user={user}
+          stats={stats}
+          hasProgress={progress ? !progress.isEmpty : false}
+          onStart={startGame}
+          onSignOut={handleSignOut}
+        />
+      )}
       <TabBar
         items={MY_PAGE_TABS}
         activeId={tab}
@@ -106,36 +116,31 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
       <div style={{ height: "1px", width: "100%", background: "#262933" }} />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "16px", width: "100%" }}>
-        {tab === "history" && <HistoryTab onRetry={startGame} />}
+        {tab === "inquiries" && (
+          <InquiriesTab
+            inquiries={myInquiries}
+            legacy={accountData?.inquiries ?? []}
+            onWrite={() => navigate(withQuery(ROUTES.support, { [QUERY.tab]: "inquiry" }))}
+          />
+        )}
         {tab === "account" && <AccountTab emailNotifications={emailNotifications} onAction={handleAccountAction} />}
         {tab === "subscription" && <SubscriptionTab />}
-        {tab === "achievements" && <AchievementsTab />}
-        {tab === "items" && <ItemsTab />}
+        {(tab === "history" || tab === "achievements" || tab === "items") && (
+          <ProgressGate state={progressState} onRetry={reloadProgress}>
+            {(mine) =>
+              tab === "history" ? (
+                <ProgressTab progress={mine} onStart={startGame} />
+              ) : tab === "achievements" ? (
+                <AchievementsTab progress={mine} />
+              ) : (
+                <ItemsTab progress={mine} />
+              )
+            }
+          </ProgressGate>
+        )}
       </div>
 
       <PasswordModal open={openModal === "password"} onClose={closeModal} user={user} />
-      <LoginHistoryModal open={openModal === "loginHistory"} onClose={closeModal} logins={accountData?.logins ?? []} />
-      <Modal
-        open={openModal === "deleteAccount"}
-        onClose={closeModal}
-        danger
-        title="정말 탈퇴할까요?"
-        description="탈퇴하면 플레이 기록과 보유 아이템이 모두 사라지고 되돌릴 수 없습니다. (관계 법령에 따라 보관해야 하는 기록은 정해진 기간 동안 따로 보관합니다.)"
-      >
-        {deleteWarning && (
-          <div role="alert" style={warningStyle}>
-            {deleteWarning}
-          </div>
-        )}
-        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-          <button type="button" className="button" style={modalSecondaryStyle} onClick={closeModal}>
-            <span className="button__label">취소</span>
-          </button>
-          <button type="button" className="button" style={modalDangerStyle} onClick={handleDeleteAccount}>
-            <span className="button__label">탈퇴하기</span>
-          </button>
-        </div>
-      </Modal>
     </section>
   );
 }
@@ -151,7 +156,6 @@ const rootStyle: CSSProperties = {
 };
 
 // 비밀번호 변경 창의 경고와 같은 모양
-const warningStyle: CSSProperties = { fontFamily: FONT.body, fontSize: "15px", color: COLOR.danger };
 
 const tabRowStyle: CSSProperties = { display: "flex", gap: "20px", alignItems: "center" };
 

@@ -30,6 +30,16 @@ export function toggleHinge(id: string) {
   return open;
 }
 
+/**
+ * 닫혀 있을 때만 연다(열려 있으면 아무 일도 안 한다) — 연출이 문을 열어 보여 줄 때. toggleHinge 는 두 번 불리면 도로 닫는다.
+ * 열었으면 true.
+ */
+export function openHinge(id: string) {
+  if (openIds.has(id)) return false;
+  toggleHinge(id);
+  return true;
+}
+
 function closeHinge(id: string) {
   restoredOpenIds.delete(id);
   if (!openIds.delete(id)) return;

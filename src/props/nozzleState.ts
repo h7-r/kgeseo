@@ -24,6 +24,17 @@ const signal = createChangeSignal();
 
 export const getNozzleLocation = () => state.location;
 
+/**
+ * 함 속 관창을 꺼낼 수 있나 — 배전반 선 셋을 잇고 차단기를 올린 뒤에만(11/12 「선 연결해야만 호스를 들 수 있게」).
+ * 판정은 panelWiringState 가 넣어 준다(그쪽이 이 파일을 쓰므로 여기서 부르면 순환 import). 안 넣으면 늘 꺼낼 수 있다.
+ */
+let canReleaseNozzle: () => boolean = () => true;
+export function setNozzleReleaseSource(isReady: () => boolean) {
+  canReleaseNozzle = isReady;
+}
+/** 지금 함에서 꺼낼 수 있나 — 꽂힌 것을 도로 뽑는 데는 안 본다(잘못 꽂아도 퍼즐이 안 막히게) */
+export const isNozzleReleasable = () => canReleaseNozzle();
+
 /** 이미 뭔가 들고(끌고) 있나 — 관창을 집을 수 있는지의 기준. */
 export function isHoldingSomething() {
   if (getHeldCoin()) return true;
@@ -34,6 +45,7 @@ export function isHoldingSomething() {
 /** 함 속이나 꽂힌 자리에서 집어 든다. */
 export function pickUpNozzle() {
   if (state.location === "hand") return false;
+  if (state.location === "cabinet" && !canReleaseNozzle()) return false;
   if (isHoldingSomething()) return false;
   state.location = "hand";
   playSound("boxUp", { volume: 0.9 });
@@ -146,6 +158,7 @@ exposeDevHook("nozzle", {
   plugNozzle,
   resetNozzle,
   handsBusy: isHoldingSomething,
+  releasable: isNozzleReleasable,
   hoseAnchors: anchors,
   isHoseTaut,
 });

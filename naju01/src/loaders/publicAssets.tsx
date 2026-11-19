@@ -28,6 +28,7 @@ import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import { IS_LOW_QUALITY } from "@/engine/quality";
 
 import { isEditModeActive } from "../placement/libraryPlaceApi";
 import { UNITS_PER_METER } from "../plan/sitePlan";
@@ -67,6 +68,7 @@ export {
   publicAssetStatus,
 } from "./publicAssetManifest";
 export { PUBLIC_ASSET_MESH_PREFIX } from "./publicAssetGeometry";
+import { hash01, PUBLIC_ASSET_MESH_PREFIX } from "./publicAssetGeometry";
 
 const U = UNITS_PER_METER;
 /** 원경판 경계(m) — 초점 모드에선 안개가 14 m 에서 닫히므로 10 m 로 당긴다(안개 속은 원경판으로 충분) */
@@ -74,6 +76,44 @@ const LOD_BOUNDARY_M = 22;
 const LOD_BOUNDARY_FOCUSED_M = 10;
 /** 차단물 겉돌이 가라앉는 시간(초) */
 const SINK_SECONDS = 2.4;
+/** 눈이 이만큼(유닛) 넘게 옮겨 가면 구역 초점 거르기를 바로 다시 한다 — 걸어서는 2초 넘게 걸리는 거리 */
+const FOCUS_JUMP_UNITS = 8 * U;
+/** 눈이 이만큼 움직이기 전에는 원근 나눔을 다시 하지 않는다(경계 22 m 에 견줘 반 미터는 눈에 안 띈다) */
+const LOD_REFILL_UNITS = 0.5 * U;
+/** 세우기 · 원근 나눔은 20 프레임, 구역 초점 거르기는 400 프레임에 한 번 — 프레임이 느려도 이 시간(ms)은 넘기지 않는다(60 fps 의 그 프레임 수보다 조금 길게) */
+const PASS_MAX_WAIT_MS = 400;
+const FILTER_MAX_WAIT_MS = 7000;
+/**
+ * 저사양 잔자갈 솎기(11/18) — 그래픽 카드를 못 쓰는 PC 는 삼각형 수가 곧 그리기 속도다(실측: 자갈을 빼면 1.7배).
+ *   교체본 「자갈」 가운데 걷기 충돌이 굽지 않는 낮은 것(solidField MIN_HEIGHT 0.15 m 미만)만 절반 남긴다 —
+ *   막는 돌은 그대로라 「안 보이는 돌에 걸림」이 없다. 표준 화질은 건드리지 않는다. `?thin=off` 로 끈다(견줘 보기).
+ */
+const IS_PEBBLE_THINNING =
+  IS_LOW_QUALITY && (typeof location === "undefined" || new URLSearchParams(location.search).get("thin") !== "off");
+const THIN_MESH_NAME = `${PUBLIC_ASSET_MESH_PREFIX}자갈`;
+const THIN_BELOW_M = 0.15;
+const THIN_KEEP_RATIO = 0.5;
+
+/** 솎을 자리 표(1 = 뺀다) — 편집 번호(없으면 자리 순번)로 정해 걸어 다녀도 같은 돌이 남는다. 대상 무리가 아니면 null */
+function pebbleThinMask(mesh: THREE.InstancedMesh, matrices: Float32Array, n: number, ids: number[] | null) {
+  if (!IS_PEBBLE_THINNING || mesh.name !== THIN_MESH_NAME) return null;
+  const { geometry } = mesh;
+  if (!geometry.boundingBox) geometry.computeBoundingBox();
+  const box = geometry.boundingBox;
+  if (!box) return null;
+  const size = box.getSize(new THREE.Vector3());
+  const world = new THREE.Matrix4();
+  mesh.updateMatrixWorld();
+  const mask = new Uint8Array(n);
+  for (let k = 0; k < n; k++) {
+    // 충돌 격자(solidField)와 같은 자 — 기울기까지 넣은 월드 경계 상자의 높이. 눕힌 돌은 제 키보다 높게 걸칠 수 있다
+    const e = world.fromArray(matrices, k * 16).premultiply(mesh.matrixWorld).elements;
+    const heightM = (Math.abs(e[1]) * size.x + Math.abs(e[5]) * size.y + Math.abs(e[9]) * size.z) / U;
+    if (heightM >= THIN_BELOW_M) continue;
+    if (hash01((ids && ids[k] >= 0 ? ids[k] : k) * 7349 + 101) >= THIN_KEEP_RATIO) mask[k] = 1;
+  }
+  return mask;
+}
 
 // ── 「놓기」 다시 읽기 (10/15) — 통합 편집 모드(E)가 manifest 「놓기」를 쓴 뒤(놓기·고치기·지우기) 새로고침 없이 보이게 ──
 const reloadHandlers = new Set<() => Promise<boolean>>();
@@ -90,6 +130,15 @@ export interface PublicSolid {
 let liveBuilt: Map<string, BuiltEntry> | null = null;
 let liveGroup: THREE.Group | null = null;
 let solidsVersion = 0;
+
+/**
+ * 처음 세우기가 끝났나 — 시작 카드가 뜨면 프레임이 멈추므로, 그 전에 소품을 다 세우고 셰이더까지 구워 둬야 한다.
+ * 안 그러면 세우기가 「조사 시작」을 누른 직후로 밀려 그 프레임이 멈춘다(11/16 실측: 소품 재질 9개 · 0.34초)
+ */
+let isSettled = !IS_PUBLIC_ASSETS_ENABLED;
+let quietPasses = 0;
+let totalPasses = 0;
+export const isPublicAssetsSettled = () => isSettled;
 /** 교체본이 새로 서거나 치워질 때마다 오른다 — 충돌 격자가 이걸 보고 다시 굽는다 */
 export const publicSolidsVersion = () => solidsVersion;
 export function collectPublicSolids(): PublicSolid[] {
@@ -158,6 +207,17 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
   const placesOverride = useRef<PlaceItem[] | null>(null);
   const tick = useRef(0);
   const focusTick = useRef(0);
+  /** 구역 초점으로 마지막에 걸러 낸 때의 눈 자리(유닛) */
+  const filteredAt = useRef(new THREE.Vector3(Infinity, Infinity, Infinity));
+  // 틱은 프레임 수로 센다 — 프레임이 느린 PC 일수록 거르기가 늦어져(9 fps 면 46초에 한 번) 정작 느린 쪽이 더 많이 그렸다.
+  // 60 fps 에서 같은 때가 되도록 시간 하한을 같이 둔다(11/18)
+  const passedAt = useRef(0);
+  const focusFilteredAt = useRef(0);
+  const wasOverview = useRef(false);
+  const lodAt = useRef<{ eye: THREE.Vector3; radius: number | null }>({
+    eye: new THREE.Vector3(Infinity, Infinity, Infinity),
+    radius: null,
+  });
   const clearedRef = useRef(clearedBlockers);
   const groundAtRef = useRef(groundAt);
   // 렌더 중 ref 쓰기 금지(react-hooks) — 효과에서 최신 값을 넣는다
@@ -172,8 +232,12 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
     loadPublicAssetTable(() => isAlive)
       .then((result) => {
         if (isAlive && result) setTable(result);
+        else isSettled = true;
       })
-      .catch((error: unknown) => reportAssetFailure("public-loader", error));
+      .catch((error: unknown) => {
+        isSettled = true;
+        reportAssetFailure("public-loader", error);
+      });
     return () => {
       isAlive = false;
     };
@@ -292,7 +356,11 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
   useFrame(({ scene, camera }) => {
     const group = groupRef.current;
     liveGroup = group;
-    if (!table || !group || ++tick.current % 20) return;
+    if (!table || !group) return;
+    // 처음 세우기가 끝날 때까지는 프레임마다 돈다(로딩 덮개 뒤) — 20 프레임에 한 번이면 시작 카드 전에 한 번도 못 돈다
+    const nowMs = performance.now();
+    if (++tick.current % 20 && isSettled && nowMs - passedAt.current < PASS_MAX_WAIT_MS) return;
+    passedAt.current = nowMs;
     group.updateMatrixWorld(true);
     const ctx: BuildContext = {
       scene,
@@ -303,19 +371,24 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
     let changed = false;
 
     // ── ① 원본 무리 압축 — 등록부가 맡는 자리를 원본에서 뺀다(새로 담긴 무리만) ──
+    // 씬은 여기서 한 번만 훑는다 — 아래 바꿔치기가 항목마다 다시 훑으면 20 프레임마다 프레임이 튄다(성능 진단 11/13)
+    const originalsByName = new Map<string, THREE.InstancedMesh[]>();
     scene.traverse((o) => {
       if (!(o as THREE.InstancedMesh).isInstancedMesh || o.userData.publicAsset) return;
       compactOriginal(o as THREE.InstancedMesh);
       // 남은 원본도 비탈에서 뜨지 않게
       const groundAt = groundAtRef.current;
       if (groundAt) settleOriginal(o as THREE.InstancedMesh, groundAt);
+      const list = originalsByName.get(o.name);
+      if (list) list.push(o as THREE.InstancedMesh);
+      else originalsByName.set(o.name, [o as THREE.InstancedMesh]);
     });
 
     // ── ② 바꿔치기 ──
     table.swaps.forEach((item, index) => {
       if (IS_EMPTY_BASE) return; // 빈 지형 — 교체본(사람 배치 무리의 겉모습)도 그리지 않는다
       const key = `바꿔:${index}:${item.target}`;
-      const result = buildSwap(item, ctx, built.current.get(key), groundAtRef.current);
+      const result = buildSwap(item, ctx, built.current.get(key), groundAtRef.current, originalsByName);
       if (result === "same" || result === null) return;
       built.current.set(key, result);
       changed = true;
@@ -403,7 +476,14 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
     const radius2 = radius ? radius * radius : Infinity;
     const boundary2 = ((radius ? LOD_BOUNDARY_FOCUSED_M : LOD_BOUNDARY_M) * U) ** 2;
     const eye = camera.position;
-    for (const v of built.current.values())
+    // 원근 나눔은 눈이 움직였거나 세운 것 · 반경이 바뀌었을 때만 — 서 있는 동안 같은 답을 다시 채워 올리지 않는다(성능 진단 11/13)
+    const isLodStale =
+      changed || radius !== lodAt.current.radius || eye.distanceToSquared(lodAt.current.eye) > LOD_REFILL_UNITS ** 2;
+    if (isLodStale) {
+      lodAt.current.eye.copy(eye);
+      lodAt.current.radius = radius;
+    }
+    for (const v of isLodStale ? built.current.values() : [])
       for (const { nearMeshes, farMeshes, nearMatrices, farMatrices, positions, idTable, placeSpots } of v.lodPairs ||
         []) {
         let a = 0;
@@ -439,7 +519,19 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
 
     // ── ⑥ 구역 초점 거르기 — 원근 짝이 없는 교체본(덮기 등)도 반경 밖 자리는 뺀다 ──
     // 전체보기(부감) 중엔 radius 가 없다 → 빼 둔 자리를 반경 없이 되살린다
-    if ((radius || focus.paused) && ++focusTick.current % 20 === 0) {
+    // 이 블록은 20 프레임에 한 번 도는 틱 안에 있어 실제로는 400 프레임에 한 번이다. 걸을 때는 그걸로 넉넉하지만,
+    // 순간이동(틈 · 되돌려짐)으로 눈이 멀리 뛰면 그 자리 소품이 몇 초씩 빠져 보인다 — 크게 옮겼으면 바로 다시 거른다
+    const hasJumped = eye.distanceToSquared(filteredAt.current) > FOCUS_JUMP_UNITS ** 2;
+    const isFilterOverdue = nowMs - focusFilteredAt.current > FILTER_MAX_WAIT_MS;
+    // 전체보기(편집 · 부감)를 드나들면 솎은 자갈을 바로 되살리거나 다시 솎는다 — 다음 주기까지 기다리면 그동안 집을 수 없다
+    const isThinModeChanged = IS_PEBBLE_THINNING && (radius === null) !== wasOverview.current;
+    wasOverview.current = radius === null;
+    if (
+      (radius || focus.paused) &&
+      (++focusTick.current % 20 === 0 || hasJumped || isFilterOverdue || isThinModeChanged)
+    ) {
+      filteredAt.current.copy(eye);
+      focusFilteredAt.current = nowMs;
       const t = new THREE.Vector3();
       group.traverse((o) => {
         if (!(o as THREE.InstancedMesh).isInstancedMesh || o.userData.lodPaired) return;
@@ -458,7 +550,11 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
           ids: number[] | null;
           coverIds: string[] | null;
           placeSpots: number[] | null;
+          thin?: Uint8Array | null;
         };
+        if (full.thin === undefined) full.thin = pebbleThinMask(m, full.matrices, full.n, full.ids);
+        // 전체보기(편집 · 부감)에서는 솎지 않는다 — 놓인 돌을 전부 보고 집어야 한다
+        const thin = radius ? full.thin : null;
         const ids: number[] = [];
         const coverIds: string[] = [];
         const placeSpots: number[] = [];
@@ -469,6 +565,7 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
             m.matrixWorld,
           );
           if (t.distanceToSquared(eye) > radius2) continue;
+          if (thin?.[k]) continue;
           (m.instanceMatrix.array as Float32Array).set(full.matrices.subarray(k * 16, k * 16 + 16), j * 16);
           if (full.ids) ids.push(full.ids[k]);
           if (full.coverIds) coverIds.push(full.coverIds[k]);
@@ -482,6 +579,13 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
         m.instanceMatrix.needsUpdate = true;
         m.computeBoundingSphere();
       });
+    }
+
+    if (!isSettled) {
+      const isLoading = (placesOverride.current ?? table.places).some((item) => item.loading);
+      quietPasses = changed || isLoading ? 0 : quietPasses + 1;
+      // 세운 것이 있으면 조용한 두 번, 아직 아무것도 못 세웠으면(원본이 덜 붙음) 더 기다린다. 끝내 안 되면 그냥 간다
+      if (quietPasses >= (built.current.size ? 2 : 40) || ++totalPasses > 600) isSettled = true;
     }
 
     if (changed) {

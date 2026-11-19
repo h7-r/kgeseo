@@ -1,3 +1,5 @@
+import { useIsMobileLayout } from "@/mobile/layoutMode";
+import { MobileTermsPage } from "@/mobile/MobilePages";
 import Stage from "@/components/Stage";
 import { TERMS_HEIGHTS, TERMS_TABS } from "@/data/terms";
 import { useQueryTab } from "@/hooks/useQueryTab";
@@ -8,7 +10,7 @@ import TermsTabs from "@/sections/terms/TermsTabs";
 const TOP_MARGIN = 64;
 const CARD_TOP = HEADER_HEIGHT + TOP_MARGIN;
 
-export default function TermsPage() {
+function DesktopTermsPage() {
   // 푸터의 「개인정보처리방침」처럼 특정 탭을 바로 여는 링크가 있어 탭을 주소에 둔다.
   const [tab, setTab] = useQueryTab(TERMS_TABS, "terms");
 
@@ -20,4 +22,9 @@ export default function TermsPage() {
       <PageFooter />
     </Stage>
   );
+}
+
+/** 모바일은 따로 그린다 — 데스크톱판의 무대 배율 훅이 모바일에서 돌지 않게 진입에서만 가른다(src/mobile/MobilePages) */
+export default function TermsPage() {
+  return useIsMobileLayout() ? <MobileTermsPage /> : <DesktopTermsPage />;
 }

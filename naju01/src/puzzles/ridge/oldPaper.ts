@@ -7,6 +7,8 @@ import * as THREE from "three";
 
 import { createChangeSignal } from "@/lib/changeSignal";
 
+import { beginHold, endHold } from "../pointerHold";
+
 /** 종이 글 — 일곱 줄(세로쓰기, 오른쪽부터). 장승 이름을 풀어 쓰고, 머리 고리 · 발 고리를 바로 짚어 준다 */
 export const PAPER_LINES = [
   "진부촌 어귀 두 장승이 문을 지키니",
@@ -59,17 +61,20 @@ const readableLines = () =>
 /** 안내판에 보여 줄 한 줄 */
 export const PAPER_READING = readableLines().join(" / ");
 
-// 읽기 화면 — 종이를 손에 들고 읽는 동안 true(PaperReadHud 가 띄운다)
+// 읽기 화면 — 종이를 손에 들고 읽는 동안 true(PaperReadHud 가 띄운다).
+// 읽는 동안은 잠금을 풀어 둔다 — 첫 ESC 가 종이만 내려놓고 조작으로 돌아오게(pointerHold)
 const paperSignal = createChangeSignal();
 let isPaperOpen = false;
 export const openPaper = () => {
   if (isPaperOpen) return;
   isPaperOpen = true;
+  beginHold("paper", "interaction");
   paperSignal.notify();
 };
 export const closePaper = () => {
   if (!isPaperOpen) return;
   isPaperOpen = false;
+  endHold("paper");
   paperSignal.notify();
 };
 export const usePaperOpen = () => useSyncExternalStore(paperSignal.subscribe, () => isPaperOpen);

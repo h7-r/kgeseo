@@ -15,6 +15,7 @@ body {
   display: grid;
   place-items: center;
   min-height: 100vh;
+  min-height: 100dvh; /* 휴대폰 주소창을 뺀 실제 높이 — 모르는 브라우저는 윗줄 */
   background: #141014;
 }
 
@@ -37,4 +38,29 @@ body {
   display: block;
   width: 100% !important;
   height: 100% !important;
+}
+
+/* 모바일 — 당겨서 새로고침 · 튕김 스크롤을 막고, 캔버스 위 손가락이 페이지 확대 · 스크롤로 새지 않게 */
+html,
+body {
+  overscroll-behavior: none;
+}
+.game-stage canvas {
+  touch-action: none;
+}
+/* 터치 모드 「멈춤」(눌러서 계속) 동안 화면 연출(CSS 애니메이션)도 세운다(engine/input/gamePause).
+   창 때문에 얼었을 때는 세우지 않는다 — 막 뜬 창의 등장 애니메이션이 투명한 첫 장면에 멈춰 창이 안 보였다 */
+html.game-paused * {
+  animation-play-state: paused !important;
+}
+/* 게임 시간으로 재는 연출(나주 먹물 등, data-game-clock)은 창 때문에 얼었을 때도 세운다 — 창을 연 사이에 걷히지 않게 */
+html.game-frozen [data-game-clock],
+html.game-frozen [data-game-clock] * {
+  animation-play-state: paused !important;
+}
+
+/* 자물쇠를 만지는 동안 · 자물쇠 · 창에서 게임으로 돌아가는 중에는 커서를 숨긴다(App, 튜토피드백 12회차) — 나주 naju-cursor-hidden 과 같은 일 */
+html.game-cursor-hidden,
+html.game-cursor-hidden * {
+  cursor: none !important;
 }

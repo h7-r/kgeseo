@@ -21,11 +21,12 @@ interface MissionSpec {
   /** 큰 숫자 + 단위. */
   amount?: string;
   unit?: string;
-  isStarColor?: boolean;
+  /** 강조 색(난이도) */
+  isAccent?: boolean;
 }
 
 const MISSION_SPECS: readonly MissionSpec[] = [
-  { label: "난이도", value: "★★★☆☆", width: 197, isStarColor: true },
+  { label: "난이도", value: "보통", width: 197, isAccent: true },
   { label: "플레이 시간", amount: "15~25", unit: "분", width: 196 },
   { label: "플레이 인원", amount: "1", unit: "명", width: 197 },
 ];
@@ -178,7 +179,7 @@ export default function AngamRock() {
         </div>
 
         <div className="u-pin-reveal" style={{ display: "flex", gap: "24px", alignItems: "center" }}>
-          {MISSION_SPECS.map(({ label, value, amount, unit, width, isStarColor }) => (
+          {MISSION_SPECS.map(({ label, value, amount, unit, width, isAccent }) => (
             <div key={label} style={{ ...specBoxStyle, width: `${width}px` }}>
               <div
                 style={{
@@ -197,7 +198,7 @@ export default function AngamRock() {
                     fontFamily: FONT.body,
                     fontWeight: 700,
                     fontSize: "22px",
-                    color: isStarColor ? "#4f6cb0" : COLOR.white,
+                    color: isAccent ? "#4f6cb0" : COLOR.white,
                   }}
                 >
                   {value}

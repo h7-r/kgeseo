@@ -412,7 +412,23 @@
           "shyt",
           "smartass",
           "sonofabitch",
-          "wanker"
+          "wanker",
+          "sibal",
+          "shibal",
+          "sibar",
+          "sival",
+          "gaesaeki",
+          "gaeseki",
+          "gesaeki",
+          "byungsin",
+          "byeongsin",
+          "byungshin",
+          "byeongshin",
+          "jiral",
+          "michinom",
+          "keojyeo",
+          "dakchyeo",
+          "jotna"
         ],
         "strict": [
           "ㄲㅈ",
@@ -505,7 +521,8 @@
           "지ㄹ",
           "찐다새",
           "찐따",
-          "홍어"
+          "홍어",
+          "ㅅ8"
         ],
         "word": [
           "미친넘",
@@ -527,7 +544,11 @@
           "sht",
           "stfu",
           "twat",
-          "wtf"
+          "wtf",
+          "michin",
+          "saeki",
+          "sekki",
+          "jonna"
         ]
       },
       "family": {
@@ -586,7 +607,10 @@
           "엠창",
           "motherfuck",
           "yomama",
-          "yourmom"
+          "yourmom",
+          "niaemi",
+          "nieomi",
+          "nieommi"
         ],
         "strict": ["ㄴㄱㅁ", "ㄴㄱ마", "ㄴㄱ빠", "ㄴ금마", "느ㄱ마"],
         "word": []

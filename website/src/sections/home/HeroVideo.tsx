@@ -151,6 +151,8 @@ interface HeroResources {
 interface HeroPlayer {
   /** 예고편을 처음부터 다시 튼다(끝 화면 → 예고편). */
   replay: () => void;
+  /** 예고편을 멈추고 끝 화면 영상으로 넘긴다(건너뛰기). 화면 쪽은 이미 끝 화면이라 다시 알리지 않는다. */
+  skip: () => void;
   dispose: () => void;
 }
 
@@ -376,7 +378,7 @@ function mount(container: HTMLElement, onEnd: (canReplay: boolean) => void): Her
 
   // 예고편 끝: 한 번만 알리고 바탕을 끝 화면 영상으로 돌린다
   let endedAt = -1;
-  const finish = () => {
+  const finish = (shouldNotify = true) => {
     if (endedAt >= 0 || isDead) return;
     endedAt = performance.now();
     needsRedraw = true;
@@ -386,8 +388,10 @@ function mount(container: HTMLElement, onEnd: (canReplay: boolean) => void): Her
       uniforms.uAmbient.value = ambient.texture;
       ambient.video.play().catch(() => {});
     }
-    onEnd(video.currentTime > 0.1);
+    if (shouldNotify) onEnd(video.currentTime > 0.1);
   };
+  // 이벤트 · play() 실패는 인자를 넘기므로 감싼다(그대로 넘기면 알림 여부로 읽힌다).
+  const handleVideoEnd = () => finish();
   // 예고편이 실제로 흐르기 시작하면 그제야 끝 화면 영상을 받기 시작한다.
   const handlePlaying = () => {
     if (!isScrub) prepareAmbient(resources);
@@ -408,9 +412,9 @@ function mount(container: HTMLElement, onEnd: (canReplay: boolean) => void): Her
     uniforms.uEnd.value = 0;
     uniforms.uAmbient.value = texture;
     showTrailerDirectly();
-    video.addEventListener("ended", finish);
-    video.addEventListener("error", finish);
-    video.play().catch(finish);
+    video.addEventListener("ended", handleVideoEnd);
+    video.addEventListener("error", handleVideoEnd);
+    video.play().catch(handleVideoEnd);
   }
 
   let shake = 0;
@@ -485,7 +489,13 @@ function mount(container: HTMLElement, onEnd: (canReplay: boolean) => void): Her
       // 아직 옮길 수 없으면 처음 자리 그대로다.
     }
     showTrailerDirectly();
-    video.play().catch(finish);
+    video.play().catch(handleVideoEnd);
+  };
+
+  const skip = () => {
+    if (isScrub || endedAt >= 0) return;
+    video.pause();
+    finish(false);
   };
 
   const dispose = () => {
@@ -493,8 +503,8 @@ function mount(container: HTMLElement, onEnd: (canReplay: boolean) => void): Her
     cancelAnimationFrame(frame);
     window.clearTimeout(startTimer);
     video.removeEventListener("playing", handlePlaying);
-    video.removeEventListener("ended", finish);
-    video.removeEventListener("error", finish);
+    video.removeEventListener("ended", handleVideoEnd);
+    video.removeEventListener("error", handleVideoEnd);
     resizeObserver.disconnect();
     intersectionObserver.disconnect();
     window.removeEventListener("resize", fit);
@@ -516,15 +526,15 @@ function mount(container: HTMLElement, onEnd: (canReplay: boolean) => void): Her
     if (!isScrub) video.remove();
   };
 
-  return { replay, dispose };
+  return { replay, skip, dispose };
 }
 
 interface HeroVideoProps {
-  /** 예고편이 끝났다(틀 수 없을 때·동작 줄이기 포함). canReplay 는 「예고편 다시 보기」를 띄워도 되는가. */
+  /** 예고편이 끝났다(틀 수 없을 때·동작 줄이기 포함). canReplay 는 「다시 보기」를 띄워도 되는가. */
   onEnd: (canReplay: boolean) => void;
   /** 바뀔 때마다 예고편을 처음부터 다시 튼다. */
   replayKey: number;
-  /** 끝 화면인가 — 포스터만 보일 때(WebGL 불가) 바탕을 어둡게 누른다. */
+  /** 끝 화면인가 — 건너뛰기 · 스크롤 복귀로 먼저 끝 화면이 되면 예고편을 멈추고 넘긴다. 포스터만 보일 때(WebGL 불가) 바탕도 바꾼다. */
   isEnded: boolean;
 }
 
@@ -533,9 +543,12 @@ export default function HeroVideo({ onEnd, replayKey, isEnded }: HeroVideoProps)
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<HeroPlayer | null>(null);
   const onEndRef = useRef(onEnd);
+  // 재생기가 늦게 붙어도(한가할 때 만든다) 그 사이 건너뛰었으면 바로 넘긴다.
+  const isEndedRef = useRef(isEnded);
   useEffect(() => {
     onEndRef.current = onEnd;
-  }, [onEnd]);
+    isEndedRef.current = isEnded;
+  }, [onEnd, isEnded]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -548,7 +561,9 @@ export default function HeroVideo({ onEnd, replayKey, isEnded }: HeroVideoProps)
     // WebGL 문맥 생성은 주 스레드를 1초 넘게 막아 첫 화면을 늦춘다. 처음엔 한가할 때 만든다(포스터가 이미 깔려 있다).
     let isCancelled = false;
     const start = () => {
-      if (!isCancelled) playerRef.current = mount(container, (canReplay) => onEndRef.current(canReplay)) ?? null;
+      if (isCancelled) return;
+      playerRef.current = mount(container, (canReplay) => onEndRef.current(canReplay)) ?? null;
+      if (isEndedRef.current) playerRef.current?.skip();
     };
     let cancelIdle: (() => void) | null = null;
     if (resourceCache.scrub || resourceCache.trailer) start();
@@ -565,6 +580,11 @@ export default function HeroVideo({ onEnd, replayKey, isEnded }: HeroVideoProps)
   useEffect(() => {
     if (replayKey > 0) playerRef.current?.replay();
   }, [replayKey]);
+
+  // 화면이 먼저 끝 화면으로 넘어갔으면(건너뛰기 등) 영상도 따라 넘긴다. 이미 끝났으면 아무 일도 없다.
+  useEffect(() => {
+    if (isEnded) playerRef.current?.skip();
+  }, [isEnded]);
 
   return <HeroVideoFrame boxRef={containerRef} isEnded={isEnded} />;
 }

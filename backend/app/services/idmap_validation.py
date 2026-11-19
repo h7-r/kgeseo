@@ -31,8 +31,13 @@ PLACED_STATUS = "placed"
 KNOWN_STATUSES = PENDING_STATUSES | {PLACED_STATUS}
 
 OBJECT_LOCAL_KEY = re.compile(r"^(?P<group>.+)#(?P<index>\d+)$")
+# 나주 대응표 v1.1(11/8) §2~§5: 퍼즐 대표 · 단서 · 걸음 Object의 로컬 ID는 FE registerInteractable id
+# (또는 그 묶음 이름) 그대로다 — 예 `clam-holes` · `cave-door`. 소문자 · 숫자 · 하이픈만 받는다.
+REPRESENTATIVE_LOCAL_KEY = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 # rules.object_id: OBJ_S<씬>_<영문 이름>_<로컬 인스턴스 번호>
 OBJECT_ID_RULE = re.compile(r"^OBJ_S(?P<scene>\d+)_[A-Z0-9_]+_(?P<index>\d+)$")
+# 대표 Object(v1.1 §2): 인스턴스 번호 없이 OBJ_S<씬>_<영문 이름>
+REPRESENTATIVE_OBJECT_ID_RULE = re.compile(r"^OBJ_S(?P<scene>\d+)_[A-Z0-9_]*[A-Z0-9]$")
 LOCAL_GROUP_SCENE = re.compile(r"^씬(?P<scene>\d+)\.")
 
 RUNTIME_PREFIXES = {
@@ -296,6 +301,14 @@ def _internal_issues(idmap: NajuIdmap) -> list[IdmapIssue]:
             # PM 확인 대상(예: 씬2 물건이 씬2 무대 밖 구역에 놓임). 판정은 하지 않고 알린다.
             warning("OBJECT_ZONE_OUTSIDE_SCENE", where, obj.object_id)
         key = OBJECT_LOCAL_KEY.fullmatch(obj.local)
+        if key is None and REPRESENTATIVE_LOCAL_KEY.fullmatch(obj.local):
+            # v1.1 대표 로컬 ID — 묶음 · 인스턴스 번호가 없다. 묶음 충돌과 Object ID 규칙(씬 번호)만 본다.
+            if obj.local in groups_without:
+                error("OBJECT_GROUP_CONFLICT", f"{where}.local", obj.object_id)
+            rule = REPRESENTATIVE_OBJECT_ID_RULE.fullmatch(obj.object_id)
+            if rule is None or int(rule["scene"]) != obj.scene:
+                warning("OBJECT_ID_RULE_MISMATCH", f"{where}.object_id", obj.object_id)
+            continue
         if key is None:
             error("OBJECT_LOCAL_KEY_INVALID", f"{where}.local", obj.object_id)
             continue

@@ -1,4 +1,7 @@
-/** 진부촌 문 양옆 횃불 — 화면의 횃불 모형을 불꽃 없이 빌리고, 불꽃 · 불티 · 빛은 여기서 그린다. 단위는 유닛 */
+/**
+ * 횃불 — 불꽃 · 불티 · 빛을 그린다. 진부촌 문 양옆(화면의 횃불 모형을 불꽃 없이 빌린다)과 굿판의 불 말뚝이 같이 쓴다.
+ * 단위는 유닛
+ */
 import * as THREE from "three";
 
 import { makeGlowPoints, pointScaleFor } from "../glowPoints";
@@ -38,8 +41,8 @@ export function stripFlame(geometry: THREE.BufferGeometry) {
   return { geometry: out, top: out.boundingBox!.max.y };
 }
 
-export function createTorchFire() {
-  const torches = GATE.torches.length;
+/** torches 는 횃불 수 — 안 주면 진부촌 문 양옆 */
+export function createTorchFire(torches = GATE.torches.length) {
   const flames = makeGlowPoints(FLAME_POINTS * torches, { additive: true, softness: 1.6 });
   flames.points.visible = false;
   const sparks = makeGlowPoints(SPARKS * torches, { additive: true, softness: 1.2 });
@@ -47,7 +50,7 @@ export function createTorchFire() {
   return {
     flames,
     sparks,
-    lights: GATE.torches.map(() => new THREE.PointLight("#FF9A45", 0, 7 * M, 1.4)),
+    lights: Array.from({ length: torches }, () => new THREE.PointLight("#FF9A45", 0, 7 * M, 1.4)),
     flameSeeds: Float32Array.from({ length: FLAME_POINTS * torches * 4 }, () => Math.random()),
     sparkSeeds: Float32Array.from({ length: SPARKS * torches * 4 }, () => Math.random()),
   };

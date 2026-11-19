@@ -163,6 +163,9 @@ export default function InstanceGroupMesh({
         for (const { batch, near, far } of frames.current) {
           fillFull(near, batch);
           if (far) emptyFar(far, batch);
+          // 등록부가 맡는 무리는 지금 담긴 자리(압축된 것)가 곧 충돌 자리다
+          delete near.userData.solidFull;
+          if (far) delete far.userData.solidSkip;
         }
         frames.current = null;
         culled.current = false;
@@ -193,7 +196,12 @@ export default function InstanceGroupMesh({
           positions[k * 3 + 1] = t.y;
           positions[k * 3 + 2] = t.z;
         }
-        slots.push({ batch, near, far: farBatches?.[i] ? (farMeshes.current[i] ?? null) : null, positions });
+        const far = farBatches?.[i] ? (farMeshes.current[i] ?? null) : null;
+        // 여기서부터 거리로 자리를 넣었다 뺐다 한다 — 충돌 지도(solidField)는 전체 자리(originalMatrices)로 한 번만 굽게 알린다.
+        // 안 알리면 걸을 때마다 담긴 수가 바뀌어 지도를 통째로 다시 구웠다(걷는 동안 끊김의 1위, 성능 진단 11/13)
+        near.userData.solidFull = true;
+        if (far) far.userData.solidSkip = true;
+        slots.push({ batch, near, far, positions });
       });
       if (!slots.length) return;
       frames.current = slots;

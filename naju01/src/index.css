@@ -29,6 +29,7 @@ body {
 .game-stage {
   width: 100%; /* 100vw 가 아니라 100% — 위 주석 */
   height: 100vh;
+  height: 100dvh; /* 휴대폰 주소창을 뺀 실제 높이 — 모르는 브라우저는 윗줄 */
 }
 
 /* ?stage=16x9 — 본편과 같은 16:9 레터박스(시야 검증용) */
@@ -76,4 +77,30 @@ body:has(.game-stage--16x9) {
   .companion-dots {
     animation: none;
   }
+}
+
+/* 모바일 — 당겨서 새로고침 · 튕김 스크롤을 막고, 캔버스 위 손가락이 페이지 확대 · 스크롤로 새지 않게 */
+html,
+body {
+  overscroll-behavior: none;
+}
+.game-stage canvas {
+  touch-action: none;
+}
+/* 터치 모드 「멈춤」(눌러서 계속) 동안 화면 연출(CSS 애니메이션)도 세운다(engine/input/gamePause).
+   창 때문에 얼었을 때는 세우지 않는다 — 막 뜬 창의 등장 애니메이션이 투명한 첫 장면에 멈춰 창이 안 보였다 */
+html.game-paused * {
+  animation-play-state: paused !important;
+}
+/* 게임 시간으로 재는 연출(나주 먹물 등, data-game-clock)은 창 때문에 얼었을 때도 세운다 — 창을 연 사이에 걷히지 않게 */
+html.game-frozen [data-game-clock],
+html.game-frozen [data-game-clock] * {
+  animation-play-state: paused !important;
+}
+
+/* 종이 읽기 · 줄 당기기처럼 페이지가 잠금을 일부러 풀어 둔 동안 · 다시 잠그길 기다리는 동안 커서를 숨긴다(puzzles/pointerHold).
+   숨길 뿐 창 밖으로 나가는 것까지 막지는 못한다 */
+html.naju-cursor-hidden,
+html.naju-cursor-hidden * {
+  cursor: none !important;
 }

@@ -16,7 +16,7 @@ interface AboutTabsProps {
 }
 
 /**
- * 게임 소개 탭 네 개. 다른 화면은 전부 어두운데 이 구간만 흰 바탕이다(디자인 그대로).
+ * 게임 소개 탭 다섯 개(11/17 「우리의 철학」 추가). 다른 화면은 전부 어두운데 이 구간만 흰 바탕이다(디자인 그대로).
  * 탭마다 제목·정보 줄·영상·설명 문단이 바뀐다.
  */
 export default function AboutTabs({ tab, top, onTabChange }: AboutTabsProps) {
@@ -37,14 +37,14 @@ export default function AboutTabs({ tab, top, onTabChange }: AboutTabsProps) {
 
       <div style={dividerStyle} />
 
-      {/* 네 탭을 같은 칸에 겹쳐 두고 고른 것만 보인다. 칸이 가장 긴 탭에 맞춰져 아래 쪽번호 줄이 움직이지 않는다. */}
+      {/* 탭들을 같은 칸에 겹쳐 두고 고른 것만 보인다. 칸이 가장 긴 탭에 맞춰져 아래 쪽번호 줄이 움직이지 않는다. */}
       <div style={panelStackStyle}>
         {ABOUT_TABS.map(({ id }) => (
           <AboutPanel key={id} tabId={id} isActive={id === tab} />
         ))}
       </div>
 
-      {/* 쪽 번호 1~4 는 탭 네 개와 짝이다. */}
+      {/* 쪽 번호는 탭과 하나씩 짝이다(ABOUT_TABS 순서). */}
       <div style={pagerStyle}>
         <button
           type="button"

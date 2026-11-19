@@ -1,7 +1,8 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from "react";
 import type * as THREE from "three";
 
 import { IS_ZONE_CULLING_DISABLED } from "@/app/runtimeFlags";
+import SceneAtmosphere from "@/engine/SceneAtmosphere";
 import type { AvatarLink } from "@/engine/avatarLink";
 import { pickOutlineValues } from "@/engine/leva/savedControls";
 import { PLAYER_RADIUS } from "@/engine/movement/constants";
@@ -33,12 +34,7 @@ import DispatchPath from "@/tutorial/DispatchPath";
 
 import BackdropArea from "./areas/BackdropArea";
 import CorridorArea from "./areas/CorridorArea";
-import {
-  useCorridorBrightness,
-  useCorridorSync,
-  useWallCabinetDoors,
-  computeWallCabinetSpots,
-} from "./areas/corridorHooks";
+import { useCorridorBrightness, useCorridorSync, computeWallCabinetSpots } from "./areas/corridorHooks";
 import HeldItemsLayer from "./areas/HeldItemsLayer";
 import LobbyAvatar from "./areas/LobbyAvatar";
 import type { PickupLooks } from "./areas/PickupItemModel";
@@ -92,7 +88,11 @@ const ZONE_STATES = [
 ] as const;
 
 interface StationSceneProps {
-  active: boolean;
+  /**
+   * 조작이 켜져 있나 — 값 대신 매 프레임 읽는 함수. 자물쇠 · 창 · 연출로 켜고 끌 때마다 역 전체(지오 1100여 개)를
+   * 다시 그리면 개발 서버에서 70~80ms 멈칫했다(미르 11/9, 튜토피드백 10회차). App 이 같은 함수를 계속 넘긴다.
+   */
+  active: () => boolean;
   onNear: (target: NearTarget) => void;
   isThirdPerson?: boolean;
   playerRef?: RefObject<AvatarLink> | null;
@@ -123,7 +123,7 @@ function useReturnPose(enabled: boolean): ReturnPose | null {
  * 역 — 수사본부실·비밀 복도·멈춰 선 기차. 씬을 버리지 않고 보임만 끈다(visible=false 가지는 three 가 통째로 건너뛴다).
  * Leva 훅은 부르는 순서가 곧 패널 순서라 아래 순서를 바꾸지 않는다.
  */
-export default function StationScene({
+function StationScene({
   active,
   onNear,
   isThirdPerson = false,
@@ -199,7 +199,6 @@ export default function StationScene({
   const workLamp = useWorkLampPuzzleControls();
   const shading = useCorridorBrightness(corridor, workLamp);
   useCorridorSync(corridor);
-  const { hydrantDoorId, isHydrantLocked } = useWallCabinetDoors(corridor, padlock.padlock.visible);
   const panelInterior = usePanelInteriorControls();
   const vending = useVendingControls();
   const coin = useCoinControls();
@@ -269,10 +268,14 @@ export default function StationScene({
 
   return (
     <>
-      {/* 배경·안개는 group 바깥이어야 한다. attach 는 바로 위 부모에 꽂아서 group 안이면 Group.fog 가 되고
-          렌더러는 scene.fog 만 읽는다. 이 컴포넌트는 <Canvas> 직계 자식이라 부모가 곧 씬이다. */}
-      {enabled && <color attach="background" args={[train.backdrop.backgroundColor]} />}
-      {enabled && <fog attach="fog" args={[lighting.fogColor, lighting.fogNear, lighting.fogFar]} />}
+      {/* 배경·안개는 켜진 씬만 건다(SceneAtmosphere — attach 로 붙였다 떼면 기차를 두 번째 탈 때부터 사라졌다) */}
+      <SceneAtmosphere
+        enabled={enabled}
+        background={train.backdrop.backgroundColor}
+        fogColor={lighting.fogColor}
+        fogNear={lighting.fogNear}
+        fogFar={lighting.fogFar}
+      />
 
       <group visible={enabled}>
         {/* 전체는 어둑하고 차갑게 눌러 버려진 역의 음침함을 만든다 */}
@@ -347,9 +350,7 @@ export default function StationScene({
               isCollisionEnabled={collision.enabled}
               drinkMachine={drinkMachine}
               coffeeMachine={coffeeMachine}
-              hydrantDoorId={hydrantDoorId}
               eyeHeight={view.eyeHeight}
-              isHydrantLocked={isHydrantLocked}
             />
           )}
         </group>
@@ -460,3 +461,6 @@ function usePickupLooks(
     ],
   );
 }
+
+// App 이 다시 그려져도(자물쇠 조작 · 창 · 포인터 잠금) 넘기는 값이 같으면 역 전체를 다시 그리지 않는다(10회차)
+export default memo(StationScene);

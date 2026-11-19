@@ -34,9 +34,9 @@ const TRASH_SPOTS: Record<TrashId, [number, number, number]> = {
   detergentBottle: [-27.4, -41.6, -0.4],
   yogurtBottle: [-29.3, -38.7, 0.2],
   takeoutCup: [-28.1, -39.3, 1.2],
-  toothbrush: [-26.8, -42.7, 0.9],
-  straw: [-29.2, -41.0, -0.5],
-  receipt: [-26.5, -40.1, 0.25],
+  mask: [-26.8, -42.7, 0.9],
+  chopsticks: [-29.2, -41.0, -0.5],
+  trashBag: [-26.5, -40.1, 0.25],
   tissue: [-28.5, -37.8, 0],
 };
 

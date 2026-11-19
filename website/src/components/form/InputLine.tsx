@@ -21,6 +21,8 @@ export interface InputLineProps extends FieldBinding {
   /** 로그인 비밀번호처럼 규칙 목록을 보이지 않을 칸. */
   hideRules?: boolean;
   typo?: string;
+  /** 화면이 열리면 바로 커서를 둘 칸(인증 카드의 첫 칸) */
+  autoFocus?: boolean;
 }
 
 type NoticeKind = "" | " is-warning" | " is-checking";
@@ -47,6 +49,7 @@ export default function InputLine({
   paddingBottom = 9,
   hideRules,
   typo,
+  autoFocus,
 }: InputLineProps) {
   const [isRevealed, setIsRevealed] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -115,6 +118,7 @@ export default function InputLine({
           inputMode={inputMode}
           // 맞춤법 검사·첫 글자 대문자 변환이 끼어들면 이메일·비밀번호 값이 바뀐다.
           spellCheck={false}
+          autoFocus={autoFocus}
           autoCapitalize="off"
           autoCorrect="off"
           aria-invalid={Boolean(error || hasHangulWarning)}
@@ -183,6 +187,7 @@ function EyeToggle({ variant, isRevealed, onToggle }: EyeToggleProps) {
       type="button"
       onClick={onToggle}
       title={isRevealed ? "비밀번호 숨기기" : "비밀번호 보기"}
+      className="eye-toggle"
       style={{ ...eyeButtonStyle, right: variant === "card" ? "8px" : 0 }}
     >
       <img

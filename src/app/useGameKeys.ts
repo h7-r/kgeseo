@@ -1,13 +1,25 @@
 import { useEffect } from "react";
 
+import { isPointerActive, isTouchMode } from "@/engine/input";
+import { gameSetTimeout } from "@/engine/input/gameClock";
 import { startReach } from "@/engine/playerView";
 import { addHint, flashHints } from "@/game/hintBox";
 import { isTypingTarget, OVERLAY_LAYERS, type OverlayLayerName } from "@/game/overlayLayer";
+import { isBlockedByPauseMenu } from "@/game/pauseMenuState";
+import {
+  acceptHintOffer,
+  dismissHintOffer,
+  isHintOffering,
+  isRoamHintOffering,
+  noteValveAnswer,
+} from "@/game/valveHelp";
 import { dropChair, getDraggedChair, runAimedInteraction } from "@/lobby/interactions";
 import { getLatestPlacement } from "@/lobby/placement";
 import { dropCoin, getHeldCoin } from "@/props/coinState";
 import {
+  getLockState,
   leaveLockControl,
+  leaveLockControlIf,
   selectLockRow,
   submitLockAnswer,
   tryLockAnswer,
@@ -17,6 +29,7 @@ import {
 import { discardDrink, getHeldDrink, interactWithHeldDrink } from "@/props/drinkState";
 import { rattleHinge } from "@/props/hingeState";
 import { OPENING_MOTION } from "@/props/padlock/openingMotion";
+import { isCutscenePlaying } from "@/props/vendingPushState";
 import { dropHintPaper, getFootSpot, storeHintPaper, VALVE_HINT } from "@/props/hintPaperState";
 import { getHintPaperImageUrl } from "@/station/hands/hintPaperTexture";
 import { chairDragState } from "@/station/headquarters/chairDragState";
@@ -24,6 +37,7 @@ import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
 import { isHologramAimed } from "@/trainInterior/hologramAim";
 
 import type { PointerLockRef } from "./pointerLock";
+import { cancelResume, isResumePending, resumePlay } from "./pointerResume";
 import { IS_INPUT_ALWAYS_ON } from "./runtimeFlags";
 import { tryPlaceHeldItem } from "./useSceneTransition";
 
@@ -44,23 +58,47 @@ interface GameKeysOptions {
   toggleThirdPerson: () => void;
 }
 
+/** 정답 뒤 나가기를 이미 걸어 둔 자물쇠 — 풀린 뒤 Enter 를 또 눌러도 타이머가 겹치지 않게(12회차 Codex) */
+const leavingAfterUnlock = new Set<string>();
+function leaveAfterUnlock(id: string) {
+  if (leavingAfterUnlock.has(id)) return;
+  leavingAfterUnlock.add(id);
+  gameSetTimeout(() => {
+    leavingAfterUnlock.delete(id);
+    leaveLockControlIf(id);
+  }, UNLOCK_SHOW_MS);
+}
+
 /** 자물쇠를 만지는 동안은 키를 여기서 다 먹는다. 화살표와 WASD 를 둘 다 받는다(걸음은 어차피 멈춰 있다). */
 function handleLockKey(code: string, id: string) {
+  // 「추가 힌트를 받으시겠습니까?」를 묻는 동안은 예(Y) · 아니요(N)만 — 다이얼은 안 돈다(12회차)
+  if (isHintOffering()) {
+    if (code === "KeyY") acceptHintOffer();
+    else if (code === "KeyN") dismissHintOffer();
+    return;
+  }
   if (code === "ArrowLeft" || code === "KeyA") selectLockRow(id, -1);
   else if (code === "ArrowRight" || code === "KeyD") selectLockRow(id, 1);
   else if (code === "ArrowUp" || code === "KeyW") turnLockDigit(id, 1);
   else if (code === "ArrowDown" || code === "KeyS") turnLockDigit(id, -1);
   else if (code === "KeyE" || code === "Enter") {
     // 맞으면 풀리고 나간다. 틀리면 덜컹 — "아니다"를 몸으로 알려 준다.
+    // 밸브 자물쇠 막힘 힌트(valveHelp)는 「틀렸다」는 판정만 센다 — 통신 실패 자체는 안 센다. 같은 답 연달아는 한 번(낸 순간의 글자로 가린다)
+    const digits = [...(getLockState(id)?.digits ?? [])];
+    const answer = digits.join(",");
     submitLockAnswer(id)
       .then((isCorrect) => {
-        if (isCorrect === true) setTimeout(() => leaveLockControl(), UNLOCK_SHOW_MS);
+        if (typeof isCorrect === "boolean") noteValveAnswer(id, isCorrect, answer);
+        // 늦게 온 판정이 그사이 ESC 로 나갔다가 새로 연 다른 자물쇠 조작을 끝내지 않게 — 그 자물쇠일 때만 나간다
+        if (isCorrect === true) leaveAfterUnlock(id);
         else if (isCorrect === false) rattleHinge(id);
       })
       .catch((error: unknown) => {
         // 백엔드 없이 프론트만 켜면 요청이 실패해 튜토리얼 자물쇠가 영영 안 열린다 — 서버에 못 닿았을 때만 로컬 판정.
         console.warn("[Play Session] 자물쇠 판정 실패 — 로컬 판정으로 대신한다", error);
-        if (tryLockAnswer(id)) setTimeout(() => leaveLockControl(), UNLOCK_SHOW_MS);
+        const isCorrect = tryLockAnswer(id, digits); // 낸 순간의 글자로(그사이 돌린 다이얼 말고)
+        noteValveAnswer(id, isCorrect, answer);
+        if (isCorrect) leaveAfterUnlock(id);
         else rattleHinge(id);
       });
   }
@@ -68,6 +106,11 @@ function handleLockKey(code: string, id: string) {
 
 /** [E] — 순서는 화면 안내문과 같아야 한다: 끄는 의자 → 든 음료·쪽지 → 겨냥한 것 → 동전 → 놓기 → 문 */
 function handleUse(near: NearTarget, boardTrain: () => void, leaveTrain: () => void) {
+  // 기차 출구 앞에서는 내리기가 먼저 — 음료 · 쪽지 · 동전을 든 채 타면 [E] 가 그쪽에 걸려 못 내린다고 여겼다(미르 플레이 시험 11/8)
+  if (near === NEAR_TARGET.trainExit || near === NEAR_TARGET.trainExitDoor) {
+    leaveTrain();
+    return;
+  }
   // 끌던 의자가 화면 밖으로 나가 조준이 안 될 수 있어 조준보다 먼저 본다.
   if (getDraggedChair()) {
     dropChair(chairDragState.x, chairDragState.z);
@@ -94,7 +137,6 @@ function handleUse(near: NearTarget, boardTrain: () => void, leaveTrain: () => v
   if (tryPlaceHeldItem()) return;
   // 문 안으로 걸어 들어가도 타지만 [E] 로도 탄다.
   if (near === NEAR_TARGET.train) boardTrain();
-  else if (near === NEAR_TARGET.trainExit) leaveTrain();
 }
 
 /**
@@ -125,11 +167,19 @@ export function useGameKeys({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target)) return;
       const { code } = event;
+      // 멈춤 메뉴가 떠 있으면 T(계속하기) · P(설정)만 — V 로 시점이 바뀌거나 I · H 로 창이 겹쳐 뜨지 않게(나주입장 08회차 Codex)
+      if (isBlockedByPauseMenu(code)) return;
 
-      // 열린 창부터 닫는다(CMN-035). 브라우저가 ESC 로 잠금을 먼저 푸는 건 막을 수 없지만 창이 열려 있으면 이미 풀려 있다.
+      // 맨 위 하나만 닫는다(CMN-035): 창 → 추가 힌트 묻기(= 아니요) → 자물쇠(게임 화면으로 돌아옴, 12회차) → 그다음 ESC 는
+      // 브라우저가 잠금을 풀어 커서가 밖으로. 자물쇠 · 창 동안은 페이지가 잠금을 풀어 두어 ESC 가 키로 들어온다.
+      // 자물쇠에서 막 나와 다시 잠그는 중에 ESC 가 또 오면 「밖으로」를 고른 것 — 그 잠금을 거둔다
       if (code === "Escape") {
+        // 누르고 있어 자동 반복된 ESC 는 받지 않는다 — 멈춤 메뉴를 ESC 로 닫자마자 반복분이 「밖으로」를 골라 도로 멈췄다(18회차 Codex)
+        if (event.repeat) return;
         if (openLayer) closeWindow();
+        else if (isLockActive && isHintOffering()) dismissHintOffer();
         else if (isLockActive) leaveLockControl();
+        else cancelResume();
         return;
       }
       if (code === "KeyI") {
@@ -166,13 +216,23 @@ export function useGameKeys({
         handleLockKey(code, lockControl.id);
         return;
       }
+      // 자물쇠 밖에서 「추가 힌트를 확인하시겠습니까?」를 묻는 중 — 예(Y) · 아니요(N)만 가로채고 걷기 등은 그대로(미르 11/10).
+      // PC 는 마우스가 잠겨 있어 카드 단추를 못 누르므로 키로 고른다
+      if (!lockControl && isRoamHintOffering() && (code === "KeyY" || code === "KeyN")) {
+        if (code === "KeyY") acceptHintOffer();
+        else dismissHintOffer();
+        return;
+      }
+      // 연출이 화면을 돌리는 동안(전류 따라가기 · 배전반 알림)은 만지기 · 시점 전환을 받지 않는다 — 겨냥이 비기 전 E 가
+      // 엉뚱한 것에 걸리거나 V 로 카메라가 바뀌면 연출이 깨진다(10회차 Codex)
+      if ((code === "KeyE" || code === "KeyV") && isCutscenePlaying()) return;
       if (code === "KeyV" && !isTrain) {
         toggleThirdPerson();
         return;
       }
-      // 클릭 대신 T 로 잠근다 — 그래야 Leva 를 자유롭게 만진다.
+      // 클릭 대신 T 로 잠근다 — 그래야 Leva 를 자유롭게 만진다. ESC 직후라 크롬이 거절하는 동안이면 풀리는 대로 잠근다(pointerResume)
       if (code === "KeyT" && !isPointerLocked) {
-        controlsRef.current?.lock();
+        resumePlay();
         return;
       }
       // 안내판은 문 가까이에도 떠 있어 내리기보다 먼저 묻는다. 잠금이 풀린 채 마우스로 겨눠도 열린다.
@@ -180,15 +240,18 @@ export function useGameKeys({
         if (!event.repeat) openWindow(OVERLAY_LAYERS.destination);
         return;
       }
-      if (code !== "KeyE" || !(isPointerLocked || IS_INPUT_ALWAYS_ON)) return;
+      // 게임으로 돌아가는 중(ESC 직후 잠금을 기다림)에도 조작은 받는다 — 화면은 이미 게임이다
+      if (code !== "KeyE" || !(isPointerLocked || isResumePending() || IS_INPUT_ALWAYS_ON)) return;
       // 무엇을 만지든 팔이 한 번 나간다. 여기 한 곳에 걸어야 아래 갈래를 하나도 빠뜨리지 않는다.
       if (!event.repeat) startReach();
       handleUse(near, boardTrain, leaveTrain);
     };
     // 안내판 클릭. 잠금 중엔 이벤트가 캔버스를 감싼 틀로 오고, 풀려 있으면 화면 창 클릭을 걸러야 한다.
     const handlePointerDown = (event: PointerEvent) => {
+      // 터치에서는 이 직접 클릭 경로를 쓰지 않는다 — 스틱 · 시점 · 단추를 누를 때마다 안내판이 열린다. 상황 단추(E)로 연다.
+      if (isTouchMode()) return;
       if (event.button !== 0 || !isTrain || openLayer || !isHologramAimed()) return;
-      if (!document.pointerLockElement && !(event.target instanceof HTMLCanvasElement)) return;
+      if (!isPointerActive() && !(event.target instanceof HTMLCanvasElement)) return;
       openWindow(OVERLAY_LAYERS.destination);
     };
     window.addEventListener("keydown", handleKeyDown);

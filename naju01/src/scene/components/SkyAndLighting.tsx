@@ -4,7 +4,9 @@ import * as THREE from "three";
 import { ShaderWarmup, ShadowMapUpdater } from "@/engine/rendering";
 
 import type { PresentedControls } from "../../app/presentation";
+import { IS_REVERSED_DEPTH, SHADOW_MAP_SIZE, SHADOW_QUALITY } from "../../app/runtimeFlags";
 import { MESH_NAMES } from "../../plan/meshNames";
+import { prepareForBake } from "../../puzzles/lightBudgetEnforce";
 import { UNITS_PER_METER } from "../../plan/sitePlan";
 import { planPoint } from "../../plan/sitePlan";
 
@@ -35,7 +37,11 @@ export default function SkyAndLighting({
   sunPosition,
   focusFog = null,
 }: SkyAndLightingProps) {
-  const shadowBias = { "shadow-bias": -0.0005, "shadow-normalBias": controls.shadowNormalBias };
+  // 거꾸로 깊이에서는 그림자 지도의 깊이도 뒤집혀 보정값의 방향이 반대다(three 는 값을 그대로 더한다)
+  const shadowBias = {
+    "shadow-bias": IS_REVERSED_DEPTH ? 0.0005 : -0.0005,
+    "shadow-normalBias": controls.shadowNormalBias,
+  };
   return (
     <>
       <ShadowMapUpdater
@@ -44,7 +50,7 @@ export default function SkyAndLighting({
         slowInterval={240}
       />
       {/* 재질을 처음 그리는 순간 셰이더를 컴파일한다(수백 ms). GLB 가 늦게 붙으므로 주기적으로 데운다. */}
-      <ShaderWarmup />
+      <ShaderWarmup beforeWarm={prepareForBake} />
       {/* 구역 초점(?초점, 10/13) — 안개색 배경 + 짧은 안개, 하늘돔·구름은 숨긴다(immersion/focusFog) */}
       <color attach="background" args={[focusFog ? focusFog.color : controls.skyColor]} />
       {/* 하늘돔 — 빛도 안개도 안 타고 가장 먼저 그려 깊이 버퍼를 안 쓴다 */}
@@ -79,12 +85,14 @@ export default function SkyAndLighting({
       {/* 그림자 카메라는 사람을 따라다닌다. ±70 을 2048² 로 덮으면 텍셀 6.8 cm. */}
       <directionalLight
         ref={sunRef}
-        castShadow={controls.shadows}
+        // 그림자를 끈 품질에서는 해도 그림자를 드리우지 않는 빛으로 둔다 — 렌더러만 끄면 같은 재질이
+        // 「그림자 빛 있음」과 「없음」 두 벌로 구워져 셰이더가 60개쯤 는다(11/12 실측 181 → 244)
+        castShadow={controls.shadows && SHADOW_QUALITY !== "off"}
         target={sunTarget}
         position={sunPosition}
         intensity={controls.sunIntensity * controls.brightness}
         color={controls.sunColor}
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={[SHADOW_MAP_SIZE, SHADOW_MAP_SIZE]}
         shadow-camera-left={-controls.shadowRange}
         shadow-camera-right={controls.shadowRange}
         shadow-camera-top={controls.shadowRange}

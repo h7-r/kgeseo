@@ -373,8 +373,13 @@
   --text-fill: linear-gradient(#f1f1fc, #f1f1fc);
 }
 
-/* 그림 폭이 200% 라 앞 50% 와 뒤 50% 가 같은 무늬여야 이음매 없이 반복된다 */
+/* 그림 폭이 200% 라 앞 50% 와 뒤 50% 가 같은 무늬여야 이음매 없이 반복된다.
+   글자마다 칠한다 — 글자를 따로 움직이면(호버 물결) 단어 하나에 칠한 글자색은 따라오지 못한다.
+   글자마다 시작을 조금씩 당겨 색이 단어를 따라 흐르게 한다. 그림자는 단어 칸에 한 번만. */
 .hero__play-label {
+  filter: drop-shadow(0 2px 6px rgba(1, 4, 10, 0.85));
+}
+.hero__play-char {
   background-image: linear-gradient(
     90deg,
     #ffffff 0%,
@@ -390,12 +395,10 @@
   background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
-  animation: gradient-pan 6s linear infinite;
-  /* 회색 본부실 영상 위에서 짙은 파랑 구간이 묻히지 않게 바닥 그림자를 깐다. */
-  filter: drop-shadow(0 2px 6px rgba(1, 4, 10, 0.85));
+  animation: gradient-pan 6s calc(var(--i) * -0.35s) linear infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .hero__play-label {
+  .hero__play-char {
     animation: none;
   }
 }

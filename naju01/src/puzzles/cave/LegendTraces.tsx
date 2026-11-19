@@ -16,7 +16,7 @@ import { useFrame } from "@react-three/fiber";
 
 import { buildBakedRockPrototypes } from "../../models/nature";
 import { audio } from "../../scene/immersion/audio";
-import { registerInteractable, showNotice } from "../interaction";
+import { interactableFor, noticeFor } from "../interaction";
 import { makeToonMaterial } from "../materials";
 import { M } from "../units";
 import { LEGEND_SPOTS, SURFACE_Y, floorY, useCaveShown } from "./caveState";
@@ -32,6 +32,10 @@ import {
 } from "./legendProps";
 import { normalizePrototype } from "./seabed";
 
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("legend");
+const registerInteractable = interactableFor("legend");
+
 type TraceId = keyof typeof LEGEND_SPOTS;
 
 const TRACES: { id: TraceId; label: string; lines: string[]; height: number }[] = [
@@ -39,9 +43,9 @@ const TRACES: { id: TraceId; label: string; lines: string[]; height: number }[] 
     id: "wreck",
     label: "묻힌 나룻배 살펴보기",
     lines: [
-      "모래에 반쯤 묻힌 작은 나룻배. 뱃전 안쪽에 칼로 새긴 그림이 나란히 둘 — 물고기 하나, 초롱 하나. 어부의 배다.",
-      "뱃바닥을 두드려 봤다. 텅 — 안에 든 건 모래뿐. 그래도 널 사이에 비늘 몇 조각이 푸르게 반짝인다.",
-      "아비사가 말하던 「밤마다 건너오던 배」가 이것일까. 노는 어디 갔을까 — 저쪽 모래에 하나 꽂혀 있던데.",
+      "모래에 반쯤 묻힌 작은 나룻배. 뱃전 안쪽에 칼로 새긴 그림이 둘 — 물고기 하나, 초롱 하나. 밤마다 강을 건너던 어부의 배일까.",
+      "뱃바닥 널 사이에 비늘 몇 조각이 푸르게 반짝인다.",
+      "노가 없다. 저쪽 모래에 하나 꽂혀 있던데.",
     ],
     height: 0.45,
   },
@@ -50,7 +54,6 @@ const TRACES: { id: TraceId; label: string; lines: string[]; height: number }[] 
     label: "부러진 노 살펴보기",
     lines: [
       "부러진 노 한 자루. 손잡이가 닳아 반들반들하고, 붉은 실이 몇 번 감겨 매여 있다 — 누가 감아 준 걸까.",
-      "노를 저어 봤다 — 물속에서 노를 저으니 모래만 인다. 아랑사가 봤으면 웃었겠다.",
       "붉은 실은 저쪽 바위에 걸린 댕기와 같은 빛깔이다. 같은 사람 손에서 나왔을까.",
     ],
     height: 0.7,
@@ -60,8 +63,8 @@ const TRACES: { id: TraceId; label: string; lines: string[]; height: number }[] 
     label: "붉은 댕기 살펴보기",
     lines: [
       "바위 틈에 붉은 댕기 한 가닥이 걸려 물살에 나부낀다. 발치엔 얼레빗 반쪽. 오래 물속에 있었을 텐데 빛깔이 바래지 않았다.",
-      "댕기를 당겨 봤다. 바위가 꽉 물고 놓지 않는다 — 누군가 일부러 묶어 둔 것처럼.",
-      "얼레빗 반쪽을 머리에 대 봤다. 나머지 반쪽은 누가 가졌을까.",
+      "댕기는 바위가 꽉 물고 놓지 않는다 — 누군가 일부러 묶어 둔 것처럼.",
+      "얼레빗은 반쪽뿐이다. 나머지 반쪽은 누가 가졌을까.",
     ],
     height: 0.6,
   },
@@ -69,8 +72,7 @@ const TRACES: { id: TraceId; label: string; lines: string[]; height: number }[] 
     id: "lantern",
     label: "깨진 초롱 살펴보기",
     lines: [
-      "깨져 누운 청사초롱. 녹아 붙은 초 토막과 그을음 — 누군가 이 불을 켜 들고 강가에서 기다렸다.",
-      "초롱을 세워 봤다. 바로 쓰러진다. 심지는 끝까지 탔다 — 아주 오래 기다린 불이다.",
+      "깨져 누운 청사초롱. 심지가 끝까지 탔다 — 누군가 이 불을 켜 들고 아주 오래 기다렸다.",
       "초롱 안쪽 댓살에 작은 글씨 하나 — 「랑」. 한 글자뿐이다.",
     ],
     height: 0.25,
@@ -79,9 +81,8 @@ const TRACES: { id: TraceId; label: string; lines: string[]; height: number }[] 
     id: "stele",
     label: "이끼 낀 돌 살펴보기",
     lines: [
-      "이끼 낀 작은 돌에 글이 새겨져 있다. 「강 건너 바위 아래서 —」 뒤는 닳아 읽히지 않는다.",
-      "이끼를 손으로 문질러 봤다. 「— 기다리마」. 이어 읽으면 「강 건너 바위 아래서 기다리마」.",
-      "돌을 들어 보려 했다. 꿈쩍도 않는다 — 누가 이렇게 깊이 박아 두었을까.",
+      "이끼 낀 작은 돌에 글이 새겨져 있다. 이끼를 문지르니 — 「강 건너 바위 아래서 기다리마」.",
+      "돌은 꿈쩍도 않는다. 누가 이렇게 깊이 박아 두었을까.",
     ],
     height: 0.45,
   },
@@ -90,7 +91,7 @@ const TRACES: { id: TraceId; label: string; lines: string[]; height: number }[] 
     label: "발자국 살펴보기",
     lines: [
       "모래에 발자국 두 줄 — 큰 발과 작은 발이 나란히, 나룻배에서 고리문 쪽으로 가다가 물결에 지워졌다.",
-      "큰 발자국에 내 발을 맞춰 봤다. 내 발보다 크다 — 키 큰 사람이다. 작은 쪽은 걸음이 잦다.",
+      "큰 쪽은 걸음이 넓고, 작은 쪽은 걸음이 잦다. 둘이 나란히 걸었다.",
       "두 줄이 고리문 앞에서 멈춘다. 문이 열렸던 걸까, 아니면 여기서 돌아섰을까.",
     ],
     height: 0.05,

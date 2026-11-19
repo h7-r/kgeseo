@@ -48,6 +48,7 @@ const FOOTER_LINKS: readonly { label: string; color: string; target: NavTarget }
   { label: "이용약관", color: COLOR.textSubtle, target: withQuery(ROUTES.terms, { [QUERY.tab]: "terms" }) },
   { label: "개인정보처리방침", color: "#b9bfca", target: withQuery(ROUTES.terms, { [QUERY.tab]: "privacy" }) },
   { label: "고객센터", color: COLOR.textSubtle, target: ROUTES.support },
+  { label: "크레딧", color: COLOR.textSubtle, target: ROUTES.credits },
 ];
 
 /** 페이지 맨 아래, 글귀가 호를 따라 흐르는 띠와 사업자 정보. */
@@ -95,13 +96,7 @@ export default function Marquee() {
               ESCAPE THE LEGEND의 로고 · 캐릭터 · 명칭을 비롯해 이와 관련된 모든 고유한 표현은 LATENT SPACE의 독점
               자산입니다.
             </p>
-            <p style={{ margin: 0, lineHeight: 1.55 }}>
-              광주광역시 인공지능 사관학교 광주광역시 남구 송암로 60 | 대표자 : Team · Legend | 대표전화 : 000-0000-0000
-              | FAX : 000-0000-0000
-            </p>
-            <p style={{ margin: 0, lineHeight: 1.55 }}>
-              사업자등록번호 : 000-00-00000 | 통신판매업신고 : 2026-광주남구-00000
-            </p>
+            <p style={{ margin: 0, lineHeight: 1.55 }}>LATENT SPACE | 광주광역시 남구 송암로 60 | 대표자 : 황미르</p>
           </div>
 
           <div

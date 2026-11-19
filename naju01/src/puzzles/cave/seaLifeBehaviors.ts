@@ -93,8 +93,8 @@ function updateInkAttack(mover: Mover, distance: number, frame: Frame, ink: Ink)
   if (mover.inkDue >= 0 && time >= mover.inkDue) {
     mover.inkDue = -1;
     if (isNear) {
-      hurtBreath(INK_DAMAGE, "ink");
-      showNotice(`먹물을 뒤집어썼다 — 숨이 ${INK_DAMAGE} 줄었다.`, 2.4);
+      if (hurtBreath(INK_DAMAGE, "ink"))
+        showNotice(`먹물을 뒤집어썼다 — 숨이 ${INK_DAMAGE} 줄었다.`, 2.4, { urgent: true });
     }
   }
   if (mover.shotsLeft <= 0) {
@@ -295,9 +295,10 @@ export function updatePuffer(mover: Mover, group: THREE.Group, body: THREE.Group
     Math.hypot(mover.pos.x - px, mover.pos.y - (py - 0.3), mover.pos.z - pz) < SPIKE_RADIUS
   ) {
     mover.hitAt = time;
-    hurtBreath(SPIKE_DAMAGE, "spike");
-    audio.play("똑");
-    showNotice(`복어 가시에 찔렸다 — 숨이 ${SPIKE_DAMAGE} 줄었다.`, 2.6);
+    if (hurtBreath(SPIKE_DAMAGE, "spike")) {
+      audio.play("똑");
+      showNotice(`복어 가시에 찔렸다 — 숨이 ${SPIKE_DAMAGE} 줄었다.`, 2.6, { urgent: true });
+    }
   }
   body.scale.setScalar(1 + puff * 1.15);
   return puff;

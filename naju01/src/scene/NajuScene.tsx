@@ -7,6 +7,8 @@ import { Outlines, PointerLockControls } from "@react-three/drei";
 import type { PointerLockControls as PointerLockControlsImpl } from "three-stdlib";
 
 import type { AvatarLink } from "@/engine/avatarLink";
+import { TouchLook } from "@/engine/input";
+import { DEFAULT_SETTINGS, useSettings } from "@/settings/settings";
 import { scaleColor } from "@/engine/color";
 import { pickOutlineValues } from "@/engine/leva/savedControls";
 import { TOON_GRADIENT } from "@/engine/toon";
@@ -26,6 +28,7 @@ import { useEditModeActive } from "../placement/libraryPlaceApi";
 import { MESH_NAMES } from "../plan/meshNames";
 import { CORE, UNITS_PER_METER } from "../plan/sitePlan";
 import { isOnJarSite } from "../puzzles/jars/site";
+import { isCameraFocused } from "./cameraFocus";
 import { SKY_STYLE } from "../world/sky";
 import WorldToon from "../world/WorldToon";
 import { buildInstanceGroups } from "./buildInstanceGroups";
@@ -66,6 +69,12 @@ import { usePlayerMovement } from "./usePlayerMovement";
 import { IS_MANGA_STYLE } from "../world/mangaStyle";
 import { useRendererSetup, useSceneFrame, type NajuSceneReport } from "./useSceneFrame";
 import { useSceneModes } from "./useSceneModes";
+import CompanionFishLore from "./firstScene/CompanionFishLore";
+import BoxPlaceGuide from "../puzzles/ridge/BoxPlaceGuide";
+import CompanionIntro from "./firstScene/CompanionIntro";
+import CompanionNudge from "./firstScene/CompanionNudge";
+import FirstSceneActors from "./firstScene/FirstSceneActors";
+import SecondSceneActors from "./secondScene/SecondSceneActors";
 import { usePrototypes, useStoryModels, useStoryProps } from "./useStoryProps";
 import { useSunLight } from "./useSunLight";
 import { useBakedTerrainTexture, useGroundAndCliff, useRockAsset, useTerrain } from "./useTerrainLayers";
@@ -243,7 +252,9 @@ export default function NajuScene({
 
   const river = useRiver(controls, terrain);
 
-  const { camera, gl, scene } = useRendererSetup(controls.fov);
+  // 설정의 시야각(기본 60°)을 기준 값에 더한다
+  const fovOffset = useSettings().fov - DEFAULT_SETTINGS.fov;
+  const { camera, gl, scene } = useRendererSetup(controls.fov + fovOffset);
   // 검수 작업대가 시점을 잡고 있는 동안은 걷기·연출을 멈춘다
   //   통합 편집 모드도 같다 — 그 모드가 둘러보기 카메라를 몬다(걷기·안개를 멈춘다, 10/15)
   const isReviewCameraHold = useReviewCameraHold();
@@ -352,6 +363,16 @@ export default function NajuScene({
         }
       />
       {isFocusNow && controls.showInvestigationPoints && gates && <DistortionGates spots={gates} />}
+      {/* 첫 장면 아비사 · 구렁이 — 숨 · 시선 · 인사 · 대사. 편집 중에는 기본 자세로 멈춘다 */}
+      <FirstSceneActors enabled={!isEditing} groundY={(x, z) => terrain.groundAt(x, z).y} />
+      <SecondSceneActors enabled={!isEditing} />
+      <CompanionIntro enabled={!isEditing && !IS_REVIEW_REQUESTED} />
+      {/* 놓고 온 것(씬 1 빛 물고기 · 모자란 제물) 동행 한마디 — 튜토피드백 13회차 */}
+      <CompanionNudge enabled={!isEditing && !IS_REVIEW_REQUESTED} />
+      {/* 빛 물고기의 정체(꺼진 화톳불의 불씨) 동행 한마디 — 미르 11/10 */}
+      <CompanionFishLore enabled={!isEditing && !IS_REVIEW_REQUESTED} />
+      {/* 새 열쇠를 주운 뒤 함 놓을 자리(불탄 평상) — 빛 · 동행 한마디 · 다시 알림(미르 11/10) */}
+      <BoxPlaceGuide enabled={!isEditing && !IS_REVIEW_REQUESTED} />
       {IS_FOCUS_ENABLED && (
         <ImmersionLayer terrain={terrain} playerRef={playerState} gateSpots={gates} active={active && !isReviewHold} />
       )}
@@ -513,6 +534,8 @@ export default function NajuScene({
         <CompanionNpc playerRef={playerState} terrain={terrain} instanceGroups={instanceGroups} />
       )}
 
+      {/* 터치 모드의 손가락 시점 — 퍼즐 집중 카메라 중엔 돌리지 않는다(이동도 같은 조건으로 막힌다) */}
+      <TouchLook controlsRef={controlsRef} canLook={() => !isCameraFocused()} />
       <PointerLockControls
         ref={controlsRef}
         selector="#no-such-element"

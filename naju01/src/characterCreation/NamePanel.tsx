@@ -15,7 +15,8 @@ const NAME_STATUS_COLORS: Partial<Record<NameStatusKind, string>> = {
 };
 
 const nameInputStyle: CSSProperties = {
-  flex: "1 1 auto",
+  // 좁으면(휴대폰 가로 + 노치) 중복확인 단추가 아래 줄로 내려간다
+  flex: "1 1 150px",
   minWidth: 0,
   boxSizing: "border-box",
   padding: "15px 18px",
@@ -60,6 +61,8 @@ interface NamePanelProps {
   onCompositionStart: () => void;
   onCompositionEnd: (value: string) => void;
   onCheck: () => void;
+  /** 화면 키보드가 떠 있다 — 안내 줄을 접어 입력 · 중복확인 · 결과가 키보드 위 좁은 높이에 함께 들어가게 */
+  isKeyboardOpen?: boolean;
 }
 
 export default function NamePanel({
@@ -79,11 +82,12 @@ export default function NamePanel({
   onCompositionStart,
   onCompositionEnd,
   onCheck,
+  isKeyboardOpen = false,
 }: NamePanelProps) {
   return (
     <>
       <SettingGroup title="조사관 이름" aside={`${characterCount} / ${rules.max}자`}>
-        <div style={{ display: "flex", gap: SPACING.s }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: SPACING.s }}>
           <input
             ref={inputRef}
             id={inputId}
@@ -110,6 +114,8 @@ export default function NamePanel({
             style={{
               ...tileStyle,
               padding: "0 22px",
+              minHeight: 48,
+              flex: "0 0 auto",
               font: `700 14px/1 ${FONTS.body}`,
               color: COLORS.text,
             }}
@@ -119,7 +125,7 @@ export default function NamePanel({
             중복확인
           </button>
         </div>
-        <span id={`${inputId}-help`} style={smallTextStyle}>
+        <span id={`${inputId}-help`} style={isKeyboardOpen ? { display: "none" } : smallTextStyle}>
           {rules.allowedHint}
         </span>
         {/* 결과 자리를 미리 비워 둔다 — 메시지가 떠도 입력칸·단추가 튀지 않는다 */}

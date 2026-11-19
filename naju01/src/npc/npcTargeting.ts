@@ -66,7 +66,9 @@ const to = new THREE.Vector3();
 /** NPC 가 카메라 화면 안(앞쪽 · 시야 사각형 안)에 있는지 */
 export function isOnScreen(camera: THREE.Camera, point: THREE.Vector3): boolean {
   projected.copy(point).project(camera);
-  return projected.z >= -1 && projected.z <= 1 && Math.abs(projected.x) <= 1 && Math.abs(projected.y) <= 1;
+  // 거꾸로 깊이면 화면 깊이가 0 ~ 1 이다(보통은 −1 ~ 1) — 뒤쪽을 안쪽으로 치지 않게
+  const nearest = (camera as THREE.PerspectiveCamera).reversedDepth ? 0 : -1;
+  return projected.z >= nearest && projected.z <= 1 && Math.abs(projected.x) <= 1 && Math.abs(projected.y) <= 1;
 }
 
 export function evaluateInteraction(input: InteractionInput, out?: InteractionResult): InteractionResult {

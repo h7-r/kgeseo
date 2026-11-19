@@ -6,18 +6,26 @@
  * 카메라는 건드리지 않는다 — 번개 · 비 · 바람만 연출 큐로 건다.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { RAIN_REASON } from "../../story/storyVariants";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
+import { assetUrl } from "@/config/env";
 import { exposeDevHook } from "@/debug/devHooks";
 
 import { recall, remember, track } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { director, setZoneRainGate } from "../../scene/immersion/director";
 import { CORRIDOR, getPartOpenness } from "../cave/caveState";
-import { registerInteractable, setKeyInterceptor, showNotice } from "../interaction";
+import { cliff } from "../cliff/cliffState";
+import { gut } from "../gut/gutState";
+import { interactableFor, setKeyInterceptor, noticeFor } from "../interaction";
+import { noteOfferingExamined, noteOfferingPlaced } from "../leftBehind";
+import { onEscapeUnlock } from "../pointerHold";
+import { setPuzzlePanel } from "../puzzlePanel";
 import { ITEMS, type ItemKind } from "../inventory";
 import { buildItemLooks } from "../itemLooks";
+import { loadModel } from "../itemModel";
 import { jarPuzzle } from "../jars/jarState";
 import { makgeolliBottle } from "../makgeolli/makgeolliState";
 import { prewarmShaders } from "../prewarm";
@@ -39,12 +47,24 @@ import { buildRitualEffects, partRiverSheets } from "./ritualEffects";
 import { getWaterLevel, ritual, setStormRain, setWaterLevel, useRitualStage } from "./ritualState";
 import { createBoatRock, createRopeFlutter } from "./scenePatches";
 
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("ritual");
+const registerInteractable = interactableFor("ritual");
+
 const OFFERINGS: ItemKind[] = ["lightFish", "rice", "makgeolli"];
 /** 이어 하기 시계의 시작값(초). 지나간 연출이 모두 끝난 뒤로 잡는다 */
 const RESUME_CLOCK = 1000;
 
+/** 소반 안내판이 뜨는 거리(미터) */
+const PANEL_RANGE = 6;
 /** 소반 상판 높이(미터) — 씬5 소반(키 0.38) */
 const TABLE_TOP = 0.38;
+/** 제물이 놓이는 자리(소반 가운데에서, 미터) — 쌀과 술병은 뒤에 나란히, 물고기는 앞에 */
+const OFFERING_SPOTS: Partial<Record<ItemKind, { x: number; z: number; yaw: number }>> = {
+  lightFish: { x: 0, z: 0.12, yaw: 0.35 },
+  rice: { x: -0.11, z: -0.05, yaw: 0.4 },
+  makgeolli: { x: 0.12, z: -0.06, yaw: -0.6 },
+};
 /** 놓았을 때 이 거리(미터) 안의 빈 홈으로 빨려 든다 */
 const SNAP_RADIUS = 0.7;
 /** 마법진이 다 그려지는 시간(초) */
@@ -60,6 +80,8 @@ const FLOOD_LEVEL = 0.7;
 const STORM_SECONDS = 40;
 /** 물굴에서 돌아온 뒤 물이 빠지는 시간(초) */
 const DRAIN_SECONDS = 10;
+/** 기우제가 끝난 뒤 금줄 천자락 — 바람 세기(펄럭일 때 1) · 흔들리는 빠르기(펄럭일 때 1) */
+const CALM_ROPE = { wind: 0.3, pace: 0.3 };
 /** 번개 셋 — 기둥이 다 솟은 뒤 치는 때(초) */
 const STRIKE_TIMES = [PILLAR_SECONDS, PILLAR_SECONDS + 2.2, PILLAR_SECONDS + 5];
 
@@ -69,9 +91,10 @@ export default function RitualCircle() {
   const ropeFlutter = useMemo(() => createRopeFlutter(), []);
   const boatRock = useMemo(() => createBoatRock(), []);
 
-  // 2구역 날씨 — 처음엔 비 없이 밝은 한낮. 기우제로 빛기둥이 솟으면 흐려지며 비가 온다(그 뒤로 쭉)
+  // 2구역 날씨 — 처음엔 비 없이 밝은 한낮. 기우제로 빛기둥이 솟으면 흐려지며 비가 온다.
+  // 바위 위에서 틈을 지나 굿판으로 내려서면(cliff crossed) 비 갠 밤이다
   useEffect(() => {
-    setZoneRainGate("Z2", () => ritual.isAtLeast("rising"));
+    setZoneRainGate("Z2", () => ritual.isAtLeast("rising") && !cliff.isAtLeast("crossed"));
     return () => setZoneRainGate("Z2", null);
   }, []);
 
@@ -109,21 +132,44 @@ export default function RitualCircle() {
 
   const effects = useMemo(() => buildRitualEffects(), []);
 
-  // 제상 위 제물 — 올린 것만 보인다
+  // 제상 위 제물 — 올린 것만 보인다. 챙길 때의 그 모습 그대로(쌀 말 · 백자 술병) 올리고, 물고기는 앞에 눕힌다
   const looks = useMemo(() => buildItemLooks(), []);
   const offeringMeshes = useMemo(
     () =>
-      OFFERINGS.map((kind, i) => {
-        const mesh = new THREE.Mesh(looks[kind].geometry, looks[kind].material);
-        const x = CIRCLE_CENTER.x + (i - 1) * 0.2;
-        const z = CIRCLE_CENTER.z;
-        mesh.position.set(x * M, (groundY(x, z) + TABLE_TOP + looks[kind].lift) * M, z * M);
-        mesh.scale.setScalar(M * 0.8);
-        mesh.visible = false;
-        return mesh;
+      OFFERINGS.map((kind) => {
+        const spot = OFFERING_SPOTS[kind] ?? { x: 0, z: 0, yaw: 0 };
+        const group = new THREE.Group();
+        const top = groundY(CIRCLE_CENTER.x, CIRCLE_CENTER.z) + TABLE_TOP + looks[kind].lift;
+        group.position.set((CIRCLE_CENTER.x + spot.x) * M, top * M, (CIRCLE_CENTER.z + spot.z) * M);
+        group.rotation.y = spot.yaw;
+        group.scale.setScalar(M * 0.8);
+        // 모형을 읽기 전 · 모형이 없는 것(물고기)은 옆선 모양으로
+        const shape = new THREE.Mesh(looks[kind].geometry, looks[kind].material);
+        // 물고기는 넓은 옆구리를 상에 대고 눕는다(물건 모양은 세워 든 꼴이다)
+        if (kind === "lightFish") shape.rotation.z = Math.PI / 2;
+        group.add(shape);
+        group.visible = false;
+        return group;
       }),
     [looks],
   );
+  useEffect(() => {
+    let isAlive = true;
+    OFFERINGS.forEach((kind, i) => {
+      const model = looks[kind].model;
+      if (!model) return;
+      void loadModel(assetUrl(model.url), model.size).then((source) => {
+        if (!isAlive || !source) return;
+        const copy = source.clone(true);
+        copy.traverse((node) => (node.castShadow = true));
+        offeringMeshes[i].clear();
+        offeringMeshes[i].add(copy);
+      });
+    });
+    return () => {
+      isAlive = false;
+    };
+  }, [looks, offeringMeshes]);
 
   // 빛기둥 · 물 · 제물은 기우제 때 처음 보인다 — 그 순간 셰이더를 굽느라 멈추지 않게 불러올 때 미리 굽는다.
   // 공양을 시작할 때 한 번 더(그사이 장면이 바뀌었을 수 있다). 빗줄기(StormRain · 날씨 비)도 같이
@@ -262,6 +308,8 @@ export default function RitualCircle() {
       audio.play("단서");
       if (offeredRef.current.size < OFFERINGS.length) {
         showNotice(`제물을 올렸다. (${offeredRef.current.size}/${OFFERINGS.length})`, 2.4);
+        // 마지막 하나가 남았는데 손 · 소지품에 없으면 동행이 회상 단서를(puzzles/leftBehind, 튜토피드백 13회차)
+        noteOfferingPlaced(offeredRef.current);
         return;
       }
       riseAtRef.current = clockRef.current;
@@ -285,6 +333,12 @@ export default function RitualCircle() {
     };
 
     const disposers = [
+      // ESC 로 잠금이 풀리면 끌던 돌탑을 놓는다 — 첫 ESC 는 끌기 전으로(pointerHold)
+      onEscapeUnlock(() => {
+        if (draggingRef.current === null) return false;
+        release();
+        return true;
+      }),
       ...cairns.map((cairn, index) =>
         registerInteractable({
           id: `ritual-cairn-${index}`,
@@ -306,11 +360,18 @@ export default function RitualCircle() {
         label: "소반 살펴보기",
         radius: 0.45 * M,
         reach: 2.8 * M,
-        enabled: () => draggingRef.current === null,
+        // 틈을 지나 굿판으로 내려선 뒤의 소반은 씻김굿(gut/TorchRite)이 맡는다
+        enabled: () => draggingRef.current === null && !cliff.isAtLeast("crossed"),
         use: () => {
           const now = ritual.stage();
-          if (now === "cairns") showNotice("소반 둘레 땅에 무언가 새겨져 있다. 돌탑이 설 자리 같다.", 3.2);
-          else if (now === "offering") showNotice("소반이 빛난다. 제물을 손에 들고 올리자. [I]", 3);
+          // 무엇을 올리는지는 숨기고 「셋」이라는 개수만 처음부터 알린다(미르 폰 시험 11/7 · 코덱스 구현 07회차)
+          if (now === "cairns")
+            showNotice("제물 세 가지를 받는 소반 같다. 둘레 땅에는 돌탑이 설 자리가 새겨져 있다.", 3.6);
+          else if (now === "offering") {
+            // 올릴 것을 가졌으면 E 가 소지품에서 바로 올린다 — 여기 오는 건 올릴 것이 없을 때다(그래서 「손에 들고 [I]」는 뺐다)
+            showNotice(`소반이 빛난다. 제물 셋을 올리자. (${offeredRef.current.size}/${OFFERINGS.length})`, 3);
+            noteOfferingExamined(offeredRef.current);
+          }
         },
         handLabel: (kind) =>
           ritual.stage() === "offering" &&
@@ -400,16 +461,59 @@ export default function RitualCircle() {
     }
   };
 
+  useEffect(() => () => setPuzzlePanel("ritual-table", null), []);
+
   useFrame(({ camera }, delta) => {
     const dt = Math.min(delta, 0.1);
     const time = (clockRef.current += dt);
 
-    // 금줄 천자락 — 마법진이 그려지기 시작하면 바람이 일어 펄럭인다
+    // 안내판 — 소반 가까이에서 제물 개수를 처음부터 보인다(무엇을 올리는지는 숨김)
+    const tableDistance = Math.hypot(CIRCLE_CENTER.x - camera.position.x / M, CIRCLE_CENTER.z - camera.position.z / M);
+    const panelStage = ritual.stage();
+    if (tableDistance > PANEL_RANGE || ritual.isAtLeast("rising")) setPuzzlePanel("ritual-table", null);
+    else {
+      const offeredCount = offeredRef.current.size;
+      setPuzzlePanel("ritual-table", {
+        distance: tableDistance,
+        title: "소반",
+        // 단계별 — 돌탑(아직 못 올림) · 그려지는 중(기다림) · 제물(올릴 수 있음). 제출은 offering 부터(코덱스 구현 08회차)
+        rule:
+          panelStage === "cairns"
+            ? RAIN_REASON === "why"
+              ? "비를 청하는 상이다 — 강이 삼킨 것을 돌려받으려는 자리. 둘레 땅에 돌탑이 설 자리가 새겨져 있고, 소반에는 제물 세 가지를 올려야 한다."
+              : "소반 둘레 땅에 돌탑이 설 자리가 새겨져 있다. 소반에는 제물 세 가지를 올려야 한다 — 소반이 빛나면 올릴 수 있다."
+            : panelStage === "drawing"
+              ? "땅에 무늬가 번져 간다. 소반이 빛날 때까지 기다리자 — 제물은 세 가지."
+              : "소반이 빛난다. 제물 세 가지를 손에 들고 소반에 올리자.",
+        rows: [
+          { label: "올린 제물", value: `${offeredCount} / ${OFFERINGS.length}`, ok: offeredCount === OFFERINGS.length },
+        ],
+      });
+    }
+
+    // 금줄 천자락 — 마법진이 그려지기 시작하면 바람이 일어 펄럭인다.
+    // 물굴에서 돌아와 물이 빠지면(cleared) 기우제의 바람도 잦아든다 — 느리게, 살짝만 흔들린다
     ropeFlutter.tryPatch(scene, time);
-    const windTarget = ritual.isAtLeast("drawing") ? (ritual.isAtLeast("rising") ? 1.6 : 1) : 0;
+    const isCalm = ritual.isAtLeast("cleared");
+    // 씻김굿(gut)에서 돌풍이 일면 다시 세게 펄럭인다
+    const gust = gut.wind();
+    const windTarget = isCalm
+      ? CALM_ROPE.wind + 1.7 * gust
+      : ritual.isAtLeast("rising")
+        ? 1.6
+        : ritual.isAtLeast("drawing")
+          ? 1
+          : 0;
     const { uRopeWind, uRopeTime } = ropeFlutter.uniforms;
-    uRopeWind.value += (windTarget - uRopeWind.value) * Math.min(1, dt * 0.8);
-    uRopeTime.value = time;
+    uRopeWind.value += (windTarget - uRopeWind.value) * Math.min(1, dt * (gust > 0.1 ? 3 : 0.8));
+    uRopeTime.value += dt * (isCalm ? CALM_ROPE.pace + (1 - CALM_ROPE.pace) * gust : 1);
+    // 굿이 풀려 소반에 불이 붙으면 제물도 오그라들며 타고, 다 타면 사라진다
+    const char = gut.tableChar();
+    if (char > 0)
+      offeringMeshes.forEach((mesh) => {
+        mesh.scale.setScalar(M * 0.8 * (1 - 0.7 * char));
+        if (char >= 1) mesh.visible = false;
+      });
 
     // 나룻배 — 물이 배 밑보다 0.15 m 넘게 차면 떠올라 까딱인다
     boatRock.tryPatch(scene, time);
@@ -452,7 +556,7 @@ export default function RitualCircle() {
     if (stage === "drawing" && progress >= 1.05) {
       ritual.ready();
       audio.play("징");
-      showNotice("빛이 소반으로 모였다. 제물을 올리자.", 3.4);
+      showNotice(`빛이 소반으로 모였다. 제물 셋을 올리자. (${offeredRef.current.size}/${OFFERINGS.length})`, 3.4);
     }
     const tableLevel = THREE.MathUtils.clamp((progress - 0.85) / 0.2, 0, 1);
     effects.tableGlow.material.opacity = tableLevel * (stage === "flooded" ? 0.15 : 0.55 + 0.2 * Math.sin(time * 3));

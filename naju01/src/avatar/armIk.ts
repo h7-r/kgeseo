@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { exposeDevHook } from "@/debug/devHooks";
 import type { ArmPole, AvatarLink, WorldPoint } from "@/engine/avatarLink";
 
-import { measureChestHalfDepth } from "./fistCenter";
+import { measureChestHalfDepth, morphSignature } from "./fistCenter";
 import type { Arm, PreparedBody, Side } from "./preparedBody";
 import { applyWorldRotation } from "./rig";
 
@@ -241,6 +241,12 @@ export function solveArms(prepared: PreparedBody, state: AvatarLink, group: THRE
       state.shoulderHeight = _S.y;
       state.armLength = _S.distanceTo(_E) + _E.distanceTo(_W);
       // 가슴 두께 — 게임이 든 물건을 몸에서 얼마나 띄울지. 모델 좌표로 재서 세계 배율을 곱한다.
+      // 체형을 바꾸면(꾸미기 · 불러오기) 다시 잰다 — 한 번 잰 값을 계속 쓰면 뚱뚱한 몸에 손이 들어간다
+      const bodyShape = morphSignature(prepared.targetSkin);
+      if (state.torsoShape !== bodyShape) {
+        state.torsoShape = bodyShape;
+        state.torsoHalfDepth = undefined;
+      }
       if (state.torsoHalfDepth === undefined) {
         const skin = prepared.targetSkin;
         const rightUpper = prepared.arms.find((a) => a.side === "r")?.upper;

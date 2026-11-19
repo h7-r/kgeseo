@@ -172,3 +172,18 @@ def legacy_play_auth(request: pytest.FixtureRequest) -> Iterator[None]:
     finally:
         for dependency in overrides:
             app.dependency_overrides.pop(dependency, None)
+
+
+@pytest.fixture(autouse=True)
+def fresh_request_rate_limiter(monkeypatch) -> None:
+    """IP 기준 요청 빈도 제한(PR B)의 프로세스 카운터를 테스트마다 새로 둔다.
+
+    테스트 클라이언트는 모두 같은 주소라, 공유하면 앞 테스트의 가입 · 확인 요청이 뒤 테스트의 한도를 깎는다.
+    한 테스트 안에서는 실제 한도가 그대로 적용된다.
+    """
+
+    from app.services import request_rate_limit
+
+    monkeypatch.setattr(
+        request_rate_limit, "_limiter", request_rate_limit.SlidingWindowLimiter()
+    )

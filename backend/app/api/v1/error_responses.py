@@ -315,10 +315,30 @@ LOGIN = {
     ),
     429: error(
         CodedError,
-        "같은 이메일 또는 IP 의 로그인 실패가 많아 잠시 막혔다." + _NO_STORE,
+        "같은 이메일 또는 IP 의 로그인 실패가 많아 잠시 막혔다. `Retry-After` 헤더가 잠금이 풀릴 때까지 "
+        "남은 초다(이메일 · IP 잠금이 둘 다면 더 늦게 풀리는 쪽)." + _NO_STORE,
         "login_locked",
     ),
 }
+
+
+def _rate_limited(limit: str) -> dict[int, dict[str, Any]]:
+    """IP 기준 요청 빈도 제한(베타 전 보안 PR B). 한도는 `RATE_LIMIT_*` 설정의 기본값이다."""
+
+    return {
+        429: error(
+            CodedError,
+            f"같은 IP 의 요청이 최근 60초 한도(기본 {limit}, 운영 설정 `RATE_LIMIT_*`로 바뀔 수 있다)를 넘었다. "
+            "`Retry-After` 헤더(정수 초) 뒤 다시 보낸다. API 마다 · IP 마다 따로 센다."
+            + _NO_STORE,
+            "rate_limited",
+        )
+    }
+
+
+REGISTER.update(_rate_limited("30회"))
+
+EMAIL_EXISTS = _rate_limited("30회")
 
 NICKNAME_EXISTS = {
     422: error(
@@ -327,6 +347,7 @@ NICKNAME_EXISTS = {
         + " 닉네임 정책 위반은 `code: invalid_nickname`(이때만 `Cache-Control: no-store`).",
         "invalid_nickname",
     ),
+    **_rate_limited("30회"),
 }
 
 SOCIAL_ONBOARDING = {
@@ -370,6 +391,16 @@ _LOGIN_REQUIRED = {
 FOREIGN_ORIGIN = {
     403: error(ErrorMessage, "다른 사이트에서 온 쓰기 요청이다.", "Origin not allowed.")
 }
+# 관리자 쓰기(문의 답변 · 상태 · 설정) — 관리자 검사 + Origin 검사
+_ADMIN_WRITE = {
+    **_LOGIN_REQUIRED,
+    403: error(
+        ErrorMessage,
+        "관리자가 아니거나 다른 사이트에서 온 쓰기 요청이다(문장 구분).",
+        "Admin only.",
+        "Origin not allowed.",
+    ),
+}
 _TOO_LARGE = {
     413: error(ErrorMessage, "저장 값이 크기 한도를 넘었다.", "Save data too large.")
 }
@@ -393,6 +424,37 @@ GAME_SAVE_WRITE = {
     ),
 }
 GAME_SAVE_DELETE = {**_LOGIN_REQUIRED, **FOREIGN_ORIGIN}
+# 회원 탈퇴(계약 account_withdrawal_v0.2, 11/17). 거절이면 아무것도 바꾸지 않고 쿠키도 그대로다.
+ME_WITHDRAWAL = {
+    401: error(
+        ErrorMessage | CodedError,
+        "로그인 세션이 없거나 끝났다(이미 탈퇴한 계정 포함) · 비밀번호가 틀렸다(`invalid_password`, 로그인 실패 집계에 더한다)."
+        + _NO_STORE,
+        "Login required.",
+        "invalid_password",
+    ),
+    403: error(
+        ErrorMessage | CodedError,
+        "다른 사이트에서 온 요청 · 관리자 본인 탈퇴(`admin_cannot_withdraw`) · 이메일 비밀번호 수단이 없는 소셜 전용 회원"
+        "(`reauth_required`, 소셜 재로그인 확인은 후속)." + _NO_STORE,
+        "Origin not allowed.",
+        "admin_cannot_withdraw",
+        "reauth_required",
+    ),
+    422: error(
+        CodedError,
+        "요청 형식 오류. 입력값을 되돌려 보내지 않는다(비밀번호 1~128자 = `invalid_password`, 그 밖 = `invalid_input`)."
+        + _NO_STORE,
+        "invalid_password",
+        "invalid_input",
+    ),
+    429: error(
+        CodedError,
+        "이 계정 이메일의 비밀번호 실패가 많아 잠시 막혔다(로그인과 같은 집계). `Retry-After` 헤더가 남은 초다."
+        + _NO_STORE,
+        "login_locked",
+    ),
+}
 CHARACTER_WRITE = {
     **_LOGIN_REQUIRED,
     **FOREIGN_ORIGIN,
@@ -405,6 +467,121 @@ ADMIN_DETAIL = {
     **_ADMIN_ONLY,
     404: error(ErrorMessage, "없는 사용자다.", "User not found."),
 }
+_INVALID_QUERY_SUMMARY = "새 쿼리 값(검색어 · 날짜 · 개수 · 필터) 오류. 입력값을 되돌려 보내지 않는다(관리자 API v0.2 §2.2)."
+# 회원 목록 — 기존 `offset` 형식 오류는 지금처럼 FastAPI 기본 422, 새 `q` · `limit` 은 `invalid_query`
+ADMIN_USER_SEARCH = {
+    **ADMIN_LIST,
+    422: error(
+        ValidationErrorResponse | CodedError,
+        _VALIDATION + " / " + _INVALID_QUERY_SUMMARY,
+        "invalid_query",
+    ),
+}
+# 새 관리자 조회(통계 · 감사 기록) — 쿼리 값 오류는 모두 `invalid_query`
+ADMIN_QUERY = {
+    **ADMIN_LIST,
+    422: error(CodedError, _INVALID_QUERY_SUMMARY, "invalid_query"),
+}
+
+# --- 관리자 API v0.3 3단계(11/13 해랑): 1:1 문의 · 설정 · 콘텐츠 ---
+INQUIRY_CREATE = {
+    # 로그인 쿠키로 접수하는 사이에 그 계정이 탈퇴했다(11/17) — 문의를 만들지 않는다. 비로그인 접수에는 없다
+    401: error(
+        ErrorMessage,
+        "접수 도중 로그인한 계정이 탈퇴했다." + _NO_STORE,
+        "Login required.",
+    ),
+    **FOREIGN_ORIGIN,
+    422: error(
+        ValidationErrorResponse | CodedError,
+        _VALIDATION
+        + " 분류 다섯 값 · 제목 1~100자 · 본문 1~4000자 / 답변 받을 이메일이 형식에 안 맞음.",
+        "invalid_email",
+    ),
+    429: error(
+        CodedError,
+        "같은 IP 의 문의 접수가 최근 창(기본 10분 5건, 운영 설정 `RATE_LIMIT_INQUIRY_*`)을 넘었다. "
+        "`Retry-After` 헤더(정수 초) 뒤 다시 보낸다." + _NO_STORE,
+        "rate_limited",
+    ),
+}
+_INQUIRY_NOT_FOUND = {404: error(ErrorMessage, "없는 문의다.", "Inquiry not found.")}
+ADMIN_INQUIRY_LIST = ADMIN_QUERY
+ADMIN_INQUIRY_DETAIL = {**ADMIN_LIST, **_INQUIRY_NOT_FOUND}
+ADMIN_INQUIRY_REPLY = {
+    **_ADMIN_WRITE,
+    **_INQUIRY_NOT_FOUND,
+    409: error(CodedError, "종료된 문의에는 답할 수 없다.", "inquiry_closed"),
+    422: error(ValidationErrorResponse, _VALIDATION + " 답변 1~4000자."),
+}
+ADMIN_INQUIRY_PATCH = {
+    **_ADMIN_WRITE,
+    **_INQUIRY_NOT_FOUND,
+    422: error(
+        ValidationErrorResponse | CodedError,
+        _VALIDATION + " / 바꿀 값(status · priority)이 하나도 없다.",
+        "invalid_query",
+    ),
+}
+ADMIN_SETTINGS = ADMIN_LIST
+ADMIN_SETTINGS_WRITE = {
+    **_ADMIN_WRITE,
+    422: error(
+        ValidationErrorResponse, _VALIDATION + " on 은 bool · message 는 200자까지."
+    ),
+}
+ADMIN_CONTENT_LIST = ADMIN_LIST
+ADMIN_CONTENT_DETAIL = {
+    **ADMIN_LIST,
+    404: error(
+        ErrorMessage, "없는 사건이거나 식별자 모양이 아니다.", "Case not found."
+    ),
+}
+
+# --- 공지사항(11/16 세진, docs/contracts/notices_api_v0.2.md) ---
+_NOTICE_NOT_FOUND = {
+    404: error(
+        ErrorMessage,
+        "없는 공지다(삭제된 공지도 같다)." + _NO_STORE,
+        "Notice not found.",
+    )
+}
+_NOTICE_INVALID_QUERY = "쿼리 값(page · page_size · offset · limit · category · status) 오류. 입력값을 되돌려 보내지 않는다."
+NOTICE_PUBLIC_LIST = {
+    422: error(CodedError, _NOTICE_INVALID_QUERY + _NO_STORE, "invalid_query"),
+}
+NOTICE_PUBLIC_DETAIL = {
+    404: error(
+        ErrorMessage,
+        "없거나 아직 게시 전(초안 · 예약)이거나 삭제된 공지 — 모두 같은 404."
+        + _NO_STORE,
+        "Notice not found.",
+    ),
+}
+ADMIN_NOTICE_LIST = {
+    **ADMIN_LIST,
+    422: error(CodedError, _NOTICE_INVALID_QUERY, "invalid_query"),
+}
+ADMIN_NOTICE_DETAIL = {**ADMIN_LIST, **_NOTICE_NOT_FOUND}
+_NOTICE_BODY_VALIDATION = (
+    _VALIDATION
+    + " 분류 넷(maintenance · event · update · info) · 제목 1~200자 · 본문 1~20,000자 · "
+    "`published_at` 은 timezone 필수(없으면 `timezone_aware`) · 모르는 필드 거절."
+)
+ADMIN_NOTICE_CREATE = {
+    **_ADMIN_WRITE,
+    422: error(ValidationErrorResponse, _NOTICE_BODY_VALIDATION),
+}
+ADMIN_NOTICE_UPDATE = {
+    **_ADMIN_WRITE,
+    **_NOTICE_NOT_FOUND,
+    422: error(
+        ValidationErrorResponse | CodedError,
+        _NOTICE_BODY_VALIDATION + " / 바꿀 값이 하나도 없다.",
+        "invalid_query",
+    ),
+}
+ADMIN_NOTICE_DELETE = {**_ADMIN_WRITE, **_NOTICE_NOT_FOUND}
 
 
 # --- 플레이 API 쿠키 · Origin(11/6 PM: Play Session 소유권 · 게스트 세션) ---
@@ -423,4 +600,51 @@ for _responses in (PLAY_SESSION_CREATE, INTERACTION, HINT, HINT_ALIAS, NPC_TURN)
 for _responses in (PLAY_SESSION_READ, PLAY_SESSION_CLUES, PLAY_SESSION_BUNDLE):
     _responses.update(_PLAY_COOKIE_REQUIRED)
 
-ANONYMOUS_SESSION_CREATE = {**FOREIGN_ORIGIN}
+ANONYMOUS_SESSION_CREATE = {
+    **FOREIGN_ORIGIN,
+    **_rate_limited(
+        "60회 — 유효한 게스트 쿠키로 기존 세션을 돌려받는 요청은 세지 않는다"
+    ),
+}
+
+# --- 로비 입장권(로비 설계 v0.19 2절) ---
+
+LOBBY_TICKET = {
+    **_LOGIN_REQUIRED,
+    403: error(
+        ErrorMessage,
+        "다른 사이트에서 온 요청이거나, 모집 명단에 없는 계정이다(문장 구분). 화면은 혼자 진행하고 이번 방문에 다시 요청하지 않는다.",
+        "Origin not allowed.",
+        "Not on the lobby beta list.",
+    ),
+    429: error(
+        ErrorMessage,
+        "최근 60초 발급 한도(계정당 10회 · IP당 60회)를 넘었다. `Retry-After` 헤더가 다음 발급까지 남은 초다.",
+        "Too many lobby ticket requests.",
+    ),
+    503: error(
+        ErrorMessage,
+        "로비 입장권 발급이 꺼져 있다(로비 설정 · 시작 검사 실패) 또는 모집 명단을 쓸 수 없다. 본편 API 는 정상이다.",
+        "Lobby is unavailable.",
+    ),
+}
+
+
+# --- 베타 분석 기록(11/11 미르, `docs/beta_events.md`) ---
+# 쿠키가 없어도 받는다(401 없음). 형식 오류는 묶음 전체를 거절한다(보낸 값은 되돌려 주지 않는다).
+
+BETA_EVENTS = {
+    **FOREIGN_ORIGIN,
+    413: error(
+        ErrorMessage,
+        "본문이 64KB 를 넘었다." + _NO_STORE,
+        "Beta event batch too large.",
+    ),
+    422: error(
+        ValidationErrorResponse,
+        _VALIDATION
+        + " 본문을 직접 읽어 검사한다 — JSON 이 아니거나, 기록이 0개 · 51개 이상이거나, 필드 형식이 틀리거나,"
+        " data 가 2048바이트를 넘으면 묶음 전체를 거절한다. `input` 은 싣지 않는다.",
+    ),
+    **_rate_limited("1500회"),
+}

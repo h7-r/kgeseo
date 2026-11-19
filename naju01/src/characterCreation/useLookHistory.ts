@@ -2,17 +2,9 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import type { AvatarGender } from "../avatar/sidekickOptions";
-import {
-  createDefaultDraft,
-  getDefaultBodyParameters,
-  adaptAppearanceToGender,
-  normalizeDraft,
-  type BodyField,
-  type DraftAppearance,
-} from "./appearanceData";
+import { getStartAppearance, type BodyField, type DraftAppearance } from "./appearanceData";
 import type { CharacterCatalog } from "./catalog";
 import type { AppearanceTab } from "./steps";
-import { WHITE } from "./styles";
 
 interface Look {
   gender: AvatarGender;
@@ -29,10 +21,6 @@ export type UpdateAppearance = (update: (current: DraftAppearance) => DraftAppea
 
 const HISTORY_LIMIT = 50;
 
-function getDefaultAppearance(catalog: CharacterCatalog, gender: AvatarGender) {
-  return normalizeDraft(createDefaultDraft(catalog, gender), catalog).draft.appearance;
-}
-
 export function useLookHistory(initialAppearance: DraftAppearance, catalog: CharacterCatalog) {
   const [look, setLook] = useState<Look>(() => ({
     gender: initialAppearance.gender,
@@ -44,8 +32,9 @@ export function useLookHistory(initialAppearance: DraftAppearance, catalog: Char
   const [history, setHistory] = useState<History>({ past: [], future: [] });
   const lookBeforeDrag = useRef<Look | null>(null);
 
+  // 아직 안 고른 성별은 그 성별의 시작 모습(미르가 시작 모습 창에서 정한 것)
   const appearance = useMemo(
-    () => look.drafts[look.gender] ?? getDefaultAppearance(catalog, look.gender),
+    () => look.drafts[look.gender] ?? getStartAppearance(look.gender, catalog),
     [look, catalog],
   );
 
@@ -60,7 +49,7 @@ export function useLookHistory(initialAppearance: DraftAppearance, catalog: Char
   const updateAppearance = useCallback<UpdateAppearance>(
     (update, isHistoryStep = true) => {
       const apply = (previous: Look): Look => {
-        const current = previous.drafts[previous.gender] ?? getDefaultAppearance(catalog, previous.gender);
+        const current = previous.drafts[previous.gender] ?? getStartAppearance(previous.gender, catalog);
         return { ...previous, drafts: { ...previous.drafts, [previous.gender]: update(current) } };
       };
       if (isHistoryStep) changeLook(apply);
@@ -69,15 +58,11 @@ export function useLookHistory(initialAppearance: DraftAppearance, catalog: Char
     [changeLook, catalog],
   );
 
+  // 처음 고르는 성별은 그 성별의 시작 모습을 그대로(색 · 몸까지) 보여 준다 — 앞 성별에서 고친 것을 옮겨 오면 미르가 정한 첫 모습이
+  // 섞여 보였다(미르 11/10 · Codex 01). 이미 다녀온 성별은 고쳐 둔 모습이 남는다.
   const changeGender = (nextGender: AvatarGender) => {
     if (nextGender === look.gender) return;
-    changeLook((previous) => {
-      if (previous.drafts[nextGender]) return { ...previous, gender: nextGender };
-      const current = previous.drafts[previous.gender] ?? getDefaultAppearance(catalog, previous.gender);
-      // 바꾼 항목 알림은 띄우지 않는다 — 성별마다 다른 항목은 그 성별 기본값으로 조용히 맞춘다
-      const { appearance: matched } = adaptAppearanceToGender(current, nextGender, catalog);
-      return { ...previous, gender: nextGender, drafts: { ...previous.drafts, [nextGender]: matched } };
-    });
+    changeLook((previous) => ({ ...previous, gender: nextGender }));
   };
 
   const undo = () => {
@@ -93,18 +78,19 @@ export function useLookHistory(initialAppearance: DraftAppearance, catalog: Char
   const resetAll = () => {
     changeLook(() => ({ gender: look.gender, drafts: { masculine: null, feminine: null } }));
   };
+  // 그 갈래만 시작 모습으로 — 색도 시작 모습 색(정하지 않았으면 원본 흰색)
   const resetSection = (section: AppearanceTab) => {
-    const fallback = getDefaultAppearance(catalog, look.gender);
-    if (section === "body") updateAppearance((v) => ({ ...v, bodyParameters: getDefaultBodyParameters(look.gender) }));
+    const start = getStartAppearance(look.gender, catalog);
+    if (section === "body") updateAppearance((v) => ({ ...v, bodyParameters: { ...start.bodyParameters } }));
     else if (section === "hair")
-      updateAppearance((v) => ({ ...v, hairId: fallback.hairId, colors: { ...v.colors, hair: WHITE } }));
+      updateAppearance((v) => ({ ...v, hairId: start.hairId, colors: { ...v.colors, hair: start.colors.hair } }));
     else if (section === "outfit")
       updateAppearance((v) => ({
         ...v,
-        equipmentIds: { ...fallback.equipmentIds },
-        colors: { ...v.colors, cloth: WHITE, bottom: WHITE, shoes: WHITE },
+        equipmentIds: { ...start.equipmentIds },
+        colors: { ...v.colors, cloth: start.colors.cloth, bottom: start.colors.bottom, shoes: start.colors.shoes },
       }));
-    else updateAppearance((v) => ({ ...v, colors: { ...v.colors, skin: WHITE } }));
+    else updateAppearance((v) => ({ ...v, colors: { ...v.colors, skin: start.colors.skin } }));
   };
 
   // 슬라이더를 끄는 동안은 한 번만 이력에 남긴다

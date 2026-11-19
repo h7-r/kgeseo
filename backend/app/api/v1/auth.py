@@ -37,6 +37,12 @@ from app.services.registration_input_policy import (
     InvalidEmailError,
     InvalidPasswordError,
 )
+from app.services.request_rate_limit import (
+    EMAIL_EXISTS,
+    NICKNAME_EXISTS,
+    REGISTER,
+    limit_by_ip,
+)
 from app.services.social_auth import (
     authenticate_social_user,
 )
@@ -47,22 +53,40 @@ from app.services.social_onboarding import (
     complete_onboarding,
 )
 from app.services.user_session import (
+    WithdrawnAccountError,
     clear_login_failures,
-    is_login_locked,
+    login_lock_remaining_seconds,
     record_login_failure,
     require_same_origin,
     start_session,
 )
 
 
+def _social_login_refused() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="Social account login could not be completed.",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 async def _establish_login(
-    db: AsyncSession, http_request: Request, response: Response, user_id: str
+    db: AsyncSession,
+    http_request: Request,
+    response: Response,
+    user_id: str,
+    refused: HTTPException | None = None,
 ) -> None:
     """로그인 성공 공통 처리(11/6 PM): 로그인 세션 쿠키를 주고, 유효한 게스트 쿠키가 있으면 그 진행을 계정으로 옮긴다.
 
     승계가 실패해도 로그인은 성공으로 두고 게스트 진행은 지우지 않는다(transfer_guest_to_user).
+    인증을 마친 바로 그 사이에 계정이 탈퇴했으면(11/17) 세션을 주지 않고 `refused` 로 답한다 — 그 경로가 이미 쓰는 오류라 탈퇴 여부를
+    따로 드러내지 않는다(이메일 로그인 = 401 `Invalid email or password.`, 그 밖 = 409 문장).
     """
-    await start_session(db, response, user_id)
+    try:
+        await start_session(db, response, user_id)
+    except WithdrawnAccountError as error:
+        raise (refused or _social_login_refused()) from error
     await transfer_guest_to_user(db, http_request, response, user_id)
 
 
@@ -184,6 +208,8 @@ async def login_with_naver(
     response_model=LocalAuthResponse,
     status_code=status.HTTP_201_CREATED,
     responses=error_responses.REGISTER,
+    # IP 당 요청 빈도(PR B). 라우터의 Origin 검사 다음, 본문 검증 · DB 보다 먼저 센다.
+    dependencies=[Depends(limit_by_ip(REGISTER))],
 )
 async def register_local_account(
     request: LocalRegisterRequest,
@@ -249,14 +275,16 @@ async def login_local_account(
     db: AsyncSession = Depends(get_db),
 ) -> LocalAuthResponse:
     response.headers["Cache-Control"] = "no-store"
-    if await is_login_locked(db, http_request, request.email):
+    retry_after = await login_lock_remaining_seconds(db, http_request, request.email)
+    if retry_after is not None:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={
                 "code": "login_locked",
                 "message": "로그인 실패가 많아 잠시 막혔습니다. 15분 뒤 다시 시도해 주세요.",
             },
-            headers={"Cache-Control": "no-store"},
+            # 잠금이 풀릴 때까지 남은 초(DB 잠금 기록 기준). CORS expose_headers 로 웹사이트가 읽는다.
+            headers={"Cache-Control": "no-store", "Retry-After": str(retry_after)},
         )
     try:
         user = await local_auth.login_user(db, request.email, request.password)
@@ -269,11 +297,26 @@ async def login_local_account(
         ) from error
 
     await clear_login_failures(db, http_request, request.email)
-    await _establish_login(db, http_request, response, user.id)
+    await _establish_login(
+        db,
+        http_request,
+        response,
+        user.id,
+        refused=HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password.",
+            headers={"Cache-Control": "no-store"},
+        ),
+    )
     return LocalAuthResponse(user=local_auth.user_to_payload(user))
 
 
-@router.post("/email-exists", response_model=LocalExistsResponse)
+@router.post(
+    "/email-exists",
+    response_model=LocalExistsResponse,
+    responses=error_responses.EMAIL_EXISTS,
+    dependencies=[Depends(limit_by_ip(EMAIL_EXISTS))],
+)
 async def check_email_exists(
     request: EmailExistsRequest,
     response: Response,
@@ -287,6 +330,7 @@ async def check_email_exists(
     "/nickname-exists",
     response_model=LocalExistsResponse,
     responses=error_responses.NICKNAME_EXISTS,
+    dependencies=[Depends(limit_by_ip(NICKNAME_EXISTS))],
 )
 async def check_nickname_exists(
     request: NicknameExistsRequest,

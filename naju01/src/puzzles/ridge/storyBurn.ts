@@ -9,10 +9,13 @@ import { createCanvas, makeTextureFromCanvas } from "@/engine/textures/canvas";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { makeGlowPoints, pointScaleFor } from "../glowPoints";
-import { showNotice } from "../interaction";
+import { noticeFor } from "../interaction";
 import { makeToonMaterial } from "../materials";
 import { M, groundY } from "../units";
 import { GATE } from "./ridgeShape";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("stumps");
 
 /** 평상 널에 새긴 이야기 — 그림 차례가 줄 차례다 */
 export const STORY_LINES = [
@@ -23,7 +26,7 @@ export const STORY_LINES = [
   "마침내 등불이 스러져 꺼졌더라",
 ];
 /** 맺음말 — 그림 차례가 아니라 그날 밤의 말투로 남긴 당부. 이야기보다 작게 */
-export const STORY_CLOSING = "이 모든 것이 하나로 모이거든, 그대 바라던 결말에 한 걸음 더 다가가리라";
+export const STORY_CLOSING = "이 밤에 있었던 일을 잊지 마오";
 /** 글판 크기(m) */
 const STORY_PLANE = { width: 2.8, height: 1.4 };
 /** 불티가 횃불에서 평상까지 날아가는 시간 · 널이 왼쪽 끝에서 오른쪽 끝까지 타는 시간(초) */
@@ -151,7 +154,8 @@ export function updateStoryBurn(
   if (story.emberAt < 0) {
     story.emberAt = time;
     audio.play("단서");
-    showNotice("횃불에서 튄 불티 하나가 바람을 타고 평상으로 날아간다…", 3.5);
+    // 눈앞에서 지금 벌어지는 일 — 이야기에 밀리면 버린다(뒤에 뜨면 끝난 일을 지금처럼 말한다)
+    showNotice("횃불에서 튄 불티 하나가 바람을 타고 평상으로 날아간다…", 3.5, { fleeting: true });
   }
   const since = time - story.emberAt;
   const { flames, flameSeeds, fireLight } = story;
@@ -181,7 +185,7 @@ export function updateStoryBurn(
     if (since + dt >= EMBER_SECONDS) {
       audio.play("첨벙");
       director.cue({ 카메라: "흔들림", 세기: 0.1 });
-      showNotice("불티가 평상 널에 떨어져 불이 붙는다 — 널이 타들어 가며 무언가 드러난다.", 4);
+      showNotice("불티가 평상 널에 떨어져 불이 붙는다 — 널이 타들어 가며 무언가 드러난다.", 4, { fleeting: true });
     }
   } else {
     const burn = Math.min(1, (since - EMBER_SECONDS) / BURN_SECONDS);

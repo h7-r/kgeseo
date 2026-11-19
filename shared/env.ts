@@ -5,7 +5,7 @@
  *                    케이스 파일의 버전 경로는 서버가 세션의 asset_base_path 로 내려 주고 setAssetVersionPath 로 넣는다
  *   VITE_DEFAULT_CASE_PATH 세션 값이 오기 전·없을 때 쓰는 케이스 버전 경로(예: /c/naju-angam-01/v1). 세션 값이 오면 덮어쓴다
  *                    — CDN 을 세션 연결보다 먼저 켜도 케이스 파일 주소가 맞는다(11/6 미르 님)
- *   VITE_SHARED_BUILD 공용 파일(/models)의 빌드 번호. 빌드가 tools/shared-asset-build.mjs 로 채우고, CDN 경로 /shared/<해시> 가 된다
+ *   VITE_SHARED_BUILD 공용 파일(/models · /lobby-music)의 빌드 번호. 빌드가 tools/shared-asset-build.mjs 로 채우고, CDN 경로 /shared/<해시> 가 된다
  *   VITE_API_ORIGIN  경로 없이, 끝에 / 없이(예: https://api.도메인). 비면 "" → 같은 출처 /api proxy 그대로.
  *                    세진 님 통합 브랜치의 이름·검사(deploymentUrls.apiOrigin — 운영 빌드는 HTTPS 만)를 그대로 쓴다
  *   VITE_LOBBY_URL   wss://… 비면 "" → 로비 접속 끔(혼자 모드)

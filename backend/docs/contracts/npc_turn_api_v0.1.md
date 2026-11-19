@@ -13,6 +13,7 @@
   "trigger": "player_message | auto",
   "message": "player_message 일 때만 (1~200자)",
   "focus_object_id": "선택 — 현재 구역에서 보고 있는 Object",
+  "paused_ms_since_interaction": "선택 · auto 만 — 마지막 플레이어 상호작용 뒤 게임이 멈춰 있던 시간(ms, 0~86400000)",
   "situation": {"code": "BREATH_LOW", "zone_id": "선택", "value": 12}
 }
 ```
@@ -44,6 +45,14 @@
     `suspended`(진행 중 세션은 케이스 대사 사용, v0.4.6)는 그대로다.
   - 기록(response_json): `situation_code` · `situation_replied` · `situation_reason`(말하지 않은 이유). 대사 원문 없음.
     상황 대사 응답은 `auto_intervened=false`(퍼즐 자동 개입 횟수 · 쿨다운과 따로 센다).
+  - 퍼즐 자동 개입 nudge 반복 방지(main, `used_auto_nudges`)와 함께: 상황 대사 응답은 `auto_intervened=false` 라
+    사용한 nudge 로 세지 않는다. 이 회차의 nudge 후보가 모두 쓰여(`auto_nudges_exhausted`) 퍼즐 결과에 보여 줄 것이
+    없으면 「퍼즐 결과가 보여 줄 것이 없을 때만 상황 대사」 규칙대로 상황 대사 후보가 된다.
+  - `paused_ms_since_interaction` 은 퍼즐 무입력 판단(마지막 상호작용 뒤 경과)에서만 빠진다. 상황 대사 쿨다운 · 횟수와
+    QUIET 이 보는 퍼즐 개입 · 거절 쿨다운은 서버 시각 그대로다(멈춘 시간을 빼지 않는다).
+    재전송 비교 값에는 `situation` · `paused_ms_since_interaction` 이 각각 실렸을 때만 들어간다.
+- `paused_ms_since_interaction`(11/11): FE 게임 시계로 잰 멈춘 시간(ESC 멈춤 메뉴 · 설정 · 소지품처럼 게임이 얼어 있던 시간).
+  무입력 판정의 경과 시간에서만 뺀다 — 멈춘 동안은 「못 풀고 있는 시간」이 아니다. 경과보다 크면 0. `player_message` 에 실으면 422.
 
 ## 응답 (200, 감싸지 않은 객체)
 
@@ -72,7 +81,7 @@
 
 `interaction_events` 한 줄(`interaction_type="npc_turn"`, `target_id=null`).
 
-- `payload_json`: `trigger` · `focus_object_id` · `message_sha256`(재전송 비교용, 원문 없음)
+- `payload_json`: `trigger` · `focus_object_id` · `message_sha256`(재전송 비교용, 원문 없음) · `paused_ms_since_interaction`(실었을 때만)
 - `response_json`: `reply_source` · `line_id` · `generated` · `no_reply_reason` · `suggest_hint_puzzle_id` ·
   `policy`([{code, rule_id}]) · `decision` · `diagnosis`(신호 종류만) · `auto_intervened`
 - 대사 · 플레이어 원문 · 정답 · 힌트 원문은 저장하지 않는다.

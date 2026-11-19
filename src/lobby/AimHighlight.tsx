@@ -10,6 +10,8 @@ import type { Vector3Tuple } from "three";
 import { aimStore } from "./interactions";
 
 const glowColor = new THREE.Color();
+/** 강조 그룹 표시 — 바깥 강조가 안쪽 강조 아래를 건너뛴다 */
+const HIGHLIGHT_ROOT = "aimHighlightRoot";
 
 type EmissiveMaterial = THREE.Material & { emissive?: THREE.Color };
 
@@ -22,6 +24,11 @@ interface AimHighlightProps {
   /** 넓은 면(벽 부착함)은 0.45 면 통째로 크림색으로 뜬다 — 부르는 쪽에서 0.15~0.2 를 준다. */
   strength?: number;
   grow?: number;
+  /**
+   * 겨냥하지 않아도 스스로 빛나는 세기(0~1, 매 프레임 읽는다) — 「여기를 만져라」 맥박(소화전 밸브, 튜토피드백 10회차).
+   * 발광에만 더하고 커지기(grow)는 겨냥 때만 — 숨쉬듯 커졌다 작아지면 물건이 흔들려 보인다(Codex 10).
+   */
+  pulse?: () => number;
   children?: ReactNode;
 }
 
@@ -31,6 +38,7 @@ export function AimHighlight({
   color = "#fffee7",
   strength = 0.45,
   grow = 0.08,
+  pulse,
   children,
 }: AimHighlightProps) {
   const groupRef = useRef<THREE.Group>(null);
@@ -57,10 +65,12 @@ export function AimHighlight({
       group.position.set(p[0] * (1 - k), p[1] * (1 - k), p[2] * (1 - k));
     }
 
+    // 맥박은 발광에만 — 겨냥하면 그대로 최대
+    const glow = Math.max(level, Math.min(1, Math.max(0, pulse?.() ?? 0)));
     // 꺼져 있고 이미 껐으면 훑지 않는다(대부분의 프레임이 여기서 끝난다)
-    if (level < 0.002 && previous.current < 0.002) return;
-    previous.current = level;
-    glowColor.set(color).multiplyScalar(level * strength);
+    if (glow < 0.002 && previous.current < 0.002) return;
+    previous.current = glow;
+    glowColor.set(color).multiplyScalar(glow * strength);
 
     // 원래 발광에 더한다. 덮어쓰면 강조가 꺼질 때 스탠드 전구처럼 스스로 빛나던 부품이 영영 꺼진다.
     const apply = (material: EmissiveMaterial) => {
@@ -72,13 +82,23 @@ export function AimHighlight({
       }
       material.emissive.copy(original).add(glowColor);
     };
-    group.traverse((node) => {
+    // 안쪽에 또 다른 강조(배전반 속 선 · 스위치)가 있으면 그 아래는 건드리지 않는다 — 둘이 같은 재질의 「원래 발광」을 따로 기억하면
+    // 바깥 맥박이 안쪽의 원래 값으로 굳어 빛이 남았다(배전반 알림, Codex 리뷰 3fd1ae9)
+    const visit = (node: THREE.Object3D) => {
+      if (node !== group && node.userData[HIGHLIGHT_ROOT]) return;
       const material = (node as THREE.Mesh).material as EmissiveMaterial | EmissiveMaterial[] | undefined;
-      if (!material) return;
-      if (Array.isArray(material)) material.forEach(apply);
-      else apply(material);
-    });
+      if (material) {
+        if (Array.isArray(material)) material.forEach(apply);
+        else apply(material);
+      }
+      for (const child of node.children) visit(child);
+    };
+    visit(group);
   });
 
-  return <group ref={groupRef}>{children}</group>;
+  return (
+    <group ref={groupRef} userData={{ [HIGHLIGHT_ROOT]: true }}>
+      {children}
+    </group>
+  );
 }

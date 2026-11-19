@@ -1,3 +1,5 @@
+import { useIsMobileLayout } from "@/mobile/layoutMode";
+import { MobileAboutPage } from "@/mobile/MobilePages";
 import Stage from "@/components/Stage";
 import { ABOUT_TABS } from "@/data/about";
 import { useQueryTab } from "@/hooks/useQueryTab";
@@ -10,7 +12,7 @@ const HEADER_GAP = 104;
 // 첫 측정 전에 쓰는 어림값. 실제 높이는 Stage 가 잰다.
 const SECTION_HEIGHT = 650;
 
-export default function AboutPage() {
+function DesktopAboutPage() {
   // 탭을 주소에 둬야 머리띠 아래 하위 메뉴도 탭을 바꿀 수 있다.
   const [tab, setTab] = useQueryTab(ABOUT_TABS, "overview");
 
@@ -20,4 +22,9 @@ export default function AboutPage() {
       <PageFooter />
     </Stage>
   );
+}
+
+/** 모바일은 따로 그린다 — 데스크톱판의 무대 배율 훅이 모바일에서 돌지 않게 진입에서만 가른다(src/mobile/MobilePages) */
+export default function AboutPage() {
+  return useIsMobileLayout() ? <MobileAboutPage /> : <DesktopAboutPage />;
 }

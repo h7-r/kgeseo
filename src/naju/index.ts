@@ -10,7 +10,9 @@ export type { AvatarLink as AvatarPlayerLink } from "@/engine/avatarLink";
 // 로딩 영상
 export {
   continueLoadingVideoAt,
+  replaceOpeningWithResume,
   showLoadingVideo,
+  useLoadingVideoState,
   type LoadingVideoKind,
   type LoadingVideoOptions,
 } from "../../naju01/src/transition/loadingVideo";
@@ -20,6 +22,7 @@ export { default as LoadingVideoOverlay } from "../../naju01/src/transition/Load
 // 캐릭터 생성
 export { DEFAULT_CATALOG, type CharacterCatalog } from "../../naju01/src/characterCreation/catalog";
 export {
+  getStartAppearance,
   toRendererConfig,
   type CompletedCharacter,
   type CompleteResult,
@@ -31,13 +34,23 @@ export {
 } from "../../naju01/src/characterCreation/nameRules";
 export const CharacterCreationScreen = lazy(() => import("../../naju01/src/characterCreation/CharacterCreationScreen"));
 
+// 케이스 진행률 — 기차 목적지 창(케이스 목록)이 「하던 케이스」를 보인다(11/10). 나주 저장 칸을 읽는 법은 나주만 안다
+export { najuCaseProgress, type CaseProgress } from "../../naju01/src/progress/caseProgress";
+export { pendingNajuReset, resetNajuCase } from "../../naju01/src/progress/resetCase";
+
 // 로비 아바타 외형
 export {
   DEFAULT_MESH_CONFIG,
+  getMeshBodyUrl,
+  getMeshShoesUrl,
   normalizeMeshConfig,
   readMeshAppearance,
   type MeshAppearanceConfig as ChibiConfig,
 } from "../../naju01/src/avatar/meshAppearance";
+// 절차 손짓(인사 단계의 gesture) — 손짓 고르기 화면·로비 인사가 쓴다(2026-11-07)
+export { GESTURES } from "../../naju01/src/avatar/gestures";
+export { GESTURE_BASE_MOTION } from "../../naju01/src/avatar/useMotionPlayer";
+export { QUATERNIUS_PREFIX } from "../../naju01/src/avatar/chibiClipLibrary";
 export {
   DEFAULT_SIDEKICK_CONFIG,
   readSidekickAppearance,

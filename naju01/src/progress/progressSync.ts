@@ -2,7 +2,7 @@
  * 나주 진행 상태를 서버 Interaction API(`POST /api/v1/play-sessions/{id}/interactions`)로 보내는 공통 창구.
  * 계약 기준은 backend/app/schemas/interaction_api.py · interaction.py · api/v1/interactions.py 다.
  *
- * - 보내는 것: navigate · complete · input · select 네 가지. 나머지(inspect · combine_clues)는 이번 범위가 아니다.
+ * - 보내는 것: navigate · complete · input · select · inspect 다섯 가지. combine_clues 는 이번 범위가 아니다.
  * - 퍼즐 코드는 로컬 ID(나주 구역 코드 · 물건 id)로 부른다. 런타임 ID 로 못 바꾸면 보내지 않는다(idmap 규칙 unmapped_local_id).
  * - 세션은 동행 NPC 세션(companionSession)을 그대로 쓴다. 여기서 세션을 만들거나 다시 만들지 않는다.
  * - 재전송은 같은 client_event_id · 같은 본문이어야 서버가 처음 결과를 다시 준다(다르면 409).
@@ -42,7 +42,7 @@ export interface InteractionResponse {
   ui_actions: Record<string, unknown>[];
 }
 
-export type InteractionAction = "navigate" | "complete" | "input" | "select";
+export type InteractionAction = "navigate" | "complete" | "input" | "select" | "inspect";
 
 export interface InteractionBody {
   client_event_id: string;
@@ -149,7 +149,9 @@ export type ProgressIntent =
   /** 손놀림 퍼즐(solve.mode client_skill) 완료 신고 */
   | { action: "complete"; zone: string; object: string }
   | { action: "input"; zone: string; object: string; answer: string }
-  | { action: "select"; zone: string; object: string; choice: string };
+  | { action: "select"; zone: string; object: string; choice: string }
+  /** 조사(읽었다) 기록 — 물건 대상 · 빈 payload. 서버가 물건에서 조사 ID 를 찾는다 */
+  | { action: "inspect"; zone: string; object: string };
 
 /** 한 번 만든 본문. 다시 보낼 때도 이 값을 그대로 쓴다(client_event_id 유지) */
 export interface PreparedInteraction {
@@ -264,6 +266,12 @@ export interface ProgressSyncOptions {
   sendOptions?: { timeoutMs?: number; maxRetries?: number; retryDelayMs?: number };
   newEventId?: () => string;
   now?: () => string;
+  /**
+   * 동행의 「마지막 상호작용 뒤 멈춘 시간」 기준점(pausedSinceInteraction). markSend 는 prepared 마다 처음 보낼 때 한 번 찍고,
+   * 서버가 받았으면(sent) 그 표시로 onSent — 응답을 잃고 나중에 다시 보내도 서버 기록(처음 받은 때)에 가까운 처음 표시를 쓴다(14회차 Codex)
+   */
+  markSend?: () => unknown;
+  onSent?: (mark: unknown) => void;
 }
 
 const DEFAULT_DELIVERY_HISTORY_LIMIT = 256;
@@ -275,6 +283,8 @@ export function createProgressSync(options: ProgressSyncOptions) {
   const makeEventId = options.newEventId ?? newEventId;
   const now = options.now ?? clientTimestamp;
   const historyLimit = Math.max(1, Math.floor(options.deliveryHistoryLimit ?? DEFAULT_DELIVERY_HISTORY_LIMIT));
+  /** prepared 를 처음 보낸 때의 표시(markSend) */
+  const sendMarks = new WeakMap<PreparedInteraction, unknown>();
   /** 이미 넘긴 `<playSessionId>\n<interaction_id>`. Set 은 넣은 차례를 지켜 가장 오래된 것을 먼저 지운다 */
   const delivered = new Set<string>();
 
@@ -343,8 +353,8 @@ export function createProgressSync(options: ProgressSyncOptions) {
     const body: InteractionBody =
       intent.action === "navigate"
         ? { ...base, action: "navigate", target_type: "zone", payload: {} }
-        : intent.action === "complete"
-          ? { ...base, action: "complete", target_type: "object", payload: {} }
+        : intent.action === "complete" || intent.action === "inspect"
+          ? { ...base, action: intent.action, target_type: "object", payload: {} }
           : intent.action === "input"
             ? { ...base, action: "input", target_type: "object", payload: { answer: intent.answer } }
             : { ...base, action: "select", target_type: "object", payload: { choice: intent.choice } };
@@ -355,6 +365,7 @@ export function createProgressSync(options: ProgressSyncOptions) {
   async function send(prepared: PreparedInteraction): Promise<SendOutcome> {
     const session = options.getSession();
     if (session.phase !== "ready") return { kind: "not-sent", reason: "session-not-ready" };
+    if (options.markSend && !sendMarks.has(prepared)) sendMarks.set(prepared, options.markSend());
     let body: unknown;
     try {
       body = await sendFrozen(interactionsPath(session.playSessionId), prepared.body, options.sendOptions);
@@ -363,6 +374,7 @@ export function createProgressSync(options: ProgressSyncOptions) {
       return classifyError(error);
     }
     if (!isInteractionResponse(body)) return { kind: "invalid-response", body };
+    options.onSent?.(sendMarks.get(prepared));
     const { known, unknown } = splitStateChanges(body.state_changes);
     const response: InteractionResponse = { ...body, state_changes: known };
     // 보낼 때의 세션으로 기록한다 — 응답을 기다리는 사이 세션이 바뀌어도 다른 세션 기록과 섞이지 않는다

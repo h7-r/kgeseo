@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { setHeroCovering } from "@/app/siteState";
 import { HEADER_HEIGHT, useStageScale } from "@/lib/layout";
@@ -6,10 +6,10 @@ import { clamp01, smoothstep } from "@/lib/math";
 import { prefersReducedMotion } from "@/lib/motionPreference";
 
 import Hero from "./Hero";
-import { INTRO_CENTER_Y } from "./homeLayout";
+import { DESIGN_HERO_HEIGHT, HERO_MIN_HEIGHT, INTRO_CENTER_Y } from "./homeLayout";
 
-/** 설계 좌표에서 히어로 아래 끝(헤더 + 히어로 1149). 홈 무대가 이만큼 끌어올려진다. */
-export const HERO_BOTTOM = HEADER_HEIGHT + 1149;
+/** 홈 무대를 끌어올리는 양. 무대 좌표는 디자인 히어로 끝부터라 히어로를 줄인 만큼 더 올려야 틈이 안 생긴다. */
+export const STAGE_PULL_UP = HEADER_HEIGHT + DESIGN_HERO_HEIGHT;
 
 /** sticky 가 붙어 있는 스크롤 거리. 트랙 350svh − 화면 100svh. */
 const SCRUB_LENGTH = "250svh";
@@ -30,7 +30,9 @@ const IS_SCROLL_SCRUB = false;
  */
 export default function HeroPin() {
   const scale = useStageScale();
-  const height = Math.round(HERO_BOTTOM * scale);
+  const heroHeight = useHeroHeight(scale);
+  const heroBottom = HEADER_HEIGHT + heroHeight;
+  const height = Math.round(heroBottom * scale);
   const trackRef = useRef<HTMLDivElement>(null);
   const stickyRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
@@ -50,8 +52,9 @@ export default function HeroPin() {
       const trackTop = track.getBoundingClientRect().top + window.scrollY;
       const distance = Math.max(1, track.offsetHeight - sticky.offsetHeight);
       const release = trackTop + distance + Math.round(HEADER_HEIGHT * s);
-      // 무대는 HERO_BOTTOM 만큼 끌어올려져 trackTop + distance 에서 시작한다.
-      const introCentered = Math.max(release, trackTop + distance + INTRO_CENTER_Y * s - window.innerHeight / 2);
+      // 무대는 STAGE_PULL_UP 만큼 끌어올려져 히어로 끝보다 (STAGE_PULL_UP - heroBottom) 위에서 시작한다.
+      const stageTop = trackTop + distance - (STAGE_PULL_UP - heroBottom) * s;
+      const introCentered = Math.max(release, stageTop + INTRO_CENTER_Y * s - window.innerHeight / 2);
       return { trackTop, distance, release, introCentered };
     };
 
@@ -85,7 +88,7 @@ export default function HeroPin() {
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
     };
-  }, [isReduced, isPinned]);
+  }, [isReduced, isPinned, heroBottom]);
 
   return (
     <div
@@ -115,15 +118,33 @@ export default function HeroPin() {
             left: 0,
             top: 0,
             width: "1920px",
-            height: `${HERO_BOTTOM}px`,
+            height: `${heroBottom}px`,
             transformOrigin: "top left",
             transform: `scale(${scale})`,
             willChange: "opacity",
           }}
         >
-          <Hero top={HEADER_HEIGHT} />
+          <Hero top={HEADER_HEIGHT} height={heroHeight} />
         </div>
       </div>
     </div>
   );
+}
+
+/**
+ * 히어로 높이(무대 px). 머리띠 + 히어로가 창 높이에 꼭 맞아 영상 아래가 잘리지 않는다.
+ * 창이 아주 낮으면 글 묶음이 들어갈 만큼은 지키고, 세로로 긴 창에서는 디자인 높이를 넘지 않는다.
+ */
+function useHeroHeight(scale: number): number {
+  const [viewportHeight, setViewportHeight] = useState(() => window.innerHeight);
+
+  useEffect(() => {
+    const update = () => setViewportHeight(window.innerHeight);
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  // 내림 — 반올림하면 1px 넘쳐 영상 아랫줄이 창 밖으로 밀린다.
+  const fitted = Math.floor(viewportHeight / scale) - HEADER_HEIGHT;
+  return Math.min(DESIGN_HERO_HEIGHT, Math.max(HERO_MIN_HEIGHT, fitted));
 }

@@ -89,3 +89,18 @@ test("빈 무리 · 공백 code · 안전한 정수 범위 밖 번호는 추출 
   assert.ok(result.problems.includes("objects:empty_group"));
   assert.equal(result.problems.filter((p) => p.startsWith("objects:invalid_id:")).length, 3);
 });
+
+test("진행 대응표 이름 — 도면 · 배치에 없는 것만 더하고, 같은 이름은 충돌이 아니다", () => {
+  const { list, problems } = collectLocalIds(
+    base({ progress: { zones: ["Z1", "cave-hall", "cave-inner"], objects: ["clam-holes", "cave-door"] } }),
+  );
+  assert.deepEqual(problems, []);
+  assert.deepEqual(list.zones, ["Z1", "Z2", "cave-hall", "cave-inner"]);
+  assert.deepEqual(list.objects, ["cave-door", "clam-holes", "씬1.통발#0", "씬1.통발#1", "씬1.통발#2"]);
+});
+
+test("진행 대응표 안에서 겹치거나 빈 이름은 문제다", () => {
+  const { problems } = collectLocalIds(base({ progress: { zones: ["cave-hall", "cave-hall"], objects: [" "] } }));
+  assert.ok(problems.includes("zones:duplicate:cave-hall"));
+  assert.ok(problems.includes("objects:empty"));
+});

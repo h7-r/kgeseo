@@ -10,6 +10,8 @@
  */
 import * as THREE from "three";
 
+import { dressForBake, prepareForBake } from "./lightBudgetEnforce";
+
 const warmTargets = new WeakMap<THREE.WebGLRenderer, THREE.WebGLRenderTarget>();
 
 export function prewarmShaders(
@@ -26,6 +28,8 @@ export function prewarmShaders(
     });
     warmTargets.set(gl, target);
   }
+  // 굽는 순간의 점조명 수가 실제 그릴 때와 같아야 한다 — 방금 붙은 조명이 켜진 채면 그 수의 판으로 구워져 헛돈다
+  prepareForBake();
   const previous = gl.getRenderTarget();
   gl.setRenderTarget(target);
   try {
@@ -33,7 +37,19 @@ export function prewarmShaders(
       if (!object) continue;
       const wasVisible = object.visible;
       object.visible = true;
+      // 숨겨 둔 물체 속 점조명이 같이 보이면 조명 수가 하나 늘어난 판으로 구워져 헛돈다 — 굽는 동안만 감춘다.
+      // 실제로 켜질 때는 LightBudget 이 수를 맞춘다
+      const lights: THREE.Object3D[] = [];
+      if (!wasVisible)
+        object.traverse((node) => {
+          if ((node as THREE.Light).isLight && node.visible) {
+            lights.push(node);
+            node.visible = false;
+          }
+        });
       try {
+        // 아직 장면에 안 붙은 물체도 붙은 뒤와 같은 판으로 굽게 — 덧댐(젖음 · 바람)을 먼저 붙인다
+        dressForBake(object);
         void gl.compileAsync(object, camera, scene).catch(() => {});
         // 큰 그림판 텍스처는 처음 그릴 때 올리느라 멈춘다 — 지금 올려 둔다
         object.traverse((node) => {
@@ -46,9 +62,29 @@ export function prewarmShaders(
       } catch {
         // WebGL 이 끊긴 뒤 등 — 미리 굽기는 실패해도 그만
       }
+      for (const light of lights) light.visible = true;
       object.visible = wasVisible;
     }
   } finally {
     gl.setRenderTarget(previous);
   }
+}
+
+/**
+ * 무리째 미리 굽는다 — roots 아래 그려지는 것(메시 · 빛점 · 스프라이트)을 숨겨 둔 것까지 하나하나 꺼내 굽는다.
+ * 퍼즐 한 벌을 통째로 넘길 때 쓴다(효과마다 따로 적지 않아도 된다)
+ */
+export function prewarmTree(
+  gl: THREE.WebGLRenderer,
+  scene: THREE.Scene,
+  camera: THREE.Camera,
+  roots: THREE.Object3D[],
+) {
+  const drawn: THREE.Object3D[] = [];
+  for (const root of roots)
+    root.traverse((node) => {
+      if ((node as THREE.Mesh).isMesh || (node as THREE.Points).isPoints || (node as THREE.Sprite).isSprite)
+        drawn.push(node);
+    });
+  prewarmShaders(gl, scene, camera, drawn);
 }

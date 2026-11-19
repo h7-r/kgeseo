@@ -30,6 +30,7 @@
 이 함수는 PlaySession `state_json` · `hint_levels`를 읽기만 한다. 정식 힌트 원문을 응답에 싣지 않는다.
 """
 
+import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -245,8 +246,24 @@ def _revealed_approved_nudge(
     case_id: str,
     line_source: NpcLineSource,
 ) -> NpcNudgeContent | None:
+    """플레이어 메시지 경로: 공개 · 승인된 첫 nudge(팩 파일 순서). 자동 개입은 `select_auto_nudge`."""
+
+    shown = _shown_approved_nudges(pack, npc_id, puzzle_id, state, case_id, line_source)
+    return shown[0] if shown else None
+
+
+def _shown_approved_nudges(
+    pack: NpcContentPack | None,
+    npc_id: str,
+    puzzle_id: str | None,
+    state: Mapping[str, Any],
+    case_id: str,
+    line_source: NpcLineSource,
+) -> list[NpcNudgeContent]:
+    """공개 조건을 충족하고 게시 절차에서 승인된 nudge(팩 파일 순서)."""
+
     if pack is None or pack.npc_id != npc_id:
-        return None
+        return []
     if puzzle_id is None:
         candidates = pack.general_nudges
     else:
@@ -254,6 +271,7 @@ def _revealed_approved_nudge(
             (entry.nudges for entry in pack.puzzles if entry.puzzle_id == puzzle_id),
             [],
         )
+    shown = []
     for nudge in candidates:
         if not is_revealed(nudge.reveal_when, state):
             continue
@@ -267,8 +285,79 @@ def _revealed_approved_nudge(
             and line.text == nudge.text
             and (line.puzzle_id or None) == puzzle_id
         ):
-            return nudge
-    return None
+            shown.append(nudge)
+    return shown
+
+
+# ── 자동 개입 nudge 선택(PM 11/10 요청) ──
+#
+# line_id 끝의 `_<분류>_<번호>[_<말투>]`로 분류를 읽는다(예: NUDGE_P01_WRONG_1_J → WRONG).
+# 이 꼴이 아닌 line_id(예: NUDGE_A_01, NUDGE_S3_KEY_WHAT_1_J)는 분류 없음(None)이다.
+_NUDGE_CATEGORY = re.compile(r"_(WRONG|STUCK|HELP|ARRIVE)_\d+(?:_[A-Z0-9]+)?$")
+NudgeCategory = Literal["WRONG", "STUCK", "HELP", "ARRIVE"]
+# 판단 사유별 후보 순서. 목록에 없는 분류는 그 사유에 쓰지 않는다. None(분류 없음)은 마지막 대체다 —
+# 분류 체계가 없는 기존 팩이 자동 개입을 잃지 않게 한다(PM 확인 대상).
+AUTO_NUDGE_ORDER: Mapping[str, tuple[NudgeCategory | None, ...]] = {
+    "repeated_incorrect": ("WRONG", "HELP", None),
+    "idle_too_long": ("STUCK", "HELP", None),
+}
+# 도착 인사 성격의 줄은 어떤 사유에서도 자동 개입에 쓰지 않는다.
+AUTO_NUDGE_EXCLUDED: frozenset[NudgeCategory] = frozenset({"ARRIVE"})
+
+
+def nudge_category(line_id: str) -> NudgeCategory | None:
+    match = _NUDGE_CATEGORY.search(line_id)
+    return match.group(1) if match else None  # type: ignore[return-value]
+
+
+@dataclass(frozen=True)
+class AutoNudgeSelection:
+    nudge: NpcNudgeContent | None
+    # 이 사유에 쓸 수 있는 승인 후보가 있었지만 이 회차(play session)에서 모두 이미 반환했다.
+    exhausted: bool = False
+
+
+def select_auto_nudge(
+    pack: NpcContentPack | None,
+    npc_id: str,
+    puzzle_id: str | None,
+    state: Mapping[str, Any],
+    case_id: str,
+    line_source: NpcLineSource,
+    *,
+    reason: str,
+    used: frozenset[tuple[str | None, str]] = frozenset(),
+) -> AutoNudgeSelection:
+    """자동 개입 nudge 하나를 고른다. 승인 · 공개 조건 검사는 플레이어 메시지 경로와 같다.
+
+    - `reason`(npc_decision.decide 의 판단 사유)별 분류 순서(`AUTO_NUDGE_ORDER`), 같은 분류 안에서는 팩 파일
+      순서. 순서가 정해지지 않은 사유(player_requested 등)는 기존처럼 팩 파일 순서다(정책 미정).
+    - ARRIVE 분류는 어떤 사유에서도 고르지 않는다.
+    - `used`: 이 회차에서 이미 자동 개입으로 반환한 (puzzle_id, line_id). 다시 고르지 않는다.
+    """
+
+    shown = [
+        nudge
+        for nudge in _shown_approved_nudges(
+            pack, npc_id, puzzle_id, state, case_id, line_source
+        )
+        if nudge_category(nudge.line_id) not in AUTO_NUDGE_EXCLUDED
+    ]
+    order = AUTO_NUDGE_ORDER.get(reason)
+    ranked = (
+        shown
+        if order is None
+        else [
+            nudge
+            for category in order
+            for nudge in shown
+            if nudge_category(nudge.line_id) == category
+        ]
+    )
+    fresh = [nudge for nudge in ranked if (puzzle_id, nudge.line_id) not in used]
+    if fresh:
+        return AutoNudgeSelection(fresh[0])
+    return AutoNudgeSelection(None, exhausted=bool(ranked))
 
 
 def _has_server_hint(case_id: str, puzzle_id: str, hint_source: HintSource) -> bool:

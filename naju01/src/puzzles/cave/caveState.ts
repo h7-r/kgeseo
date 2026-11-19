@@ -6,12 +6,15 @@
  */
 import { useSyncExternalStore } from "react";
 
+import { gameClearTimeout, gameSetTimeout } from "@/engine/input/gameClock";
 import { smoothstep } from "@/engine/math";
 import { createChangeSignal } from "@/lib/changeSignal";
 
 import type { Heading } from "../../plan/sitePlan";
 import { DEFAULT_TERRAIN, type Terrain } from "../../terrain/terrain";
+import { isCameraFocused } from "../../scene/cameraFocus";
 import { ritual, useRitualStage } from "../ritual/ritualState";
+import { isReadingHeld } from "../../dialogue/readPace";
 
 /** 갈라진 물 사이 강바닥 길 — 물가(44.5)에서 강 밑(−6 m)까지 내려간다 */
 export const CORRIDOR = { x: 45, halfWidth: 2.2, zStart: 44.5, zEnd: 58, depth: 6 };
@@ -53,9 +56,17 @@ export const DOOR_CENTER_Y = INNER_FLOOR + WHEEL_RADIUS + 0.03;
 export const SURFACE_Y = 0.7;
 /** 물속 걷는 빠르기 배율 — 살짝 무겁게 */
 export const UNDERWATER_SPEED = 0.52;
+/**
+ * 터치(휴대폰) 물속 배율 — 미르 폰 시험 「물속이 너무 느리다」(11/7). PC 는 Shift 로 달려 헤엄치지만 휴대폰은 스틱을 끝까지 밀어야 해서
+ * 같은 0.52 면 체감이 훨씬 느리다. 0.75 는 비교 시험값(코덱스 구현 07회차) — ?swim=0.65 처럼 주소로 바꿔 견준다.
+ */
+export const TOUCH_UNDERWATER_SPEED = (() => {
+  const value = typeof location === "undefined" ? NaN : Number(new URLSearchParams(location.search).get("swim"));
+  return Number.isFinite(value) && value > 0.2 && value <= 1.5 ? value : 0.75;
+})();
 
 /** 숨(초) */
-export const BREATH_SECONDS = 70;
+export const BREATH_SECONDS = 90;
 /** 공기 기둥 안에서 숨이 차는 빠르기(초/초) */
 const BREATH_REFILL = 28;
 
@@ -129,9 +140,17 @@ export const cave = {
     if (z < DOOR.z - radius) return x - radius < HALL.x[0] || x + radius > HALL.x[1] ? "동굴 벽" : null;
     const inDoorway = Math.abs(x - DOOR.x) + radius <= DOOR.halfWidth;
     if (z < PASSAGE.z[1]) return isDoorOpen && inDoorway ? null : "고리문";
+    // 받침을 다 맞히기 전 받침 줄 너머는 캄캄한 어둠이다 — 그 안에서 헤매며 멈춘 것처럼 되지 않게 몸을 막는다(11/11 플레이테스트)
+    if (chamberBackLimitZ !== null && z + radius > chamberBackLimitZ) return "받침 너머 어둠";
     if (z + radius <= INNER.z[1]) return x - radius < INNER.x[0] || x + radius > INNER.x[1] ? "석실 벽" : null;
     return "석실 벽";
   },
+};
+
+/** 석실 받침 줄 너머를 막는 선(z, 미터). 받침을 다 맞히기 전에만 InnerChamber 가 건다 — null 이면 막지 않는다 */
+let chamberBackLimitZ: number | null = null;
+export const setChamberBackLimit = (z: number | null) => {
+  chamberBackLimitZ = z;
 };
 
 /** 물굴 안 소품의 둥근 충돌 자리(미터) — 석상 · 받침 · 등 · 비석 · 바위 틈 같은 것을 몸이 뚫고 지나가지 않게 */
@@ -229,19 +248,52 @@ const rememberAirSpot = (x: number, z: number) => {
   lastAirSpot = { x, z };
 };
 
-/** 숨 — 매 프레임. 물속이 아니거나 공기 기둥 안이면 찬다. 다하면 true 를 돌려주고 숨을 채운다 */
+/**
+ * 숨을 지키는 장면 — 문이 열리는 장면처럼 보여 주는 동안은 숨이 줄지도, 생물에게 다치지도 않는다(공기 기둥 안 회복은 된다).
+ * 화면 고정(focusCamera)만 멈추던 것을 장면 단위로 — 고리문은 화면이 풀린 뒤에도 바퀴가 굴러 그동안 숨이 깎였다(미르 11/10).
+ * 받을 때 해제 함수를 돌려준다 — 같은 장면이 겹쳐도 한쪽 해제가 다른 쪽을 풀지 않게(Codex 01). 저장하지 않는다.
+ */
+const breathGuards = new Set<symbol>();
+export function guardBreath(label: string): () => void {
+  const token = Symbol(label);
+  breathGuards.add(token);
+  return () => {
+    breathGuards.delete(token);
+  };
+}
+/** 정해진 시간(초, 게임 시계 — 멈춤 중엔 안 줄어든다)만큼 지킨다 */
+export function guardBreathFor(label: string, seconds: number): () => void {
+  const release = guardBreath(label);
+  const timer = gameSetTimeout(release, seconds * 1000);
+  return () => {
+    gameClearTimeout(timer);
+    release();
+  };
+}
+/** 지금 숨을 지키는 중인가 — 장면 · 화면 고정 */
+export const isBreathGuarded = () => breathGuards.size > 0 || isCameraFocused() || isReadingHeld();
+
+let wasBreathGuarded = false;
+/** 숨 — 매 프레임. 물속이 아니거나 공기 기둥 안이면 찬다. 다하면 true 를 돌려주고 숨을 채운다. 지키는 장면 동안은 줄지 않는다 */
 export function tickBreath(dt: number, x: number, z: number) {
   if (isBreathHeld) return false;
+  const breathBefore = breath;
+  const blackoutBefore = blackout;
   const inAir = !isUnderwater || isInAir(x, z);
   if (inAir) {
     if (isInAir(x, z)) rememberAirSpot(x, z);
     breath = Math.min(BREATH_SECONDS, breath + BREATH_REFILL * dt);
-  } else breath = Math.max(0, breath - dt);
+  } else if (!isBreathGuarded()) breath = Math.max(0, breath - dt);
   const drowned = breath <= 0;
   if (drowned) breath = BREATH_SECONDS;
   // 까매짐은 숨이 다하면 1 로 튀고 2초쯤에 걸쳐 걷힌다
   blackout = drowned ? 1 : Math.max(0, blackout - dt * 0.5);
-  publish();
+  // 숨이 가득 찬 채 물 밖에 있으면 값이 그대로다 — 그대로면 알리지 않는다(매 프레임 HUD 가 다시 그려졌다, 성능 진단 11/13).
+  // 숨 보호가 걸리거나 풀리는 순간은 값이 멈춰도 알린다 — HUD 가 그때 경고 깜빡임을 멈추고 되살린다(Codex 리뷰)
+  const isGuarded = isBreathGuarded();
+  const hasGuardChanged = isGuarded !== wasBreathGuarded;
+  wasBreathGuarded = isGuarded;
+  if (drowned || hasGuardChanged || breath !== breathBefore || blackout !== blackoutBefore) publish();
   return drowned;
 }
 export const getLastAirSpot = () => lastAirSpot;
@@ -260,14 +312,19 @@ const HURT_FLOOR_SECONDS = 5;
  * 0 까지 깎으면 다음 숨 셈이 「익사」로 보고 숨을 70초로 도로 채워, 숨이 적을 때 복어에 찔리는 쪽이 오히려 이득이었다.
  * 이미 바닥 아래면 더 깎지도 채우지도 않는다.
  */
-export function hurtBreath(seconds: number, cause: "spike" | "ink") {
-  if (!isUnderwater) return;
+/** 숨을 깎는다 — 실제로 깎았으면 true(알림은 그때만 · 화면 고정 중엔 안 다친다) */
+export function hurtBreath(seconds: number, cause: "spike" | "ink"): boolean {
+  // 화면이 고정된 동안은 다치지 않는다 — 몸이 멈춘 채 숨이 깎이지 않게(박람회 출품판 26회차 Codex)
+  if (!isUnderwater || isBreathGuarded()) return false;
+  const before = breath;
   breath = Math.max(Math.min(breath, HURT_FLOOR_SECONDS), breath - seconds);
   if (cause === "ink") {
     inkHitAt = performance.now() / 1000;
     inkHits += 1;
   }
   publish();
+  // 숨이 이미 바닥(HURT_FLOOR_SECONDS 이하)이면 깎이지 않는다 — 그때는 「숨이 줄었다」를 띄우지 않게(먹물 얼룩은 그대로 · Codex 리뷰)
+  return breath < before;
 }
 
 export const setInsideDark = (level: number) => {
@@ -308,6 +365,8 @@ let isBreathHeld = false;
 export const holdBreathWhileLeaving = () => {
   isBreathHeld = true;
 };
+/** 물길에 끌려 나가는 중인가 — 그동안은 「안전한 곳으로 이동」을 막는다(movement/safeSpot) */
+export const isLeavingChamber = () => isBreathHeld;
 /** 물 밖으로 나왔다 — 숨과 까매짐을 걷는다. 이 뒤로는 숨을 세지 않아 안 걷으면 화면이 까만 채 남는다 */
 export function clearBreathAfterLeaving() {
   isBreathHeld = false;
@@ -318,6 +377,7 @@ export function clearBreathAfterLeaving() {
 
 /** 개발용 초기화 */
 export function resetCaveState() {
+  breathGuards.clear();
   isDoorOpen = false;
   isUnderwater = false;
   breath = BREATH_SECONDS;

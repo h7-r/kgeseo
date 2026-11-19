@@ -21,71 +21,9 @@ import { DEFAULT_TERRAIN } from "../terrain/terrain";
 import { withCave } from "./cave/caveState";
 import { showNotice } from "./interaction";
 import { M, groundY } from "./units";
+import type { ItemKind } from "./itemCatalog";
 
-export type ItemKind =
-  | "lightFish"
-  | "rice"
-  | "makgeolli"
-  | "floatStone"
-  | "gearStone"
-  | "pearl"
-  | "bigPearl"
-  | "scale"
-  | "letterBox"
-  | "bronzeKey"
-  | "strawShoe";
-
-interface ItemDef {
-  name: string;
-  description: string;
-}
-
-export const ITEMS: Record<ItemKind, ItemDef> = {
-  lightFish: {
-    name: "빛 물고기",
-    description: "통발 바닥에 남은 한 마리. 그날 밤 꺼진 화톳불의 불티라 아직 따뜻하다.",
-  },
-  rice: { name: "쌀", description: "장독대 큰 항아리에 들어 있던 쌀 한 자루. 제물로 올릴 수 있다." },
-  floatStone: { name: "뜬 돌", description: "물이 차오르자 떠오른 돌. 구멍이 숭숭해 가볍다." },
-  makgeolli: {
-    name: "막걸리",
-    description: "안쪽 배에 남아 있던 흰 술병. 입구가 꼭 막혀 막걸리가 그대로 들어 있다. 제물로 올릴 수 있다.",
-  },
-  gearStone: {
-    name: "톱니돌",
-    description: "테두리에 톱니가 난 납작한 돌. 강 밑 큰 방에서 찾았다. 고리문 옆 홈에 꼭 맞을 크기다.",
-  },
-  pearl: {
-    name: "진주",
-    description:
-      "강 밑에서 물고기 떼를 돌 고리 안으로 몰아넣자 모래에서 떠오른 진주. 은은히 빛난다. 어디에 쓰는지는 아직 모른다.",
-  },
-  bigPearl: {
-    name: "큰 진주",
-    description:
-      "큰 조개 속에서 빛을 받아 드러난 주먹만 한 진주. 손안에서도 은은히 빛난다. 어디에 쓰는지는 아직 모른다.",
-  },
-  scale: {
-    name: "푸른 눈물",
-    description:
-      "강 밑 석실 제단에 놓여 있던 푸른 눈물 한 방울. 비늘처럼 생겼고 손바닥만 하며 얼음처럼 차다. 어디에 쓰는지는 아직 모른다.",
-  },
-  strawShoe: {
-    name: "짚신 한 짝",
-    description:
-      "검은 줄 통발에 걸려 올라온 큰 짚신 한 짝. 물에 불어 무겁다. 신코 안쪽에 물고기 하나가 새겨져 있다 — 어부가 제 신에 새기던 표시. 주인은 끝내 신으러 오지 않았다.",
-  },
-  letterBox: {
-    name: "아랑사의 함",
-    description:
-      "물살에 떠밀려 나올 때 손에 쥐여 있던 옻칠한 나무 함. 젖지 않았다. 청동 자물통이 채워져 있어 열쇠가 있어야 열린다. 흔들면 안에서 무언가 달그락거린다.",
-  },
-  bronzeKey: {
-    name: "청동 열쇠",
-    description:
-      "증언 능선의 돌새가 물고 있던 청동 열쇠. 대가 길고 끝이 꺾였다 — 아랑사의 함에 채워진 자물통 구멍에 꼭 맞을 것 같다.",
-  },
-};
+export { ITEMS, type ItemKind } from "./itemCatalog";
 
 /** 뜬 돌 넷 + 톱니돌 셋을 한꺼번에 들 수 있어야 한다 */
 export const SLOT_COUNT = 8;
@@ -100,6 +38,8 @@ export interface WorldItem extends HeldItem {
   position: THREE.Vector3;
   /** 플레이어가 버린 것 — 퍼즐이 내놓은 채 아직 안 주운 것과 달리, 떠날 때 따라온다 */
   isDropped?: boolean;
+  /** 바닥이 아닌 데(열린 조개 속 등)에 얹어 둔 것 — 바닥 높이로 끌어내리지 않고 position.y 에 둔다 */
+  isPerched?: boolean;
 }
 
 const signal = createChangeSignal();
@@ -180,7 +120,7 @@ export function registerLeftBehind(collect: () => void) {
 export interface SavedInventory {
   held: HeldItem[];
   hand: HeldItem | null;
-  world: (HeldItem & { position: [number, number, number]; isDropped?: boolean })[];
+  world: (HeldItem & { position: [number, number, number]; isDropped?: boolean; isPerched?: boolean })[];
   nextUid: number;
 }
 
@@ -216,8 +156,15 @@ export const inventory = {
   },
 
   /** 땅 위에 물건을 놓는다(퍼즐이 내놓는 물건) */
-  spawn(kind: ItemKind, position: THREE.Vector3, { followsPlayer = false }: { followsPlayer?: boolean } = {}) {
-    world = [...world, { uid: nextUid++, kind, position: position.clone(), isDropped: followsPlayer }];
+  spawn(
+    kind: ItemKind,
+    position: THREE.Vector3,
+    { followsPlayer = false, isPerched = false }: { followsPlayer?: boolean; isPerched?: boolean } = {},
+  ) {
+    world = [
+      ...world,
+      { uid: nextUid++, kind, position: position.clone(), isDropped: followsPlayer, ...(isPerched && { isPerched }) },
+    ];
     signal.notify();
   },
 
@@ -238,17 +185,23 @@ export const inventory = {
     return true;
   },
 
-  /** 돌아올 수 없는 곳을 떠날 때 — 버려 둔 물건을 챙긴다. 다 못 챙기면 도착지(x, z) 곁에 나란히 놓는다 */
-  bringAlong(x: number, z: number) {
-    leftBehindCollectors.forEach((collect) => collect());
+  /**
+   * 돌아올 수 없는 곳을 떠날 때 — 버려 둔 물건을 챙긴다. 다 못 챙기면 도착지(x, z) 곁에 나란히 놓는다. 챙긴 것의 종류를 돌려준다.
+   * only 를 주면 그 물건만(물건이 아닌 모습으로 놓인 것은 챙기지 않는다) — 닫힌 나루터 땅에 두고 온 것만 가져올 때(leftBehind)
+   */
+  bringAlong(x: number, z: number, only?: (item: WorldItem) => boolean): ItemKind[] {
+    if (!only) leftBehindCollectors.forEach((collect) => collect());
     let spare = 0;
+    const brought: ItemKind[] = [];
     world = world.flatMap((item) => {
-      if (!item.isDropped) return [item];
+      if (!item.isDropped || (only && !only(item))) return [item];
+      brought.push(item.kind);
       if (stash({ uid: item.uid, kind: item.kind })) return [];
       const spotX = x + 0.5 * (spare++ - 1);
       return [{ ...item, position: new THREE.Vector3(spotX * M, groundY(spotX, z + 1) * M, (z + 1) * M) }];
     });
     signal.notify();
+    return brought;
   },
 
   /** 소지품에서 꺼내 손에 든다. 이미 든 것이 있으면 그것은 소지품으로 돌아간다 */
@@ -265,7 +218,7 @@ export const inventory = {
   stow() {
     if (!hand) return;
     if (held.length >= SLOT_COUNT) {
-      showNotice("소지품이 가득 찼다. [E] 로 내려놓자.");
+      showNotice("소지품이 가득 찼다. [E] 로 내려놓자.", 3.2, { urgent: true, fleeting: true });
       return;
     }
     held = [...held, hand];

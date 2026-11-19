@@ -1,7 +1,7 @@
 /**
- * 벽화 — 아랑사·아비사 이야기 네 장면을 회벽에 물감으로 그린 것처럼. 선 그림이 아니라 면을 칠하고,
+ * 벽화 — 아비사·아랑사 이야기 네 장면을 회벽에 물감으로 그린 것처럼. 선 그림이 아니라 면을 칠하고,
  * 회벽 결 · 바랜 얼룩 · 금 · 떨어져 나간 자리까지 그려 오래된 벽화로 보이게 한다.
- * 장면: 달(보름달 뜬 밤 강) · 배(아비사가 노를 저어 건넘) · 구렁이(강에서 솟음) · 바위(바위 위의 아랑사).
+ * 장면: 달(보름달 뜬 밤 강) · 배(아랑사가 노를 저어 건넘) · 구렁이(강에서 솟음) · 바위(바위 위의 아비사).
  * 문 위 띠(RingDoor)와 석실 돌 상자 네 면(InnerChamber)이 같이 쓴다.
  */
 import { createRandom } from "@/engine/random";
@@ -141,11 +141,11 @@ function drawCrag(g: Ctx, x: number, base: number, width: number, height: number
   g.restore();
 }
 
-/** 사람 — 흰 저고리. 아비사는 상투와 바지, 아랑사는 붉은 치마와 쪽 */
-function drawPerson(g: Ctx, x: number, feet: number, height: number, kind: "아비사" | "아랑사") {
+/** 사람 — 흰 저고리. 아랑사는 상투와 바지, 아비사는 붉은 치마와 쪽 */
+function drawPerson(g: Ctx, x: number, feet: number, height: number, kind: "아랑사" | "아비사") {
   const head = height * 0.13;
   const top = feet - height;
-  if (kind === "아랑사") {
+  if (kind === "아비사") {
     // 붉은 치마 — 아래로 넓게 퍼진다
     fillShape(
       g,
@@ -179,13 +179,13 @@ function drawPerson(g: Ctx, x: number, feet: number, height: number, kind: "아�
     (path) => {
       path.moveTo(x - height * 0.12, top + head * 2);
       path.lineTo(x + height * 0.12, top + head * 2);
-      path.lineTo(x + height * 0.14, top + height * (kind === "아랑사" ? 0.42 : 0.55));
-      path.lineTo(x - height * 0.14, top + height * (kind === "아랑사" ? 0.42 : 0.55));
+      path.lineTo(x + height * 0.14, top + height * (kind === "아비사" ? 0.42 : 0.55));
+      path.lineTo(x - height * 0.14, top + height * (kind === "아비사" ? 0.42 : 0.55));
       path.closePath();
     },
     PAINT.cloth,
   );
-  if (kind === "아랑사") {
+  if (kind === "아비사") {
     // 옷고름
     g.save();
     g.strokeStyle = PAINT.red;
@@ -198,7 +198,7 @@ function drawPerson(g: Ctx, x: number, feet: number, height: number, kind: "아�
   }
   // 얼굴 · 머리
   fillShape(g, (path) => ellipse(path, x, top + head, head * 0.78, head), PAINT.skin);
-  if (kind === "아비사") {
+  if (kind === "아랑사") {
     fillShape(g, (path) => ellipse(path, x, top + head * 0.25, head * 0.8, head * 0.42), PAINT.hair);
     fillShape(g, (path) => ellipse(path, x, top - head * 0.2, head * 0.28, head * 0.32), PAINT.hair);
   } else {
@@ -208,8 +208,8 @@ function drawPerson(g: Ctx, x: number, feet: number, height: number, kind: "아�
 }
 
 /** 장면 하나 — (0,0)~(width,height) 칸에 그린다 */
-/** 작은 나룻배 — 멀리 보이는 아비사의 배(노 젓는 사람까지) */
-function drawBoat(g: Ctx, x: number, water: number, width: number, withAbisa: boolean) {
+/** 작은 나룻배 — 멀리 보이는 아랑사의 배(노 젓는 사람까지) */
+function drawBoat(g: Ctx, x: number, water: number, width: number, withArangsa: boolean) {
   fillShape(
     g,
     (path) => {
@@ -221,15 +221,15 @@ function drawBoat(g: Ctx, x: number, water: number, width: number, withAbisa: bo
     },
     PAINT.wood,
   );
-  if (withAbisa) drawPerson(g, x, water - width * 0.1, width * 0.55, "아비사");
+  if (withArangsa) drawPerson(g, x, water - width * 0.1, width * 0.55, "아랑사");
 }
 
 /**
- * 장면 하나 — (0,0)~(width,height) 칸에. 전부 아랑사(붉은 치마)와 아비사(배 젓는 어부)의 이야기로:
- *   달   보름달 아래 강 건너 둘 — 아랑사는 바위 위에서 기다리고, 아비사의 배가 건너온다
- *   배   아비사가 노를 저어 건너가고, 저편 둑에서 아랑사가 손을 흔든다
- *   구렁이 구렁이가 솟아 아비사의 배를 덮친다
- *   바위 바위 위의 아랑사가 돌이 되어 가고, 빈 배만 강에 떠 있다
+ * 장면 하나 — (0,0)~(width,height) 칸에. 전부 아비사(붉은 치마)와 아랑사(배 젓는 어부)의 이야기로:
+ *   달   보름달 아래 강 건너 둘 — 아비사는 바위 위에서 기다리고, 아랑사의 배가 건너온다
+ *   배   아랑사가 노를 저어 건너가고, 저편 둑에서 아비사가 손을 흔든다
+ *   구렁이 구렁이가 솟아 아랑사의 배를 덮친다
+ *   바위 바위 위의 아비사가 돌이 되어 가고, 빈 배만 강에 떠 있다
  */
 function drawScene(g: Ctx, scene: MuralScene, width: number, height: number) {
   const river = height * 0.68;
@@ -244,10 +244,10 @@ function drawScene(g: Ctx, scene: MuralScene, width: number, height: number) {
     fillShape(g, (path) => ellipse(path, width * 0.5, height * 0.32, height * 0.2, height * 0.2), PAINT.moon);
     drawCrag(g, width * 0.04, river + 4, width * 0.22, height * 0.4);
     drawCrag(g, width * 0.76, river + 4, width * 0.2, height * 0.3);
-    // 왼쪽 바위 위의 아랑사 — 강 건너를 본다
-    drawPerson(g, width * 0.15, river + 4 - height * 0.4, height * 0.26, "아랑사");
+    // 왼쪽 바위 위의 아비사 — 강 건너를 본다
+    drawPerson(g, width * 0.15, river + 4 - height * 0.4, height * 0.26, "아비사");
     drawRiver(g, width, height, river);
-    // 건너오는 아비사의 배
+    // 건너오는 아랑사의 배
     drawBoat(g, width * 0.62, river + height * 0.12, width * 0.26, true);
     g.save();
     g.fillStyle = PAINT.moon;
@@ -277,10 +277,10 @@ function drawScene(g: Ctx, scene: MuralScene, width: number, height: number) {
     g.quadraticCurveTo(width * 0.5, river + height * 0.07, width * 0.76, river - height * 0.03);
     g.stroke();
     g.restore();
-    drawPerson(g, width * 0.5, river - height * 0.07, height * 0.42, "아비사");
-    // 저편 둑의 아랑사 — 작게, 손을 흔든다
+    drawPerson(g, width * 0.5, river - height * 0.07, height * 0.42, "아랑사");
+    // 저편 둑의 아비사 — 작게, 손을 흔든다
     drawCrag(g, width * 0.78, river + 2, width * 0.2, height * 0.16);
-    drawPerson(g, width * 0.88, river + 2 - height * 0.16, height * 0.2, "아랑사");
+    drawPerson(g, width * 0.88, river + 2 - height * 0.16, height * 0.2, "아비사");
     // 노
     g.save();
     g.strokeStyle = PAINT.woodDark;
@@ -351,7 +351,7 @@ function drawScene(g: Ctx, scene: MuralScene, width: number, height: number) {
       PAINT.gold,
       false,
     );
-    // 구렁이 아래 아비사의 배 — 기우뚱 덮친다
+    // 구렁이 아래 아랑사의 배 — 기우뚱 덮친다
     g.save();
     g.translate(width * 0.3, river + height * 0.1);
     g.rotate(-0.22);
@@ -374,11 +374,11 @@ function drawScene(g: Ctx, scene: MuralScene, width: number, height: number) {
     }
     g.restore();
   } else {
-    // 바위 위의 아랑사 — 바위가 되어 간다
+    // 바위 위의 아비사 — 바위가 되어 간다
     drawRiver(g, width, height, river);
     drawCrag(g, width * 0.22, river + height * 0.08, width * 0.56, height * 0.55);
-    drawPerson(g, width * 0.5, river + height * 0.08 - height * 0.53, height * 0.3, "아랑사");
-    // 빈 배만 강에 — 아비사는 없다
+    drawPerson(g, width * 0.5, river + height * 0.08 - height * 0.53, height * 0.3, "아비사");
+    // 빈 배만 강에 — 아랑사는 없다
     drawBoat(g, width * 0.14, river + height * 0.14, width * 0.2, false);
     // 달빛 한 줄기가 그녀에게
     g.save();

@@ -12,27 +12,34 @@ interface TermsTabsProps {
   left?: number;
   width?: number;
   onTabChange: (id: TermsTabId) => void;
+  /** 모바일 — 무대 좌표 대신 문서 흐름에 놓는다(폭 100%, 높이는 내용대로) */
+  isFlow?: boolean;
 }
 
 /** 약관·법적 고지 카드. 인증 화면도 자리와 폭만 바꿔 같은 카드를 쓴다. */
-export default function TermsTabs({ tab, top, left = 80, width = 1760, onTabChange }: TermsTabsProps) {
+export default function TermsTabs({ tab, top, left = 80, width = 1760, onTabChange, isFlow = false }: TermsTabsProps) {
   return (
     <section
-      style={{
-        ...rootStyle,
-        top: `${top}px`,
-        left: `${left}px`,
-        width: `${width}px`,
-        minHeight: `${TERMS_HEIGHTS[tab]}px`,
-      }}
+      className={isFlow ? "terms-tabs--flow" : undefined}
+      style={
+        isFlow
+          ? { ...rootStyle, position: "relative", width: "100%" }
+          : {
+              ...rootStyle,
+              top: `${top}px`,
+              left: `${left}px`,
+              width: `${width}px`,
+              minHeight: `${TERMS_HEIGHTS[tab]}px`,
+            }
+      }
     >
       <TabBar
         items={TERMS_TABS}
         activeId={tab}
         onSelect={onTabChange}
-        style={tabRowStyle}
-        activeTabStyle={activeTabStyle}
-        inactiveTabStyle={inactiveTabStyle}
+        style={isFlow ? flowTabRowStyle : tabRowStyle}
+        activeTabStyle={isFlow ? { ...activeTabStyle, ...flowTabStyle } : activeTabStyle}
+        inactiveTabStyle={isFlow ? { ...inactiveTabStyle, ...flowTabStyle } : inactiveTabStyle}
       />
 
       <div style={{ height: "1px", width: "100%", background: "rgba(26,48,95,0.5)" }} />
@@ -107,6 +114,26 @@ const tabRowStyle: CSSProperties = {
   width: "100%",
   boxSizing: "border-box",
   overflow: "hidden",
+};
+
+/** 모바일 — 긴 약관 이름 다섯 개를 한 줄 가로 스크롤로(Material 스크롤 탭 · 코덱스 구현 07회차) */
+const flowTabRowStyle: CSSProperties = {
+  display: "flex",
+  gap: "8px",
+  padding: "14px 16px",
+  width: "100%",
+  boxSizing: "border-box",
+  overflowX: "auto",
+  overflowY: "hidden",
+  scrollbarWidth: "none",
+  WebkitOverflowScrolling: "touch",
+};
+const flowTabStyle: CSSProperties = {
+  flexShrink: 0,
+  whiteSpace: "nowrap",
+  minHeight: "44px",
+  padding: "0 16px",
+  fontSize: "15px",
 };
 
 const tabBaseStyle: CSSProperties = {

@@ -179,16 +179,22 @@ def signals_from_events(
     player_requested_help: bool = False,
     past_interventions: Iterable[AutoIntervention] = (),
     past_declines: Iterable[datetime] = (),
+    paused_sec: float = 0.0,
 ) -> DecisionSignals:
     """`events`: interaction_events 행(interaction_type · target_id · result_type · created_at).
 
     시각은 BE 저장 형식과 같이 timezone 없는 UTC 로 본다(`now` 도 같은 형식).
     `past_interventions`는 표시된 제안만, `past_declines`는 거절 시각만 넘긴다.
+    `paused_sec`: 마지막 플레이어 상호작용 뒤 게임이 멈춰 있던 시간(FE 게임 시계, auto 턴의 paused_ms_since_interaction).
+    무입력 경과 시간에서만 뺀다 — 멈춘 동안은 「못 풀고 있는 시간」이 아니다(미르 11/11). 쿨다운 · 거절 쿨다운은 FE 가 게임 시계로
+    폴링을 쉬어 이미 멈춘 시간을 빼고 있어 건드리지 않는다.
     """
 
     ordered = sorted(events, key=lambda e: e.created_at)
     player = [e for e in ordered if _is_player_event(e)]
     since_last = (now - player[-1].created_at).total_seconds() if player else None
+    if since_last is not None and paused_sec > 0:
+        since_last = max(0.0, since_last - paused_sec)
 
     consecutive: int | None = None
     if target_puzzle_id is not None:

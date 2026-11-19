@@ -1,4 +1,5 @@
 import { exposeDevHook } from "@/debug/devHooks";
+import { isGameFrozen, trackAudioContext } from "@/engine/input/gamePause";
 import { settingsStore } from "@/settings/settings";
 
 // 버튼 연타처럼 같은 소리가 겹쳐야 하고 지연이 적어야 해서 <audio> 대신 미리 디코드한 Web Audio 버퍼를 쓴다.
@@ -67,8 +68,11 @@ function getAudioContext() {
       window.AudioContext ?? (window as Window & { webkitAudioContext?: AudioContextConstructor }).webkitAudioContext;
     if (!AudioContextClass) return null;
     context = new AudioContextClass();
+    // 터치 모드의 「전부 멈춤」이 이 컨텍스트도 세운다
+    trackAudioContext(context);
   }
-  if (context.state === "suspended") context.resume().catch(() => {});
+  // 얼어 있는 동안은 효과음을 찾다가 소리를 다시 깨우지 않는다
+  if (context.state === "suspended" && !isGameFrozen()) context.resume().catch(() => {});
   return context;
 }
 
@@ -130,6 +134,8 @@ export function onSoundPlayed(listener: SoundListener) {
 /** 한 번 재생(겹침 허용). 버퍼가 아직 없으면 불러오기만 하고 이번은 건너뛴다. */
 export function playSound(name: SoundName, { volume = 1, rate = 1 }: PlaySoundOptions = {}) {
   soundListeners.forEach((listener) => listener(name, volume));
+  // 「전부 멈춤」 동안 멈춘 소리 장치에 넣으면 쌓였다가 풀리는 순간 한꺼번에 터진다 — 버린다(Codex 리뷰)
+  if (isGameFrozen()) return null;
   const ctx = getAudioContext();
   if (!ctx) return null;
   const buffer = buffers.get(name);

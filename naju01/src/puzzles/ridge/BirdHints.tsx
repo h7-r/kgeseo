@@ -13,7 +13,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { addDynamicSolid } from "../../movement/solidField";
 import { audio } from "../../scene/immersion/audio";
-import { registerInteractable, showNotice } from "../interaction";
+import { interactableFor, noticeFor } from "../interaction";
 import { buildScaleGeometry } from "../itemLooks";
 import { makeToonMaterial } from "../materials";
 import { prewarmShaders } from "../prewarm";
@@ -28,6 +28,10 @@ import {
 } from "./birdHintArt";
 import { ridge, ridgeQuest } from "./ridgeState";
 
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("birds");
+const registerInteractable = interactableFor("birds");
+
 /** 두 돌새(씬2 솟대 0 · 1) 사이 · 물동이(씬2 물동이 0) */
 const STATUES = [
   { x: 74.507, z: 20.891 },
@@ -35,6 +39,26 @@ const STATUES = [
 ];
 const SLOT = { x: (STATUES[0].x + STATUES[1].x) / 2 + 0.15, z: (STATUES[0].z + STATUES[1].z) / 2 };
 const JAR = { x: 74.084, z: 19.857 };
+
+/**
+ * 물동이의 테두리 상자(유닛). 배치 물건은 같은 모양끼리 한 묶음(InstancedMesh)으로 그려지고, 멀리 있으면 그리는 목록(count)에서
+ * 빠진다(전체 목록은 userData.fullSet — GateAltar 횃불과 같다). 묶음에 저장된 상자는 비어 있을 때 한 번 재고 남기도 해서
+ * Box3.setFromObject 로는 물동이를 영영 못 찾았다(11/11 「물동이 물에 두 새가 안 비친다」). 묶음이면 물동이 하나하나의 자리로 잰다.
+ */
+function jarBoxes(mesh: THREE.Mesh): THREE.Box3[] {
+  if (!(mesh as THREE.InstancedMesh).isInstancedMesh) return [new THREE.Box3().setFromObject(mesh)];
+  const instanced = mesh as THREE.InstancedMesh;
+  if (!instanced.geometry.boundingBox) instanced.geometry.computeBoundingBox();
+  const local = instanced.geometry.boundingBox!;
+  instanced.updateWorldMatrix(true, false);
+  const full = instanced.userData.fullSet as { matrices: Float32Array; n: number } | undefined;
+  const matrix = new THREE.Matrix4();
+  return Array.from({ length: full ? full.n : instanced.count }, (_, index) => {
+    if (full) matrix.fromArray(full.matrices, index * 16);
+    else instanced.getMatrixAt(index, matrix);
+    return local.clone().applyMatrix4(matrix.premultiply(instanced.matrixWorld));
+  });
+}
 
 function buildHintProps() {
   const group = new THREE.Group();
@@ -179,9 +203,12 @@ export default function BirdHints() {
         !object.visible
       )
         return;
-      const box = new THREE.Box3().setFromObject(object);
+      const box = jarBoxes(object as THREE.Mesh).find((candidate) => {
+        const center = candidate.getCenter(new THREE.Vector3()).divideScalar(M);
+        return Math.hypot(center.x - JAR.x, center.z - JAR.z) <= 0.5;
+      });
+      if (!box) return;
       const center = box.getCenter(new THREE.Vector3()).divideScalar(M);
-      if (Math.hypot(center.x - JAR.x, center.z - JAR.z) > 0.5) return;
       const size = box.getSize(new THREE.Vector3()).divideScalar(M);
       props.water.position.set(center.x * M, (box.max.y / M - Math.min(0.06, size.y * 0.12)) * M, center.z * M);
       props.water.scale.setScalar(Math.min(size.x, size.z) * 0.32 * M);

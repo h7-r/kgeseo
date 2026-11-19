@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 
 import { UNIT_BOX } from "@/engine/geometry";
-import { ToonOutline } from "@/engine/outline";
+import { BakedToonOutline, ToonOutline } from "@/engine/outline";
 import { createRandom } from "@/engine/random";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
@@ -187,6 +187,60 @@ export default function PaperStack({
     return map;
   }, [stack, materials]);
 
+  // 낱장을 재질별로 한 지오메트리에 굽는다 — 글이 적힌 장은 윗면만 글 재질 덩어리로 간다
+  const sheetMeshes = useMemo(() => {
+    const box = UNIT_BOX;
+    const index = box.index!;
+    const boxPosition = box.attributes.position;
+    const boxNormal = box.attributes.normal;
+    const boxUv = box.attributes.uv;
+    const buckets = new Map<THREE.Material, { positions: number[]; normals: number[]; uvs: number[] }>();
+    const matrices: THREE.Matrix4[] = [];
+    const normalMatrix = new THREE.Matrix3();
+    const v = new THREE.Vector3();
+    stack.forEach((sheet) => {
+      const matrix = new THREE.Matrix4().compose(
+        new THREE.Vector3(sheet.px, sheet.py, sheet.pz),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(sheet.rx, sheet.ry, sheet.rz)),
+        new THREE.Vector3(sheet.w, sheet.h, sheet.d),
+      );
+      matrices.push(matrix);
+      normalMatrix.getNormalMatrix(matrix);
+      const base = sheet.isFolder ? materials.folder : materials.paper;
+      const printedTop = sheet.isPrinted
+        ? printedMaterials.get(`${sheet.texSeed}-${sheet.isFolder ? "f" : "p"}`)
+        : undefined;
+      // BoxGeometry 면 순서 [+X, -X, +Y, -Y, +Z, -Z] — 2번이 윗면, 면마다 인덱스 6개
+      for (let face = 0; face < 6; face++) {
+        const material = face === 2 && printedTop ? printedTop : base;
+        let bucket = buckets.get(material);
+        if (!bucket) buckets.set(material, (bucket = { positions: [], normals: [], uvs: [] }));
+        for (let k = 0; k < 6; k++) {
+          const i = index.getX(face * 6 + k);
+          v.fromBufferAttribute(boxPosition, i).applyMatrix4(matrix);
+          bucket.positions.push(v.x, v.y, v.z);
+          v.fromBufferAttribute(boxNormal, i).applyMatrix3(normalMatrix).normalize();
+          bucket.normals.push(v.x, v.y, v.z);
+          bucket.uvs.push(boxUv.getX(i), boxUv.getY(i));
+        }
+      }
+    });
+    const parts = [...buckets].map(([material, bucket]) => {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.Float32BufferAttribute(bucket.positions, 3));
+      geometry.setAttribute("normal", new THREE.Float32BufferAttribute(bucket.normals, 3));
+      geometry.setAttribute("uv", new THREE.Float32BufferAttribute(bucket.uvs, 2));
+      return { material, geometry };
+    });
+    return { parts, matrices };
+  }, [stack, materials, printedMaterials]);
+  useEffect(
+    () => () => {
+      for (const part of sheetMeshes.parts) part.geometry.dispose();
+    },
+    [sheetMeshes],
+  );
+
   // 집게는 위쪽 종이 하나의 모서리를 문다.
   const clips = useMemo(() => {
     if (clipCount <= 0 || stack.length < 2) return [];
@@ -230,28 +284,12 @@ export default function PaperStack({
 
   return (
     <group position={[x, y, z]} rotation={[0, rot, 0]} scale={scale}>
-      {stack.map((sheet, i) => {
-        const base = sheet.isFolder ? materials.folder : materials.paper;
-        const printedTop = sheet.isPrinted
-          ? printedMaterials.get(`${sheet.texSeed}-${sheet.isFolder ? "f" : "p"}`)
-          : undefined;
-        // BoxGeometry 면 순서 [+X, -X, +Y, -Y, +Z, -Z] — 2번이 윗면
-        const material = printedTop ? [base, base, printedTop, base, base, base] : base;
-        return (
-          // receiveShadow 를 안 준다. 그림자맵 텍셀보다 얇은 판이 겹쳐 제 그림자가 새까만 얼룩(섀도 아크네)으로 찍힌다.
-          <mesh
-            key={i}
-            geometry={UNIT_BOX}
-            material={material}
-            position={[sheet.px, sheet.py, sheet.pz]}
-            rotation={[sheet.rx, sheet.ry, sheet.rz]}
-            scale={[sheet.w, sheet.h, sheet.d]}
-            castShadow
-          >
-            <ToonOutline geometry={UNIT_BOX} outline={outline} />
-          </mesh>
-        );
-      })}
+      {/* 낱장은 재질별로 한 덩어리 — 장마다 메시 · 외곽선 · 주름선을 따로 그리면 더미 하나에 드로우콜이 수십 번이다(성능 진단 11/13).
+          receiveShadow 를 안 준다. 그림자맵 텍셀보다 얇은 판이 겹쳐 제 그림자가 새까만 얼룩(섀도 아크네)으로 찍힌다. */}
+      {sheetMeshes.parts.map(({ material, geometry }, i) => (
+        <mesh key={i} geometry={geometry} material={material} castShadow />
+      ))}
+      <BakedToonOutline geometry={UNIT_BOX} matrices={sheetMeshes.matrices} outline={outline} />
 
       {clips.map((clip, i) => (
         <group key={`clip${i}`} position={[clip.px, clip.py, clip.pz]} rotation={[0, clip.ry, 0]}>

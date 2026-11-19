@@ -15,6 +15,18 @@ def https_origin(value: str) -> bool:
         return False
 
 
+def api_docs_settings(app_env: str) -> dict[str, str | None]:
+    """FastAPI 문서 경로(`/docs` · `/redoc` · `/openapi.json`). 운영(`APP_ENV=production`)에서만 끈다.
+
+    운영 판별은 `APP_ENV` 하나뿐이다 — 운영 서버의 환경에 `APP_ENV=production`이 없으면 문서가 그대로 열린다.
+    배포 뒤 세 경로가 404인지 확인한다(`backend/docs/deployment_login_readiness.md`).
+    """
+
+    if app_env == "production":
+        return {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    return {"docs_url": "/docs", "redoc_url": "/redoc", "openapi_url": "/openapi.json"}
+
+
 def validate_deployment(settings):
     if "*" in settings.cors_origins:
         raise ValueError("CORS_ORIGINS cannot use a wildcard with credentials")

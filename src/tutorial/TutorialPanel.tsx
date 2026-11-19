@@ -5,7 +5,9 @@
 import { useEffect, useState, type CSSProperties } from "react";
 
 import { CheckIcon } from "@/game/gameIcons";
+import { useKeyLabels } from "@/engine/input";
 import { PANEL_SHADOW, UI, UI_FONT, keyCapStyle } from "@/game/gameUi";
+import { useHasEnteredHeadquarters } from "@/props/vendingPushState";
 
 import "@/game/gameUi.css";
 
@@ -27,9 +29,13 @@ interface TutorialPanelProps {
 
 export default function TutorialPanel({ covered = false }: TutorialPanelProps) {
   const { step, previousStepId, isFinished, isHidden } = useTutorial();
+  // 터치 모드 — 가로 휴대폰은 높이가 360~430 이라 작은 판을 왼쪽 위(힌트 표시 아래)에 둔다. 문구도 손가락 조작으로
+  const labels = useKeyLabels();
   const { phase: dispatchPhase } = useDispatchState();
   const current = TUTORIAL_STEPS[step];
   const [isFinishedHidden, setIsFinishedHidden] = useState(false);
+  // 본부실에 들어서면 튜토리얼은 지나간 구간이다 — 완료 안내를 다시 띄우지 않는다(로비로 다시 접속해도, 미르 11/10)
+  const hasEnteredHeadquarters = useHasEnteredHeadquarters();
 
   // 단계가 넘어가면 1.1초 동안 「✓ 방금 한 것」
   const flashFor = (stepIndex: number): Flash | null =>
@@ -72,7 +78,7 @@ export default function TutorialPanel({ covered = false }: TutorialPanelProps) {
 
   // 출동 호출 카드가 같은 위쪽 가운데에 뜨므로 자리를 내준다
   const isDispatching = dispatchPhase === "alert" || dispatchPhase === "guide" || dispatchPhase === "boarded";
-  if (!current || covered || isDispatching || (isFinished && isFinishedHidden)) return null;
+  if (!current || covered || isDispatching || hasEnteredHeadquarters || (isFinished && isFinishedHidden)) return null;
   if (isHidden)
     return (
       <div style={collapsedStyle}>
@@ -92,8 +98,14 @@ export default function TutorialPanel({ covered = false }: TutorialPanelProps) {
       ? (step + 1) / CONTROL_STEP_COUNT
       : 1;
 
+  const text = labels.isTouch ? (current.touchText ?? labels.text(current.text)) : current.text;
+  const keyRows = labels.isTouch
+    ? (current.touchKeys ??
+      current.keys.map(([keys, description]) => [keys.map(labels.key), labels.text(description)] as const))
+    : current.keys;
+
   return (
-    <div style={panelStyle} role="status" aria-live="polite">
+    <div style={labels.isTouch ? touchPanelStyle : panelStyle} role="status" aria-live="polite" data-hud="튜토리얼 판">
       {heading && (
         <div style={progressTrackStyle} aria-hidden>
           <div style={{ ...progressFillStyle, transform: `scaleX(${progress})` }} />
@@ -105,33 +117,38 @@ export default function TutorialPanel({ covered = false }: TutorialPanelProps) {
         </div>
       )}
       <div style={headerStyle}>
-        <span style={titleStyle}>{current.title}</span>
+        <span style={labels.isTouch ? touchTitleStyle : titleStyle}>{current.title}</span>
         {heading && <span style={stepStyle}>{heading}</span>}
       </div>
-      <div style={textStyle}>
-        {current.text.split("\n").map((line, i) => (
-          <div key={i}>{line}</div>
-        ))}
-      </div>
-      {current.keys.length > 0 && (
-        <div style={keyListStyle}>
-          {current.keys.map(([keys, description], i) => (
-            <div key={i} style={keyRowStyle}>
-              <span style={keyCapGroupStyle}>
-                {keys.map((key) => (
-                  <kbd key={key} style={keyCapStyle}>
-                    {key}
-                  </kbd>
-                ))}
-              </span>
-              <span style={descriptionStyle}>{description}</span>
-            </div>
+      {/* 휴대폰 — 본문 · 조작 칩만 손가락으로 스크롤한다(판 전체에 걸면 판 아래로 뜨는 완료 표시가 잘린다) */}
+      <div style={labels.isTouch ? touchScrollStyle : undefined}>
+        <div style={textStyle}>
+          {text.split("\n").map((line, i) => (
+            <div key={i}>{line}</div>
           ))}
         </div>
-      )}
-      <div style={footerStyle}>
-        <kbd style={smallKeyCapStyle}>F1</kbd> 안내 숨기기
+        {keyRows.length > 0 && (
+          <div style={labels.isTouch ? touchKeyListStyle : keyListStyle}>
+            {keyRows.map(([keys, description], i) => (
+              <div key={i} style={keyRowStyle}>
+                <span style={keyCapGroupStyle}>
+                  {keys.map((key) => (
+                    <kbd key={key} style={keyCapStyle}>
+                      {key}
+                    </kbd>
+                  ))}
+                </span>
+                <span style={descriptionStyle}>{description}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+      {!labels.isTouch && (
+        <div style={footerStyle}>
+          <kbd style={smallKeyCapStyle}>F1</kbd> 안내 숨기기
+        </div>
+      )}
     </div>
   );
 }
@@ -159,6 +176,40 @@ const panelStyle: CSSProperties = {
   WebkitBackdropFilter: "blur(10px)",
 };
 
+/** 터치 — 왼쪽 위 힌트 표시 아래, 화면 폭 42% 이하(11/8 해랑 검토 — 게임 화면을 덜 덮게). 단추 · 조준점과 겹치지 않는다 */
+const touchPanelStyle: CSSProperties = {
+  ...panelStyle,
+  top: "calc(env(safe-area-inset-top, 0px) + 62px)",
+  left: "calc(env(safe-area-inset-left, 0px) + 12px)",
+  transform: "none",
+  width: "min(340px, 42vw)",
+  // 글이 길어져도 왼쪽 아래 이동 스틱 자리까지 내려오지 않게 — 넘치면 본문을 손가락으로 스크롤한다(touchScrollStyle).
+  // 그래서 터치 조작면(z 900) 위에 두고 손가락을 받는다(이 판 위에서는 시점이 돌지 않는다, 코덱스 14c)
+  pointerEvents: "auto",
+  zIndex: 950,
+  padding: "8px 12px",
+  borderRadius: 12,
+  // 14px — 휴대폰에서 읽히는 본문 크기(14회차, 예전 12.5). 줄 간격은 창들과 같은 1.5
+  font: `400 14px/1.5 ${UI_FONT.body}`,
+};
+// 판 머리(약 30px) · 위아래 여백을 뺀 나머지 — 화면 높이 기준(dvh)
+const touchScrollStyle: CSSProperties = {
+  maxHeight: "calc(100dvh - 62px - 100px - 44px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))",
+  overflowY: "auto",
+  overscrollBehavior: "contain",
+  touchAction: "pan-y",
+};
+const touchTitleStyle: CSSProperties = { font: `700 15px/1.3 ${UI_FONT.title}`, color: UI.text };
+const touchKeyListStyle: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  columnGap: 14,
+  rowGap: 4,
+  marginTop: 6,
+  paddingTop: 6,
+  borderTop: `1px solid ${UI.border}`,
+};
+
 const progressTrackStyle: CSSProperties = {
   position: "absolute",
   left: 16,
@@ -180,7 +231,7 @@ const stepStyle: CSSProperties = {
   marginLeft: "auto",
   whiteSpace: "nowrap",
   color: UI.accent,
-  font: `500 12px/1 ${UI_FONT.mono}`,
+  font: `500 13px/1 ${UI_FONT.mono}`,
   fontVariantNumeric: "tabular-nums",
 };
 const titleStyle: CSSProperties = { font: `700 20px/1.3 ${UI_FONT.title}`, color: UI.text };

@@ -8,17 +8,21 @@ import { useFrame } from "@react-three/fiber";
 
 import { audio } from "../scene/immersion/audio";
 import { M } from "./units";
+import { HAND_SCALE, handItemAt } from "./handPlace";
 import { registerInteractable, setHandHandler, showNotice, usesWithHand } from "./interaction";
 import {
   ITEMS,
+  SLOT_COUNT,
   inventory,
   useHandItem,
   useWorldItems,
   withObjectParticle,
   type HeldItem,
+  type ItemKind,
   type WorldItem,
 } from "./inventory";
-import { buildItemLooks, type ItemLook } from "./itemLooks";
+import { buildGearStoneRimGeometry, buildItemLooks, type ItemLook } from "./itemLooks";
+import { makeGlowTexture } from "./glowTexture";
 import { useItemModel } from "./itemModel";
 import { cave } from "./cave/caveState";
 import { floodSurfaceAt } from "./ritual/floodSurface";
@@ -27,18 +31,23 @@ import { ridgeCarry } from "./ridge/ridgeState";
 export default function WorldItems() {
   const items = useWorldItems();
   const looks = useMemo(() => buildItemLooks(), []);
+  const glows = useMemo(() => buildClueGlows(), []);
   useEffect(
     () => () => {
       for (const look of Object.values(looks)) {
         look.geometry.dispose();
         look.material.dispose();
       }
+      disposeClueGlows(glows);
     },
-    [looks],
+    [looks, glows],
   );
   const hand = useHandItem();
 
-  // 손에 든 것이 있으면 [E] 는 내려놓기 — 겨눈 곳이 받으면 거기, 아니면 발 앞 땅에.
+  // 손에 든 것이 있으면 [E] 는 겨눈 곳이 받으면 거기, 아니면 소지품에 넣는다(칸이 차면 발 앞 땅에).
+  //   예전엔 허공 E 가 늘 땅에 내려놓기라, E 를 마구 누르다 물건을 흘리고 「내려서 뭘 해야 하나」 헤맸다 — 땅에 놓인 함은
+  //   그 자리에서 열리는 함으로 바뀌어 놓았다 줍기를 끝없이 되풀이했다(미르 11/8, 박람회판에서 정리한 것을 본편에도).
+  //   땅에 내려놓아야 풀리는 퍼즐은 없다 — 받는 곳(제상 · 평상 · 홈)은 겨누고 E.
   // 빈손 [E] 는 겨눈 곳이 꼭 받는 물건이 소지품에 있을 때만 그것을 꺼내 쓴다(뜬 돌 홈에 뜬 돌, 자물통에 열쇠).
   // 그 밖의 빈손 [E] 는 소지품을 건드리지 않는다 — 처음 푸는 사람은 E 를 마구 누르고, 그때마다 물건이 빠져나가면 안 된다.
   useEffect(() => {
@@ -51,6 +60,13 @@ export default function WorldItems() {
           if (target.receive?.(held.kind) !== false && !target.keepHand) inventory.releaseHand();
         } else if (usesWithHand(target)) {
           return false; // 든 채로 줍거나 쓴다 — 그 E 는 겨눈 대상의 use 가 받는다
+        } else if (inventory.held().length < SLOT_COUNT) {
+          inventory.stow();
+          audio.play("똑");
+          showNotice(
+            `${withObjectParticle(ITEMS[held.kind].name)} 소지품에 넣었다. 쓸 곳을 겨누고 E 면 꺼내 쓴다.`,
+            2.5,
+          );
         } else {
           inventory.dropHand();
           audio.play("똑");
@@ -70,19 +86,12 @@ export default function WorldItems() {
   return (
     <>
       {items.map((item) => (
-        <PlacedItem key={item.uid} item={item} look={looks[item.kind]} />
+        <PlacedItem key={item.uid} item={item} look={looks[item.kind]} glow={glows[item.kind] ?? null} />
       ))}
       {hand && <HandItem key={hand.uid} item={hand} look={looks[hand.kind]} />}
     </>
   );
 }
-
-/** 손에 든 물건 자리(미터) — 화면 오른쪽 아래, 눈보다 아래 */
-const HAND_OFFSET = { forward: 0.8, side: 0.3, down: 0.36 };
-/** 손에 든 물건 배율 — 눈 바로 앞이라 실물 크기면 화면을 가린다 */
-const HAND_SCALE = 0.7;
-const handForward = new THREE.Vector3();
-const handSide = new THREE.Vector3();
 
 /** 손에 든 물건 — 카메라를 따라 화면 오른쪽 아래에 들려 있다 */
 function HandItem({ item, look }: { item: HeldItem; look: ItemLook }) {
@@ -91,13 +100,7 @@ function HandItem({ item, look }: { item: HeldItem; look: ItemLook }) {
   useFrame(({ camera, clock }) => {
     const mesh = meshRef.current;
     if (!mesh) return;
-    camera.getWorldDirection(handForward);
-    handSide.crossVectors(handForward, camera.up).normalize();
-    mesh.position
-      .copy(camera.position)
-      .addScaledVector(handForward, HAND_OFFSET.forward * M)
-      .addScaledVector(handSide, HAND_OFFSET.side * M)
-      .addScaledVector(camera.up, -HAND_OFFSET.down * M);
+    handItemAt(camera, mesh.position);
     mesh.quaternion.copy(camera.quaternion);
     // 빛 물고기는 손에서도 꿈틀댄다
     if (item.kind === "lightFish") mesh.rotateY(Math.sin(clock.elapsedTime * 7) * 0.3);
@@ -117,8 +120,75 @@ function HandItem({ item, look }: { item: HeldItem; look: ItemLook }) {
 /** 물에 뜬 뜬 돌이 까딱이는 높이(미터) */
 const BOB_HEIGHT = 0.03;
 
-function PlacedItem({ item, look }: { item: WorldItem; look: ItemLook }) {
+/**
+ * 바닥에 놓인 채 빛을 두르는 단서 — 주워야 할 것이 돌멩이 · 흙으로 안 보이게. 손 · 고리문 홈에 든 것은 두르지 않는다.
+ *   톱니돌: 물굴 바닥 돌과 빛깔이 같아 독 곁에 나와도 못 찾았다(해랑 11/9) → 빛무리가 물안개에 묻혀 여전히 돌멩이로 보였다(미르 11/10).
+ *     물안개에 안 묻히게(fog 끔) 빛무리를 키우고, 톱니 윤곽을 따라 얇은 빛 테두리를 둘러 「톱니 모양 물건」으로 읽히게.
+ *   청동 열쇠: 새가 떨어뜨린 열쇠도 같은 규칙으로 옅은 금빛(미르 11/10). 모양이 가늘어 테두리 없이 빛무리만.
+ * 맥박 빠르기 · 겨눔 강조(updateAimGlow — 돌판 재질의 emissive)는 같다. 빛무리 · 테두리는 따로 된 재질이라 겨눔 강조와 안 싸운다(Codex 01).
+ * 벽 · 독 뒤의 것까지 비쳐 보이지 않게 깊이 검사는 켠다
+ */
+interface ClueGlow {
+  halo: THREE.SpriteMaterial;
+  rim: { geometry: THREE.BufferGeometry; material: THREE.MeshBasicMaterial } | null;
+}
+const CLUE_GLOW_KINDS: Partial<Record<ItemKind, { color: string; rim?: () => THREE.BufferGeometry }>> = {
+  gearStone: { color: "#8FE7E0", rim: buildGearStoneRimGeometry },
+  bronzeKey: { color: "#FFD58A" },
+};
+/** 빛무리 지름(미터) · 숨 쉬듯 밝아졌다 어두워지는 빠르기 · 가장 옅을 때와 짙을 때 — 돌(22 cm)이 빛 덩어리에 묻히지 않을 만큼만 */
+const HALO_SIZE = 0.6;
+const HALO_SPEED = 1.8;
+const HALO_OPACITY = [0.3, 0.65] as const;
+const RIM_OPACITY = [0.45, 0.95] as const;
+
+function buildClueGlows(): Partial<Record<ItemKind, ClueGlow>> {
+  const glows: Partial<Record<ItemKind, ClueGlow>> = {};
+  for (const [kind, spec] of Object.entries(CLUE_GLOW_KINDS) as [ItemKind, (typeof CLUE_GLOW_KINDS)[ItemKind]][]) {
+    if (!spec) continue;
+    const halo = new THREE.SpriteMaterial({
+      map: makeGlowTexture(),
+      color: spec.color,
+      transparent: true,
+      opacity: HALO_OPACITY[1],
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+      toneMapped: false,
+    });
+    const rim = spec.rim
+      ? {
+          geometry: spec.rim(),
+          material: new THREE.MeshBasicMaterial({
+            color: spec.color,
+            transparent: true,
+            opacity: RIM_OPACITY[1],
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            fog: false,
+            toneMapped: false,
+          }),
+        }
+      : null;
+    glows[kind] = { halo, rim };
+  }
+  return glows;
+}
+
+function disposeClueGlows(glows: Partial<Record<ItemKind, ClueGlow>>) {
+  for (const glow of Object.values(glows)) {
+    if (!glow) continue;
+    glow.halo.map?.dispose();
+    glow.halo.dispose();
+    glow.rim?.geometry.dispose();
+    glow.rim?.material.dispose();
+  }
+}
+
+function PlacedItem({ item, look, glow }: { item: WorldItem; look: ItemLook; glow: ClueGlow | null }) {
   const meshRef = useRef<THREE.Group>(null);
+  const haloRef = useRef<THREE.Sprite>(null);
   const model = useItemModel(look.model);
   const name = ITEMS[item.kind].name;
   // 물에 뜨면 겨누는 자리도 함께 오른다. item.position 은 바닥 자리라 그대로 둔다
@@ -133,11 +203,15 @@ function PlacedItem({ item, look }: { item: WorldItem; look: ItemLook }) {
         isPickup: true,
         // 겨누면 본부실처럼 살짝 커지고 밝아진다
         highlight: () => meshRef.current,
-        radius: 0.45 * M,
+        // 얹어 둔 것은 곁의 대상(큰 조개 진주)과 붙어 있다 — 줍기가 겨눔을 먼저 가져가므로 겨눌 범위를 좁힌다
+        radius: (item.isPerched ? 0.25 : 0.45) * M,
         reach: 3 * M,
         use: () => {
           if (!inventory.pickUp(item.uid)) {
-            showNotice("소지품과 손이 다 찼다. 손에 든 것을 내려놓고 다시 줍자.");
+            showNotice("소지품과 손이 다 찼다. 손에 든 것을 내려놓고 다시 줍자.", 3.2, {
+              urgent: true,
+              fleeting: true,
+            });
             return;
           }
           audio.play("단서");
@@ -153,9 +227,11 @@ function PlacedItem({ item, look }: { item: WorldItem; look: ItemLook }) {
     const x = item.position.x / M;
     const z = item.position.z / M;
     // 물 위면 수면에 뜬다 — 뜬 돌은 물결 따라 까딱이고, 다른 물건도 물밑에 묻혀 사라지지 않는다
+    // 물굴 안은 통째로 물속이다 — 거기 나온 물건(톱니돌 등)은 바닥에 그대로 놓인다. 수면으로 띄우면 머리 위로 사라진다
+    const isInCave = cave.isOpen() && cave.contains(x, z);
     const surface = floodSurfaceAt(x, z);
-    const floorHere = cave.isOpen() && cave.contains(x, z) ? (cave.groundAt(x, z)?.y ?? 0) : item.position.y / M;
-    const isFloating = surface > floorHere;
+    const floorHere = item.position.y / M;
+    const isFloating = !isInCave && surface > floorHere;
     const t = clock.elapsedTime;
     const bob = isFloating && item.kind === "floatStone" ? Math.sin(t * 1.6 + item.uid) * BOB_HEIGHT : 0;
     const restY = isFloating ? surface + bob : floorHere;
@@ -165,11 +241,19 @@ function PlacedItem({ item, look }: { item: WorldItem; look: ItemLook }) {
     mesh.rotation.y = flap === null ? (isFloating ? t * 0.25 + item.uid : 0) : Math.sin(flap) * 0.35;
     const hop = flap === null ? 0 : Math.max(0, Math.sin(flap * 0.5)) * 0.05;
     mesh.position.y = (restY + look.lift + hop) * M;
+    // 빛 재질은 같은 물건 모두가 같이 쓴다 — 같이 숨 쉬게 시각만으로 정한다
+    if (haloRef.current && glow) {
+      const breath = 0.5 + 0.5 * Math.sin(t * HALO_SPEED);
+      glow.halo.opacity = HALO_OPACITY[0] + (HALO_OPACITY[1] - HALO_OPACITY[0]) * breath;
+      if (glow.rim) glow.rim.material.opacity = RIM_OPACITY[0] + (RIM_OPACITY[1] - RIM_OPACITY[0]) * breath;
+    }
   });
 
   return (
     <group ref={meshRef} position={[item.position.x, item.position.y + look.lift * M, item.position.z]} scale={M}>
       {model ? <primitive object={model} /> : <mesh geometry={look.geometry} material={look.material} />}
+      {glow && <sprite ref={haloRef} material={glow.halo} position={[0, 0.04, 0]} scale={HALO_SIZE} renderOrder={2} />}
+      {glow?.rim && <mesh geometry={glow.rim.geometry} material={glow.rim.material} renderOrder={2} />}
     </group>
   );
 }

@@ -13,7 +13,7 @@ import { createChangeSignal } from "@/lib/changeSignal";
 
 import { vendingFocus } from "./electricPanel/circuitPaths";
 import { isHingeOpen } from "./hingeState";
-import { getNozzleLocation } from "./nozzleState";
+import { getNozzleLocation, setNozzleReleaseSource } from "./nozzleState";
 
 /** 0 = 빨강 · 1 = 파랑 · 2 = 노랑 */
 export type WireColor = 0 | 1 | 2;
@@ -110,6 +110,8 @@ export function isCircuitLive(color: WireColor) {
 }
 
 export const areAllCircuitsLive = () => isCircuitLive(0) && isCircuitLive(1) && isCircuitLive(2);
+// 회로가 다 살아야 소화전함의 관창을 꺼낼 수 있다 — 그때 관창과 배전반 구멍이 같이 빛난다(nozzleState · NozzleSocket)
+setNozzleReleaseSource(areAllCircuitsLive);
 
 // 전류가 가는 길 — 배전반 → 호스 → 소화전, 핸들을 돌리면 소화전 → 전선관 → 음료 자판기.
 /** 호스로 소화전까지 · 전선관으로 자판기까지 걸리는 시간(초) */

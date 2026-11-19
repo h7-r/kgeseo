@@ -20,6 +20,7 @@ interface HeaderProps {
   activeId: HeaderMenuId;
   user: SessionUser | null;
   onAccountClick: () => void;
+  onPlay: () => void;
   onSignOut: () => void;
   onSearch: (query: string) => void;
   onMenuNavigate: (path: RoutePath) => void;
@@ -31,7 +32,7 @@ type MenuPositions = Partial<Record<HeaderMenuId, { left: number; width: number 
  * 머리띠. 메뉴는 모든 페이지에서 여섯 항목이 같아야 밑줄이 옮겨 갈 자리가 있다.
  * 밑줄은 하나만 두고 켜진 항목 아래로 미끄러뜨린다.
  */
-function Header({ activeId, user, onAccountClick, onSignOut, onSearch, onMenuNavigate }: HeaderProps) {
+function Header({ activeId, user, onAccountClick, onPlay, onSignOut, onSearch, onMenuNavigate }: HeaderProps) {
   const rowRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Partial<Record<HeaderMenuId, HTMLButtonElement | null>>>({});
   // 애니메이션이 끝나면 꺼야 다음에 눌렀을 때 다시 돈다.
@@ -115,6 +116,12 @@ function Header({ activeId, user, onAccountClick, onSignOut, onSearch, onMenuNav
 
       <div style={rightGroupStyle}>
         <HeaderSearch size={22} onSubmit={onSearch} />
+        <button type="button" className="button" style={playPillStyle} onClick={onPlay}>
+          <svg width="11" height="13" viewBox="0 0 12 14" aria-hidden="true" style={{ flexShrink: 0 }}>
+            <path d="M1 1.2v11.6L11 7z" fill="currentColor" />
+          </svg>
+          <span className="button__label">플레이</span>
+        </button>
         <button
           type="button"
           className="button"
@@ -271,4 +278,16 @@ const pillStyle: CSSProperties = {
   boxShadow: "0px 0px 32px 0px rgba(50,82,150,0.19), 0px 4px 16px 0px rgba(46,72,137,0.38)",
   fontSize: `${PILL_FONT_SIZE}px`,
   cursor: "pointer",
+};
+
+// 「로그인」과 같은 알약 모양 · 글꼴 · 크기. 면은 비우고 테두리만 밝혀 둘이 나란히 있어도 한 덩이로 뭉치지 않는다.
+const playPillStyle: CSSProperties = {
+  ...pillStyle,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "9px",
+  padding: "11px 24px 11px 22px",
+  border: "1px solid rgba(111,134,191,0.75)",
+  background: "rgba(47,66,123,0.18)",
+  boxShadow: "0px 0px 24px 0px rgba(50,82,150,0.16)",
 };

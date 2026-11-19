@@ -11,7 +11,66 @@ const wrapIcon = (children: ReactNode) => (
   </svg>
 );
 
+/** 사발 — size 는 큰 사발을 1 로 본 크기. 물을 담았으면 물낯과 달 */
+const bowlIcon = (size: number, hasWater = false) => (
+  <g transform={`translate(20 ${33 - (1 - size) * 6}) scale(${size}) translate(-20 -33)`}>
+    <path d="M6 15 H34 C34 25 28 31 20 31 C12 31 6 25 6 15 Z" fill="#E4E8E6" />
+    <rect x="15" y="31" width="10" height="3" rx="1" fill="#C6CCCA" />
+    {hasWater && (
+      <>
+        <ellipse cx="20" cy="15.5" rx="13" ry="2.8" fill="#2E4660" />
+        <circle cx="24" cy="15.4" r="1.8" fill="#F4F0DC" />
+      </>
+    )}
+  </g>
+);
+const jugIcon = (hasWater: boolean) => (
+  <>
+    <path d="M13 12 H27 L30 18 C32 27 27 33 20 33 C13 33 8 27 10 18 Z" fill="#4A423B" />
+    <path d="M28 15 L35 12" stroke="#4A423B" strokeWidth="3" strokeLinecap="round" />
+    <ellipse cx="20" cy="12" rx="7" ry="2" fill={hasWater ? "#2E4660" : "#1E1A17"} />
+  </>
+);
+
 export const ITEM_ICONS: Record<ItemKind, ReactNode> = {
+  serpentFigure: wrapIcon(
+    <>
+      <ellipse cx="20" cy="29" rx="12" ry="5" fill="#6B6F5A" />
+      <ellipse cx="20" cy="26" rx="8" ry="3.5" fill="#7C806A" />
+      <path d="M22 26 C27 21 13 18 18 12" stroke="#6B6F5A" strokeWidth="4" fill="none" strokeLinecap="round" />
+      <ellipse cx="15" cy="10.5" rx="4" ry="2.6" fill="#6B6F5A" />
+      <circle cx="13.5" cy="10" r="0.8" fill="#E8D9A0" />
+    </>,
+  ),
+  bowlLarge: wrapIcon(bowlIcon(1)),
+  bowlMedium: wrapIcon(bowlIcon(0.78)),
+  bowlSmall: wrapIcon(bowlIcon(0.58)),
+  dewBowlLarge: wrapIcon(bowlIcon(1, true)),
+  dewBowlMedium: wrapIcon(bowlIcon(0.78, true)),
+  dewBowlSmall: wrapIcon(bowlIcon(0.58, true)),
+  emptyJug: wrapIcon(jugIcon(false)),
+  waterJug: wrapIcon(jugIcon(true)),
+  arangPouch: wrapIcon(
+    <>
+      <path d="M12 17 C8 24 9 34 20 34 C31 34 32 24 28 17 Z" fill="#B9A682" />
+      <path d="M13 17 L11 10 L17 13 L20 9 L23 13 L29 10 L27 17 Z" fill="#A8946E" />
+      <path d="M12 17 H28" stroke="#5E4E32" strokeWidth="2" strokeLinecap="round" />
+      <path d="M17 26 C19 23 23 24 24 26 C23 28 19 29 17 26 Z M24 26 L27 24 V28 Z" fill="#6E5A3A" />
+    </>,
+  ),
+  shellRings: wrapIcon(
+    <>
+      <circle cx="16" cy="22" r="8" fill="none" stroke="#F1ECE2" strokeWidth="4" />
+      <circle cx="26" cy="17" r="6" fill="none" stroke="#DDD6C8" strokeWidth="3" />
+    </>,
+  ),
+  pineTorch: wrapIcon(
+    <>
+      <path d="M17 35 L21 14" stroke="#7A5632" strokeWidth="3.4" strokeLinecap="round" />
+      <path d="M21.5 15 C16 11 19 6 21 3 C22 7 27 9 24.5 15 Z" fill="#FF9A3C" />
+      <path d="M21.8 14 C19.5 12 20.5 9.5 21.5 8 C22 10 24 11 22.8 14 Z" fill="#FFE2A0" />
+    </>,
+  ),
   strawShoe: wrapIcon(
     <>
       <ellipse cx="20" cy="21" rx="8" ry="14" fill="#A88E58" />

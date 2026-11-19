@@ -5,6 +5,7 @@
  *   레터박스 → setLetterbox · 설정판토글 → toggleSettingsPanel · 첫안내 → showFirstNotice
  *   띠위/띠아래 → barTop/barBottom · 설정판 → panel · window.__연출안내 → noticeShown(모듈 변수)
  */
+import { isTouchMode } from "@/engine/input/touchMode";
 import { audio } from "./audio";
 import { saveSettings, settings, type ImmersionSettings } from "./state";
 
@@ -88,7 +89,8 @@ export function toggleSettingsPanel() {
 let noticeShown = false;
 /** 「화면을 누르면 소리가 켜집니다 · O 연출 설정」 — 한 번만 */
 export function showFirstNotice() {
-  if (typeof document === "undefined" || noticeShown) return;
+  // 터치 모드는 시작 탭이 소리를 켜고(engine/input/MobileGate), O 는 키보드 키라 띄우지 않는다 — 아래 소지품 줄과도 겹쳤다
+  if (typeof document === "undefined" || noticeShown || isTouchMode()) return;
   noticeShown = true;
   const d = document.createElement("div");
   d.textContent = "화면을 누르면 소리가 켜집니다 · O 연출 설정";

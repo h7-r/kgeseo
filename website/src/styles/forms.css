@@ -256,7 +256,8 @@
 .region-picker__list {
   position: absolute;
   top: calc(100% + 10px);
-  width: 420px;
+  /* 좁은 휴대폰(320~375)에서 420px 고정이면 왼쪽으로 화면을 벗어나 서울 · 대전 · 부산 칩이 잘렸다 — 화면 폭 안으로(양옆 16) */
+  width: min(420px, calc(100vw - 32px));
   padding: 16px 16px 14px;
   display: flex;
   flex-direction: column;

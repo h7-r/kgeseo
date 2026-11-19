@@ -8,6 +8,7 @@
  */
 
 import { apiOrigin } from "../../../shared/deploymentUrls.ts";
+import { betaSignals } from "../beta/betaSignals.ts";
 
 const API_ORIGIN = apiOrigin(import.meta.env?.VITE_API_ORIGIN, import.meta.env?.PROD ?? false);
 
@@ -49,6 +50,22 @@ export interface NpcTurnBody {
   trigger: NpcTurnTrigger;
   message?: string;
   focus_object_id?: string;
+  /**
+   * auto 턴만 — 마지막으로 보낸 플레이어 상호작용 뒤 게임이 멈춰 있던 시간(ms, 0~86400000). 서버가 무입력 판정에서 뺀다
+   * (backend npc_turn_api_v0.1, 미르 11/11 「멈춘 시간은 못 풀고 있는 시간이 아니다」). 서버가 이 칸을 받기 전에는 보내면 422 다.
+   */
+  paused_ms_since_interaction?: number;
+  /**
+   * 계약 v0.4.16 §2 — auto 턴의 상황. BE(#54)가 받기 전에는 보내는 쪽(dialogue/companionBridge 의 SEND_SITUATION)이 꺼 둔다.
+   */
+  situation?: NpcSituation;
+}
+
+/** 계약 v0.4.16 §2 의 situation — code 만 필수. zone_id 는 나주 대응표(v1.1 §1)의 Zone ID */
+export interface NpcSituation {
+  code: string;
+  zone_id?: string;
+  value?: number;
 }
 
 export type FallbackReason =
@@ -250,9 +267,31 @@ export async function loadPlaySession(playSessionId: string): Promise<PlaySessio
 }
 
 export async function postNpcTurn(playSessionId: string, body: NpcTurnBody): Promise<NpcTurnResponse> {
-  const response = await sendFrozen(`${sessionPath(playSessionId)}/npc/turns`, body);
-  if (!isNpcTurnResponse(response)) throw new CompanionApiError(200, "INVALID_RESPONSE", response);
-  return response;
+  // 베타 기록 — 요청 · 응답(대답 유무 · 출처 · 대체 사유) · 실패와 왕복 시간
+  const startedAt = performance.now();
+  const base = { request_id: body.client_event_id, trigger: body.trigger };
+  betaSignals.npcTurn("request", base);
+  try {
+    const response = await sendFrozen(`${sessionPath(playSessionId)}/npc/turns`, body);
+    if (!isNpcTurnResponse(response)) throw new CompanionApiError(200, "INVALID_RESPONSE", response);
+    betaSignals.npcTurn("response", {
+      ...base,
+      rtt_ms: Math.round(performance.now() - startedAt),
+      has_reply: response.reply !== null,
+      reply_source: response.reply?.source ?? null,
+      fallback_reason: response.fallback_reason ?? null,
+      content_mode: response.content_mode,
+    });
+    return response;
+  } catch (error) {
+    betaSignals.npcTurn("error", {
+      ...base,
+      rtt_ms: Math.round(performance.now() - startedAt),
+      status: error instanceof CompanionApiError ? error.status : null,
+      code: errorCode(error),
+    });
+    throw error;
+  }
 }
 
 /** 정식 경로 하나만 쓴다(별칭 /puzzles/{id}/hints 는 쓰지 않는다) */

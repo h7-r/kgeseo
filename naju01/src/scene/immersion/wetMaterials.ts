@@ -138,7 +138,7 @@ const GROUND_NAMES = new Set<string>([MESH_NAMES.ground, MESH_NAMES.connectorRam
 const WATER_NAME = MESH_NAMES.riverSurface;
 // 옛 /하늘|구름|원경\.|연출\.|왜곡의문|인물|아비사|사이드킥|치비/ — 무리 이름(한글)은 그대로, 메시 이름은 새 이름으로
 const WET_EXCLUDED = /^sky\.|^distant\.|^immersion\.|^distortionGates$|인물|아비사|사이드킥|치비|avatar/i;
-export function findWetTargets(scene: THREE.Scene) {
+export function findWetTargets(scene: THREE.Object3D) {
   scene.traverse((o) => {
     const mesh = o as THREE.Mesh;
     if (!mesh.isMesh || (o as THREE.SkinnedMesh).isSkinnedMesh || (o as THREE.Sprite).isSprite) return;
@@ -153,7 +153,7 @@ export function findWetTargets(scene: THREE.Scene) {
 //   drei 의 외곽선 재질은 안개도 로그 깊이 버퍼 조각도 없다. 그래서 ① 밝은 안개 속에서
 //   물체는 흐려지는데 외곽선 껍데기만 **새까맣게** 남고(천막 둘레의 검은 테두리),
 //   ② 깊이 계산이 본체와 달라 껍데기가 본체 뒤로 크게 비친다. 재질 문자열에 두 조각을 넣어 고친다.
-export function fixOutlines(scene: THREE.Scene) {
+export function fixOutlines(scene: THREE.Object3D) {
   scene.traverse((o) => {
     const m = (o as THREE.Mesh).material as THREE.ShaderMaterial | undefined;
     if (!m || !m.isShaderMaterial || m.userData.wgOutline || !m.uniforms?.thickness || !("screenspace" in m.uniforms)) return;

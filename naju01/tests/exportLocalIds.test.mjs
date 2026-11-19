@@ -6,6 +6,7 @@ import {
   compareInteractables,
   executionConditions,
   parseArgs,
+  progressCoverage,
   staticInteractableIds,
   validateList,
 } from "../tools/export-local-ids.mjs";
@@ -76,3 +77,26 @@ test("자동 기본 옵션 적용 후 실제 주소를 요청 주소와 구분�
   assert.deepEqual(result.query, { aihub: "", src: "sf", r: "15" });
   assert.equal(result.effective_url, "http://localhost:5187/?aihub&src=sf&r=15");
 });
+
+test("대응표 받침: 도면 · 보내는 값 · 상호작용 대상(묶음은 앞이름)으로 찾고, 받침 없는 이름을 낸다", () => {
+  const coverage = progressCoverage({
+    table: {
+      zones: { Z1: "ZONE_A", "cave-hall": "ZONE_B", "cave-inner": "ZONE_C" },
+      objects: { "clam-holes": "OBJ_A", "cave-door": "OBJ_B", ghost: "OBJ_C" },
+    },
+    siteZones: ["Z1", "Z2"],
+    sentZones: ["cave-hall"],
+    sentObjects: ["clam-holes", "cave-door"],
+    staticIds: [
+      { file: "a.tsx", id: "clam-hole-${k}", dynamic: true },
+      { file: "b.tsx", id: "cave-door", dynamic: false },
+    ],
+    runtimeIds: ["clam-hole-0", "clam-hole-1"],
+  });
+  assert.deepEqual(coverage.missing, ["cave-inner", "ghost"]);
+  const clams = coverage.objects.find((item) => item.local === "clam-holes");
+  assert.equal(clams.targets, "clam-hole-*");
+  assert.deepEqual(clams.registered_at_load, ["clam-hole-0", "clam-hole-1"]);
+  assert.equal(coverage.objects.find((item) => item.local === "cave-door").registered_at_load.length, 0);
+});
+

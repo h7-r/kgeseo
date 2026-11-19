@@ -10,6 +10,7 @@ import { Interactable } from "@/lobby/AimTracker";
 import { AimHighlight } from "@/lobby/AimHighlight";
 import {
   getLockControl,
+  getLockState,
   registerLock,
   startLockControl,
   useLock,
@@ -271,7 +272,8 @@ export default function CombinationPadlock({
   const lockRef = useRef<THREE.Group>(null);
   const shakeRef = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);
-  const progress = useRef(0);
+  // 이미 푼 자물쇠가 다시 올라오면(함 문을 닫았다 열 때) 끝난 자세에서 시작한다 — 풀리는 연출을 되풀이하지 않게(11/11 플레이테스트)
+  const progress = useRef(getLockState(lockId)?.unlocked ? 1 : 0);
   // 걸쇠에 꿰인 쇠막대를 축으로 흔들린다
   const shakeAxisY = shackleY;
   useFrame((_, dt) => {

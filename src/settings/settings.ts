@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import { isFrameLimit, type FrameLimit } from "@/engine/frameLimit";
 import { readMigratedStorage, writeStorage } from "@/engine/storage";
 import { createChangeSignal } from "@/lib/changeSignal";
 
@@ -18,9 +19,25 @@ export interface Settings {
   /** 0.6 ~ 1.4 화면 밝기 배율 */
   brightness: number;
   resolution: Resolution;
-  /** 0.4 ~ 2 마우스 시점 회전 빠르기 */
+  /** 0.2 ~ 2 마우스 시점 회전 빠르기 */
   sensitivity: number;
+  /** 세로 시야각(°) 60 ~ 75 — 1인칭 기본 시야 */
+  fov: number;
+  /** 화면 흔들림 줄이기 — 걸음 출렁임 · 충격 흔들림 · 물속 출렁임 · 연출의 당겨 보기를 끈다(멀미 피드백, 베타 11/13) */
+  reduceMotion: boolean;
+  /**
+   * 대사 자동 넘김 — 끄면(기본) 이야기 대사 · 퍼즐 설명 · 청한 대답은 [F] 를 눌러야 넘어간다(베타 11/13 「읽기 전에 글이 사라진다」).
+   * 짧은 알림 · 주변 한마디는 켜든 끄든 제 시간에 지나간다
+   */
+  autoAdvance: boolean;
+  /**
+   * 프레임 제한 — 0 은 화면 주사율 그대로. 기본 60: 144 · 240Hz 화면에서 주사율만큼 그려 GPU 를 다 쓰던 것을 막는다(베타 11/16).
+   * 주사율이 60 의 배수가 아니면 가까운 값으로 고르게 건너뛴다(engine/frameLimit)
+   */
+  frameLimit: FrameLimit;
 }
+
+export const FOV_RANGE = { min: 60, max: 75 } as const;
 
 export const DEFAULT_SETTINGS: Settings = {
   // naju01 로딩 영상도 0.6 을 기본으로 쓴다.
@@ -29,6 +46,10 @@ export const DEFAULT_SETTINGS: Settings = {
   brightness: 1,
   resolution: "auto",
   sensitivity: 1,
+  fov: 60,
+  reduceMotion: true,
+  autoAdvance: false,
+  frameLimit: 60,
 };
 
 export const RESOLUTION_OPTIONS: readonly Resolution[] = ["auto", "low", "medium", "high", "max"];
@@ -83,6 +104,12 @@ function parseSettings(raw: unknown): Partial<Settings> {
       typeof value === "number"
     ) {
       result[field] = value;
+    } else if (field === "fov" && typeof value === "number" && Number.isFinite(value)) {
+      result.fov = Math.min(FOV_RANGE.max, Math.max(FOV_RANGE.min, value));
+    } else if ((field === "reduceMotion" || field === "autoAdvance") && typeof value === "boolean") {
+      result[field] = value;
+    } else if (field === "frameLimit" && isFrameLimit(value)) {
+      result.frameLimit = value;
     }
   }
   return result;
@@ -104,6 +131,9 @@ export const settingsStore = {
   get: (): Settings => current,
   subscribe: signal.subscribe,
 };
+
+/** 화면 흔들림 줄이기가 켜졌나 — 프레임 루프에서 바로 읽는다 */
+export const isMotionReduced = () => current.reduceMotion;
 
 export const useSettings = () => useSyncExternalStore(settingsStore.subscribe, settingsStore.get, settingsStore.get);
 

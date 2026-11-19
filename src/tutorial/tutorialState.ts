@@ -2,6 +2,9 @@ import { useSyncExternalStore } from "react";
 
 import { IS_INPUT_ALWAYS_ON } from "@/app/runtimeFlags";
 import { exposeDevHook } from "@/debug/devHooks";
+import { getTouchMove, isPointerActive, isTouchMode } from "@/engine/input";
+import { isTypingTarget } from "@/game/overlayLayer";
+import { isThirdPersonView } from "@/game/viewMode";
 import { createChangeSignal } from "@/lib/changeSignal";
 import { getLockState } from "@/props/combinationLockState";
 import { isCorridorPowered, hasSeenAllMarks, getWorkLampLocation } from "@/props/workLampPuzzle/workLampState";
@@ -53,6 +56,9 @@ interface TutorialStep {
   text: string;
   /** 안내판의 키 칩 [[키들…, 설명], …] */
   keys: [keys: string[], description: string][];
+  /** 터치 모드 안내 — 없으면 text · keys 의 키 표기만 단추 그림으로 바꿔 쓴다(TutorialPanel) */
+  touchText?: string;
+  touchKeys?: [keys: string[], description: string][];
   /** 바닥에 빛나는 동그라미 자리 [x, z] */
   spot?: [number, number];
   isDone: (context: TutorialContext) => boolean;
@@ -66,6 +72,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: "비상계단 앞",
     text: "버려진 역의 비밀 복도 끝에서 눈을 떴다. 조작부터 익혀 보자.",
     keys: [[["T"], "조작 시작 — 마우스가 화면에 잠긴다"]],
+    touchKeys: [[["탭"], "화면을 눌러 조작 시작"]],
     isDone: (c) => c.isLocked,
   },
   {
@@ -73,6 +80,8 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: "둘러보기",
     text: "마우스를 움직여 주변을 둘러보세요.",
     keys: [[["마우스"], "시선 돌리기"]],
+    touchText: "화면 오른쪽을 끌어 주변을 둘러보세요.",
+    touchKeys: [[["오른쪽 끌기"], "시선 돌리기"]],
     isDone: (c) => c.turnedAngle > 1.4,
   },
   {
@@ -80,6 +89,8 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: "걷기",
     text: "바닥에 빛나는 동그라미 안으로 걸어 들어가세요.",
     keys: [[["W", "A", "S", "D"], "앞 · 왼쪽 · 뒤 · 오른쪽"]],
+    touchText: "왼쪽 아래를 엄지로 밀어, 바닥에 빛나는 동그라미 안으로 걸어 들어가세요.",
+    touchKeys: [[["왼쪽 밀기"], "걷기"]],
     spot: [CORRIDOR_X, -42],
     isDone: (c) => c.isInside,
   },
@@ -88,6 +99,8 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: "달리기",
     text: "Shift 를 누른 채로 다음 동그라미까지 달려가세요.",
     keys: [[["Shift", "W"], "누른 채 달리기"]],
+    touchText: "엄지를 끝까지 밀어 다음 동그라미까지 달려가세요.",
+    touchKeys: [[["끝까지 밀기"], "달리기"]],
     spot: [CORRIDOR_X, -33],
     isDone: (c) => c.isInside && c.pressed.has("Shift"),
   },
@@ -96,6 +109,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: "점프",
     text: "제자리에서 뛰어 보세요.",
     keys: [[["Space"], "점프"]],
+    touchText: "점프 단추로 제자리에서 뛰어 보세요.",
     isDone: (c) => c.pressed.has("Space"),
   },
   {
@@ -103,14 +117,18 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: "앉기",
     text: "한 번 누르면 앉고, 한 번 더 누르면 일어섭니다.",
     keys: [[["C"], "앉기 / 일어서기"]],
+    touchText: "앉기 단추를 한 번 누르면 앉고, 한 번 더 누르면 일어섭니다.",
     isDone: (c) => (c.pressCounts.C ?? 0) >= 2,
   },
   {
+    // 비밀 복도는 1인칭으로 진행한다 — 이 단계를 지나면 복도에서는 3인칭으로 못 바꾼다(game/viewRule, 미르 플레이 시험 11/8)
     id: "view",
     title: "시점 바꾸기",
-    text: "1인칭과 3인칭을 오갈 수 있습니다. 편한 쪽으로 두세요.",
-    keys: [[["V"], "1인칭 ↔ 3인칭"]],
-    isDone: (c) => c.pressed.has("V"),
+    text: "V 를 눌러 1인칭으로 바꿔 보세요.\n비밀 복도는 1인칭으로 진행하고, 3인칭은 수사 본부(로비)에 들어서면 다시 쓸 수 있어요.",
+    keys: [[["V"], "1인칭으로 바꾸기"]],
+    touchText:
+      "오른쪽 위 「시점」을 눌러 1인칭으로 바꿔 보세요.\n비밀 복도는 1인칭으로 진행하고, 3인칭은 수사 본부(로비)에 들어서면 다시 쓸 수 있어요.",
+    isDone: () => !isThirdPersonView(),
   },
   {
     id: "backToExitDoor",
@@ -119,6 +137,10 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     keys: [
       [["마우스"], "돌아보기"],
       [["W", "A", "S", "D"], "걷기"],
+    ],
+    touchKeys: [
+      [["오른쪽 끌기"], "돌아보기"],
+      [["왼쪽 밀기"], "걷기"],
     ],
     spot: [CORRIDOR_X, -51.5],
     isDone: (c) => c.isInside,
@@ -157,6 +179,11 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
       [["↑", "↓"], "글자 돌리기 (휠도 된다)"],
       [["ESC"], "그만두기"],
     ],
+    touchKeys: [
+      [["✋"], "자물쇠 앞에서 조작 시작"],
+      [["▲", "▼"], "글자 돌리기 · 칸 누르면 고르기"],
+      [["열기"], "확인"],
+    ],
     isDone: () => !!getLockState(BREAKER_BOX_LOCK_ID)?.unlocked,
   },
   {
@@ -175,7 +202,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     text:
       "복도에 전기가 들어왔다. 이제부터는 스스로 길을 찾아야 한다.\n" +
       "힌트함에 쪽지 한 장을 넣어 두었다. H 를 눌러 확인해 보자.\n" +
-      "비밀 복도와 수사 본부는 언제든 자유롭게 오갈 수 있다.",
+      "남은 길을 찾아 수사 본부로 들어가자.",
     keys: [[["H"], "힌트함 열기 — 새 쪽지 확인"]],
     isDone: () => false,
   },
@@ -241,12 +268,17 @@ const KEY_NAMES: Partial<Record<string, string>> = {
 
 if (typeof window !== "undefined") {
   window.addEventListener("keydown", (event) => {
-    if (event.repeat) return;
+    // 입력칸(로비 채팅)에 쓴 글자는 조작 연습으로 세지 않는다
+    if (event.repeat || isTypingTarget(event.target)) return;
     const name = KEY_NAMES[event.code];
     if (!name) return;
-    stepInputRecord.pressed.add(name);
-    stepInputRecord.pressCounts[name] = (stepInputRecord.pressCounts[name] ?? 0) + 1;
+    recordPress(name);
   });
+}
+
+function recordPress(name: string) {
+  stepInputRecord.pressed.add(name);
+  stepInputRecord.pressCounts[name] = (stepInputRecord.pressCounts[name] ?? 0) + 1;
 }
 
 function restartTutorial() {
@@ -279,9 +311,12 @@ export function tickTutorial({ eye, yaw }: TutorialTickInput) {
   }
   stepInputRecord.previousYaw = yaw;
 
+  // 터치 스틱을 끝까지 밀어 달리면 Shift 를 누른 것과 같다(「달리기」 단계)
+  if (isTouchMode() && getTouchMove().isRunning && !stepInputRecord.pressed.has("Shift")) recordPress("Shift");
+
   const context: TutorialContext = {
     ...stepInputRecord,
-    isLocked: IS_INPUT_ALWAYS_ON || (typeof document !== "undefined" && !!document.pointerLockElement),
+    isLocked: IS_INPUT_ALWAYS_ON || (typeof document !== "undefined" && isPointerActive()),
     isInside: !!current.spot && Math.hypot(eye.x - current.spot[0], eye.z - current.spot[1]) < FLOOR_MARKER_RADIUS,
   };
 

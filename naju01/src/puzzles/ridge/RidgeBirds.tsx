@@ -7,6 +7,7 @@
  * 씬2 솟대 0·1 번은 그 자리에서 숨기고 여기서 다시 그린다(회전·깨짐을 보여야 해서). 편집으로 옮기면 따라간다.
  * 좌표는 미터, 그리는 것은 유닛(M 배).
  */
+import { gameNow } from "@/engine/input/gameClock";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
@@ -18,7 +19,7 @@ import { focusCamera } from "../../scene/cameraFocus";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { POLE_TOP } from "../../story/scene2";
-import { registerInteractable, showNotice } from "../interaction";
+import { interactableFor, noticeFor } from "../interaction";
 import { inventory } from "../inventory";
 import { makeToonMaterial } from "../materials";
 import { prewarmShaders } from "../prewarm";
@@ -36,9 +37,13 @@ import {
   isInsideCurtain,
   nearestCurtainT,
 } from "./ridgeShape";
-import { ridge, ridgeDev, ridgeQuest, useRidgeStage } from "./ridgeState";
+import { ridge, ridgeBox, ridgeDev, ridgeQuest, useRidgeStage } from "./ridgeState";
 import { crackShell, createStoneShell, updateChunks, updateShards } from "./stoneShell";
 import { makeVertexColorMaterial } from "./vertexPaint";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("birds");
+const registerInteractable = interactableFor("birds");
 
 /** 팔각 받침 — 한 칸의 각 */
 const STEP_ANGLE = Math.PI / 4;
@@ -65,7 +70,8 @@ const CIRCLE_RADIUS = 5.5;
 const CIRCLE_HEIGHT = 8;
 /** 이 지점(바퀴 비율)에서 열쇠를 떨어뜨린다 · 열쇠가 떨어지는 시간 */
 const THROW_AT = 1.15;
-const THROW_SECONDS = 1.3;
+// 천천히 — 떨어지는 열쇠를 시선이 따라가 어디에 떨어지는지 보이게(박람회판 정리 · 미르 11/8, 예전 1.3)
+const THROW_SECONDS = 2.4;
 /** 떠나는 쪽 — 진부촌 너머 북동 하늘 */
 const DEPART = new THREE.Vector3(1, 0, -0.75).normalize();
 
@@ -152,7 +158,8 @@ function createBirds() {
   heroes[KEY_STATUE].group.add(heldKey);
   // 떨어지는 열쇠(던지는 동안만)
   const flyingKey = new THREE.Mesh(keyGeometry, keyBronze);
-  flyingKey.scale.setScalar(M * 1.6);
+  // 떨어지는 동안 읽히게 크게(예전 1.6)
+  flyingKey.scale.setScalar(M * 2.8);
   flyingKey.visible = false;
   return {
     stoneDuck,
@@ -333,16 +340,26 @@ function startThrow(birds: Birds, camera: THREE.Camera, from: THREE.Vector3) {
   birds.throwing = {
     from: from.clone(),
     to: new THREE.Vector3(x * M, floorAt(x, z) * M, z * M),
-    startedAt: performance.now() / 1000,
+    startedAt: gameNow() / 1000,
   };
   birds.flyingKey.visible = true;
   showNotice("열쇠를 문 새가 고개를 숙인다 — 무언가 떨어진다!", 3);
+  // 시선이 떨어지는 열쇠를 따라 내려가 떨어진 자리를 보고 끝난다 — 표식 없이 연출로만(길잡이는 넣지 않는다)
+  focusCamera({
+    id: "key-drop",
+    target: () => birds.flyingKey.position,
+    hold: THROW_SECONDS + 0.6,
+    turnIn: 0.45,
+    turnOut: 0.4,
+    zoom: 0.9,
+    replace: true,
+  });
 }
 
 function updateThrow(birds: Birds, time: number) {
   const throwing = birds.throwing;
   if (!throwing || birds.isThrown) return;
-  const u = Math.min(1, (performance.now() / 1000 - throwing.startedAt) / THROW_SECONDS);
+  const u = Math.min(1, (gameNow() / 1000 - throwing.startedAt) / THROW_SECONDS);
   const peak = Math.max(throwing.from.y, throwing.to.y) + 1.2 * M;
   const y = (1 - u) * (1 - u) * throwing.from.y + 2 * (1 - u) * u * peak + u * u * throwing.to.y;
   birds.flyingKey.position.set(
@@ -360,6 +377,8 @@ function updateThrow(birds: Birds, time: number) {
     showNotice(
       "새가 열쇠를 발 앞에 떨어뜨렸다. 대가 긴 청동 열쇠 — 아랑사의 함 자물통에 맞을 것 같다. [E] 로 줍자.",
       5,
+      // 기다리는 사이 이미 주웠으면 지난 말
+      { isValid: () => inventory.world().some((item) => item.kind === "bronzeKey") },
     );
   }
 }
@@ -467,7 +486,10 @@ export default function RidgeBirds() {
                 );
               }
               if (foot - support > 0.12) {
-                showNotice("허공에서는 돌새를 돌릴 힘이 들어가지 않는다. 단단히 딛고 서서 돌리자.", 3);
+                showNotice("허공에서는 돌새를 돌릴 힘이 들어가지 않는다. 단단히 딛고 서서 돌리자.", 3, {
+                  urgent: true,
+                  fleeting: true,
+                });
                 return;
               }
               const distance = eye.distanceTo(statue.touch) / M;
@@ -730,14 +752,16 @@ export default function RidgeBirds() {
     awaken(now, since, time);
     updateShards(birds.shell, dt);
     updateChunks(birds.shell, scene, dt);
-    // 깨어난 뒤 — 새 떼와 두 새가 지저귄다
-    if (birds.isBroken && (now === "awakening" || now === "circling" || now === "leaving") && Math.random() < dt * 3)
-      audio.play("짹짹");
+    // 깨어난 뒤 — 새 떼와 두 새가 지저귄다. 떠날 때는 날아가 사라지는 6초 동안만 — 틈이 구렁이상을 꺼낸 뒤로 미뤄져 leaving 이
+    // 길어졌다(Codex 03, 새가 다 사라진 뒤에도 함 영상 내내 지저귀었다)
+    const isSinging = now === "awakening" || now === "circling" || (now === "leaving" && since <= 6);
+    if (birds.isBroken && isSinging && Math.random() < dt * 3) audio.play("짹짹");
 
     if (birds.isBroken) flyHeroes(now, since, time, dt, centerGround);
     flyFlock(time, dt, centerGround);
-    // 새들이 떠나고 나면 진부촌 문이 일그러진다(GateRift)
-    if (now === "leaving" && since > 6) ridge.advance("rift");
+    // 새들이 떠나고, 함 속 구렁이상까지 꺼내고 나면 진부촌 문이 일그러진다(GateRift). 예전엔 새가 떠나고 6초 뒤라 틈 해설 세 줄이
+    // 열쇠 줍기 · 함 놓기 · 함 영상과 겹쳐 알림 줄에서 서로 밀려 한꺼번에 지나갔다(미르 11/10). 구렁이상이 없으면 어차피 틈을 못 지난다
+    if (now === "leaving" && since > 6 && ridgeBox.isEmptied) ridge.advance("rift");
   });
 
   return null;

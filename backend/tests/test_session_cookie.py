@@ -70,3 +70,30 @@ def test_cors_allows_credentials_only_for_listed_sites(client):
     assert allowed.headers["access-control-allow-credentials"] == "true"
     assert allowed.headers["access-control-allow-origin"] == "http://localhost:5175"
     assert "access-control-allow-origin" not in refused.headers
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/api/v1/admin/inquiries/some-id", "/api/v1/admin/notices/some-id"],
+)
+def test_cors_preflight_allows_patch_only_for_listed_sites(client, path):
+    """운영 웹(www)은 API 를 다른 출처(api.k-escape.com)로 부른다 — 관리자 부분 수정(PATCH)의 사전 요청이 통과해야 한다.
+    허용 출처 목록은 그대로다: 목록 밖 출처는 PATCH 도 허용 헤더를 받지 못한다."""
+
+    request = {
+        "Access-Control-Request-Method": "PATCH",
+        "Access-Control-Request-Headers": "content-type",
+    }
+    allowed = client.options(
+        path, headers={"Origin": "http://localhost:5175", **request}
+    )
+    refused = client.options(
+        path, headers={"Origin": "https://evil.example", **request}
+    )
+
+    assert allowed.status_code == 200
+    assert "PATCH" in allowed.headers["access-control-allow-methods"]
+    assert allowed.headers["access-control-allow-origin"] == "http://localhost:5175"
+    assert allowed.headers["access-control-allow-credentials"] == "true"
+    assert refused.status_code == 400
+    assert "access-control-allow-origin" not in refused.headers

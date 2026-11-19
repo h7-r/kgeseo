@@ -6,6 +6,7 @@
  * 깨어난 새가 장막을 뚫고 나가는 순간, 뚫린 자리부터 양쪽으로 찢어지고 지붕은 가운데부터 열리며 위로 풀려 흩어진다.
  * 장막이 쳐져 있는 동안 밖으로는 못 나간다(movement/stageGates 가 ridge.isConfining 을 본다).
  */
+import { gameClearTimeout, gameNow, gameSetTimeout } from "@/engine/input/gameClock";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
@@ -19,7 +20,7 @@ import { focus } from "../../scene/immersion/focusFog";
 import { fishTrapPuzzle } from "../fishTrap/fishTrapState";
 import { pointScaleFor } from "../glowPoints";
 import { teleportPlayer } from "../cave/caveState";
-import { showNotice } from "../interaction";
+import { noticeFor } from "../interaction";
 import { inventory } from "../inventory";
 import { ritual } from "../ritual/ritualState";
 import { prewarmShaders } from "../prewarm";
@@ -27,6 +28,9 @@ import { M, groundY } from "../units";
 import { DEBRIS, SINK, buildCurtain, setPropWarmer, type Drifter } from "./curtainMesh";
 import { CURTAIN, PLATFORM, curtainPoint, isInsideCurtain } from "./ridgeShape";
 import { ridge, ridgeCarry, ridgeQuest, useRidgeStage } from "./ridgeState";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("curtain");
 
 /** 들어선 뒤 바람만 부는 시간 → 지붕이 닫히고 → 벽이 내려온다(초) */
 const WIND_ONLY = 5;
@@ -100,6 +104,9 @@ interface Breeze {
   dt: number;
 }
 
+/** 장막이 아직 걷히지 않았다(덮이는 중 ~ 새가 맴도는 동안) — 장막 안내는 걷히면 지난 말 */
+const isCurtainUp = () => ["sealing", "sealed", "awakening", "circling"].includes(ridge.stage());
+
 export default function WindCurtain() {
   const scene = useThree((state) => state.scene);
   const gl = useThree((state) => state.gl);
@@ -166,32 +173,40 @@ export default function WindCurtain() {
   useEffect(() => {
     if (stage === "sealing") {
       audio.play("우르릉");
-      showNotice("바람이 미친 듯이 휘몰아친다 — 능선을 덮던 안개가 한꺼번에 걷힌다.", 4);
+      // 눈앞에서 지금 벌어지는 일은 밀리면 버린다 · 장막 안내는 장막이 걷히면 버린다
+      showNotice("바람이 미친 듯이 휘몰아친다 — 능선을 덮던 안개가 한꺼번에 걷힌다.", 4, { fleeting: true });
       const timers = [
-        setTimeout(() => showNotice("하늘이 낮게 내려앉는다. 바람이 능선 위로 모여 소용돌이친다…", 3.5), 2600),
-        setTimeout(() => {
+        gameSetTimeout(
+          () => showNotice("하늘이 낮게 내려앉는다. 바람이 능선 위로 모여 소용돌이친다…", 3.5, { fleeting: true }),
+          2600,
+        ),
+        gameSetTimeout(() => {
           audio.play("징");
           director.cue({ 카메라: "흔들림", 세기: 0.3 });
         }, WIND_ONLY * 1000),
-        setTimeout(
+        gameSetTimeout(
           () => {
             audio.play("우르릉");
             director.cue({ 카메라: "흔들림", 세기: 0.45 });
-            showNotice("바람이 장막이 되어 능선을 위아래 통째로 덮었다 — 갇혔다.", 5);
+            showNotice("바람이 장막이 되어 능선을 위아래 통째로 덮었다 — 갇혔다.", 5, { isValid: isCurtainUp });
           },
           (DROP_START + DROP_SECONDS * 0.7) * 1000,
         ),
       ];
-      return () => timers.forEach(clearTimeout);
+      return () => timers.forEach(gameClearTimeout);
     }
     if (stage === "sealed") {
-      showNotice("몸이 이상하게 가볍다. 장막 안에선 바람이 몸을 떠받친다 — 힘껏 뛰면 높이 뜬다.", 5);
-      const timer = setTimeout(
+      showNotice("몸이 이상하게 가볍다. 장막 안에선 바람이 몸을 떠받친다 — 힘껏 뛰면 높이 뜬다.", 5, {
+        isValid: isCurtainUp,
+      });
+      const timer = gameSetTimeout(
         () =>
-          showNotice("엇갈린 두 돌새가 그날 밤의 바람을 붙들고 있다. 둘의 눈이 한곳에 맞아야 장막이 걷힐 것 같다.", 6),
+          showNotice("장막이 능선을 가렸다. 그 안에 돌새 두 마리가 서 있다.", 6, {
+            isValid: isCurtainUp,
+          }),
         6000,
       );
-      return () => clearTimeout(timer);
+      return () => gameClearTimeout(timer);
     }
     return undefined;
   }, [stage]);
@@ -352,7 +367,7 @@ export default function WindCurtain() {
     // 부딪힌 자리 물결 — 시각을 장면 시계로 옮겨 넣는다
     const touch = ridge.lastTouch();
     const hitHeight = camera.position.y / M - (groundY(camera.position.x / M, camera.position.z / M) - SINK);
-    wallMaterial.uniforms.uHit.value.set(touch.t, hitHeight, time - (performance.now() / 1000 - touch.at));
+    wallMaterial.uniforms.uHit.value.set(touch.t, hitHeight, time - (gameNow() / 1000 - touch.at));
 
     const from = ridge.releaseFrom();
     if (from !== null && !releaseRef.current) {

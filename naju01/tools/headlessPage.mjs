@@ -39,13 +39,13 @@ export async function expandLevaFolders(page, settleMs = 800) {
 export const toggleBakedTerrain = (page) =>
   page.evaluate(() => document.querySelectorAll('input[type="checkbox"]')[7].click());
 
-/** 구운 지형 땅(삼각형 128,000)이 올라올 때까지 5 초씩 기다린다 */
+/** 구운 지형 땅(useBakedTerrain 이 표식을 단다)이 올라올 때까지 5 초씩 기다린다 */
 export async function waitForBakedGround(page, tries) {
   for (let i = 0; i < tries; i++) {
     await page.waitForTimeout(5000);
     const isReady = await page.evaluate(() => {
       const ground = window.__game?.naju?.scene?.getObjectByName("ground");
-      return !!ground && (ground.geometry.index?.count ?? 0) / 3 === 128000;
+      return !!ground?.geometry?.userData?.isBakedTerrain;
     });
     if (isReady) break;
   }

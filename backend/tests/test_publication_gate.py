@@ -615,6 +615,77 @@ def test_references_to_non_placed_items_fail(mutate, reason: str) -> None:
     assert store.versions(CASE_ID) == ()
 
 
+def add_prop(documents, *, idmap_interaction=None) -> None:
+    """상호작용 없는 배치 소품(Client interaction null · idmap placed_no_interaction)."""
+    documents["client"]["zones"][0]["objects"].append(
+        {
+            "object_id": "OBJ_S1_PROP_3",
+            "object_name": "(가상) 소품",
+            "object_type": "prop",
+            "visible": True,
+            "enabled": True,
+            "interaction": None,
+        }
+    )
+    documents["idmap"]["objects"].append(
+        {
+            "local": "씬1.소품#3",
+            "object_id": "OBJ_S1_PROP_3",
+            "scene": 1,
+            "zone": "Z1",
+            "zone_id": "ZONE_A",
+            "status": "placed_no_interaction",
+            "interaction": idmap_interaction,
+            "at_m": [0, 0],
+        }
+    )
+
+
+def test_non_interactive_prop_is_not_an_interaction_reference() -> None:
+    """회귀: interaction 없는 Client 소품에서 EXECUTABLE_REFS가 AttributeError로 멈췄다."""
+    documents = base_documents()
+    add_prop(documents)
+    files, fingerprint = seal(documents)
+    local_ids = {**LOCAL_IDS, "objects": [*LOCAL_IDS["objects"], "씬1.소품#3"]}
+
+    result, _ = run(files, fingerprint, local_ids=local_ids)
+    base_files, base_fingerprint = seal(base_documents())
+    base, _ = run(base_files, base_fingerprint)
+
+    assert result.check("EXECUTABLE_REFS").status == "PASS"
+    assert result.check("IDMAP").status == "PASS"
+    assert result.check("LOCAL_IDS").status == "PASS"
+    # 소품을 더해도 다른 판정은 기본 묶음과 같다(기본 묶음은 장면 미정으로 SCENES UNVERIFIED)
+    assert statuses(result) == statuses(base)
+
+
+def test_prop_still_fails_when_idmap_declares_an_interaction() -> None:
+    documents = base_documents()
+    add_prop(documents, idmap_interaction={"type": "inspect"})
+    files, fingerprint = seal(documents)
+
+    result, store = run(files, fingerprint)
+
+    assert result.check("EXECUTABLE_REFS").status == "FAIL"
+    assert (
+        "interaction_missing:OBJ_S1_PROP_3" in result.check("EXECUTABLE_REFS").reasons
+    )
+    assert store.versions(CASE_ID) == ()
+
+
+def test_interactive_objects_are_still_checked_next_to_props() -> None:
+    documents = base_documents()
+    add_prop(documents)
+    documents["idmap"]["objects"][0]["status"] = "placed_no_interaction"
+    files, fingerprint = seal(documents)
+
+    result, _ = run(files, fingerprint)
+
+    reasons = result.check("EXECUTABLE_REFS").reasons
+    assert "interaction_object:OBJ_S1_LOCK_1" in reasons
+    assert "interaction_object:OBJ_S1_PROP_3" not in reasons
+
+
 def test_reveal_when_on_unplaced_puzzle_fails() -> None:
     documents = base_documents()
     documents["npc"]["general_nudges"][0]["reveal_when"] = {

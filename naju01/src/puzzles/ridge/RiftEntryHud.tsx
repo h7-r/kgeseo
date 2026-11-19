@@ -23,7 +23,11 @@ function RiftEntryOverlay() {
   const turbulence = useRef<SVGFETurbulenceElement>(null);
 
   useEffect(() => {
-    const canvas = scorch.current?.parentElement?.querySelector("canvas");
+    // 게임 화면(canvas)을 위로 올라가며 찾는다 — 바로 위 부모만 보면 HUD 를 한 겹 감쌌을 때(엔딩 동안 HUD 숨기기, #118) 못 찾아
+    // 효과도 안 걸리고 끝내기(finishRiftEntry)도 안 불려 「건너가는 중」이 영영 남았다 → 다음 틈에 못 들어갔다(미르 11/12)
+    let canvas: HTMLCanvasElement | null = null;
+    for (let node = scorch.current?.parentElement ?? null; node && !canvas; node = node.parentElement)
+      canvas = node.querySelector("canvas");
     if (!canvas) return undefined;
     const original = {
       filter: canvas.style.filter,

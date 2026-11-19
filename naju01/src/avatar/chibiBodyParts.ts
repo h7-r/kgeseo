@@ -2,6 +2,7 @@
 import * as THREE from "three";
 
 import { computeFistCenters } from "./fistCenter";
+import { hullIndices, isRigidlySkinned } from "./soleHull";
 import type {
   BodyPart,
   Disposables,
@@ -106,7 +107,7 @@ export function collectMeshParts(model: THREE.Object3D, disposables: Disposables
         indices.push(i);
         (position.getX(i) >= 0 ? left : right).push(i);
       }
-      soles.push({ object, indices, left, right });
+      soles.push({ object, kind: "body", indices, left, right });
     }
     // 신발은 밑창이 맨발보다 낮다 — 신었을 때는 신발 바닥이 지면 기준이다(보이는 것만 센다).
     if (data.slot === "shoes") {
@@ -119,7 +120,10 @@ export function collectMeshParts(model: THREE.Object3D, disposables: Disposables
       for (let i = 0; i < position.count; i += 1) if (position.getY(i) < lowest + 0.05) indices.push(i);
       const left = data.side === "l" ? indices : [];
       const right = data.side === "r" ? indices : [];
-      soles.push({ object, indices, left, right });
+      // 매 프레임 전부 보는 지면 맞춤 목록만 볼록 껍질 꼭짓점으로 줄인다 — 한 뼈에 통째로 묶인 신발은 최저점이 같다.
+      // 접지 IK 는 좌우 목록을 3칸마다 보므로(step 3) 결과가 바뀌지 않게 원래 목록 그대로 둔다(검토 12회차).
+      const ground = isRigidlySkinned(object.geometry, indices) ? [...hullIndices(position, indices)] : indices;
+      soles.push({ object, kind: "shoe", indices: ground, left, right });
     }
   });
   return { skinMaterials, parts, soles };

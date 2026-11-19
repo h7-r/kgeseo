@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
+import { DEFAULT_FOV } from "@/engine/camera";
+import { playerView } from "@/engine/playerView";
 import { hoseAnchors } from "@/props/nozzleState";
 import {
   CONDUIT_FLOW_SECONDS,
@@ -21,10 +23,24 @@ import { getConduitPaths, vendingFocus } from "./circuitPaths";
 
 /** 다 닿은 뒤 번개가 잦아드는 시간(초) */
 const FADE_SECONDS = 1.2;
-/** 소화전에 닿고 화면이 머무는 시간(초) */
-const HOSE_HOLD_SECONDS = 1;
+/**
+ * 소화전에 닿고 화면이 머무는 시간(초). 1초는 시선이 따라붙는 시간까지 들어가 밸브를 보기도 전에 끝났다
+ * — 「돌아가서 밸브를 열어야 한다」를 몰랐다(미르 11/9, 튜토피드백 10회차).
+ */
+const HOSE_HOLD_SECONDS = 2.2;
+/** 머무는 동안 이만큼(유닛) 높이가 화면에 차게 당긴다 — 소화전함이 화면 절반 남짓. 너무 당기면 어디인지 잃는다 */
+const VALVE_VIEW_HEIGHT = 2.6;
+const MIN_FOV_SCALE = 0.35;
 
 const valvePoint = new THREE.Vector3();
+
+/** 지금 선 자리에서 밸브 둘레가 화면에 차는 시야각 배율 — 가까우면 그대로(1) */
+function fovScaleToValve(valve: THREE.Vector3) {
+  if (!playerView.ready) return 1;
+  const distance = playerView.eye.distanceTo(valve);
+  const needed = THREE.MathUtils.radToDeg(2 * Math.atan(VALVE_VIEW_HEIGHT / 2 / Math.max(distance, 0.1)));
+  return THREE.MathUtils.clamp(needed / DEFAULT_FOV, MIN_FOV_SCALE, 1);
+}
 
 interface StrikeProps {
   path: THREE.Curve<THREE.Vector3>;
@@ -92,6 +108,10 @@ export default function CircuitCurrent() {
       seconds: HOSE_FLOW_SECONDS,
       finalTarget: () => (hoseAnchors.valve?.getWorldPosition(valvePoint) ?? points[points.length - 1]).toArray(),
       holdUntil: () => hoseStartedAt + HOSE_FLOW_SECONDS + HOSE_HOLD_SECONDS,
+      // 카메라를 늦게 넘겨받아도 밸브는 이만큼 본다 · 멀면 당겨 본다(빛나는 밸브가 보이게)
+      minHoldSeconds: HOSE_HOLD_SECONDS,
+      fovScale: fovScaleToValve(points[points.length - 1]),
+      expiresAt: hoseStartedAt + HOSE_FLOW_SECONDS + HOSE_HOLD_SECONDS,
     });
   }, [hoseStartedAt]);
 

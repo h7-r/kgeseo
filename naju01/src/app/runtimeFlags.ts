@@ -3,7 +3,7 @@
  * 본편과 같은 개발용 스위치(?fx=off)와 나주 전용 스위치. 나주맵은 Leva 패널을 띄우지 않는다.
  * 저사양(?q=low)은 본편과 같은 `@/engine/quality` 의 IS_LOW_QUALITY 를 쓴다.
  */
-import { IS_LOW_QUALITY } from "@/engine/quality";
+import { IS_LOW_QUALITY, IS_MOBILE_QUALITY, MOBILE_MAX_DPR } from "@/engine/quality";
 import { PLAYER_MESHY_APPEARANCE_KEY, readStorage } from "@/engine/storage";
 
 const QUERY = typeof location !== "undefined" ? new URLSearchParams(location.search) : new URLSearchParams();
@@ -11,11 +11,53 @@ const QUERY = typeof location !== "undefined" ? new URLSearchParams(location.sea
 /** ?fx=off — 후처리 끔(+ antialias 켬) */
 export const IS_POSTFX_DISABLED = QUERY.get("fx") === "off";
 // 후처리 효과를 하나씩 끄고 견주는 스위치
-export const IS_BLOOM_DISABLED = QUERY.get("bloom") === "off";
+// 모바일 품질은 블룸을 끈다(계획서 8.2 보수적 시작값)
+// 저사양 모드도 블룸을 끈다 — 먹선 · 색 보정은 남긴다(미르 11/12)
+export const IS_BLOOM_DISABLED =
+  QUERY.get("bloom") === "off" || ((IS_MOBILE_QUALITY || IS_LOW_QUALITY) && QUERY.get("bloom") !== "on");
 export const IS_VIGNETTE_DISABLED = QUERY.get("vig") === "off";
 export const IS_TONE_MAPPING_ENABLED = QUERY.get("tm") === "on";
+/** 거꾸로 깊이에 필요한 확장(EXT_clip_control)이 이 브라우저 · 그래픽 카드에 있나 — 버리는 캔버스로 한 번 물어본다 */
+function hasClipControl(): boolean {
+  if (typeof document === "undefined") return false;
+  try {
+    const context = document.createElement("canvas").getContext("webgl2");
+    const isSupported = !!context?.getExtension("EXT_clip_control");
+    context?.getExtension("WEBGL_lose_context")?.loseContext();
+    return isSupported;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 깊이 버퍼 방식(11/17). 900 m 밖 산줄기까지 그리려고 far 가 커서 보통 깊이로는 정밀도가 모자라다.
+ *   log  로그 깊이 — 셰이더가 깊이를 직접 써서 GPU 가 가려진 면을 미리 못 버린다(전부 칠한다)
+ *   rev  거꾸로 깊이(reversedDepthBuffer) — 정밀도는 로그 깊이만큼 나오고 가려진 면은 미리 버린다.
+ *        11/17 실측(M5 Max, 수직 동기 끔): 같은 자리에서 낼 수 있는 fps 가 로그 깊이의 1.6 ~ 2.4배
+ *   std  보통 깊이 — 견줄 때만
+ * 기본은 rev, 확장이 없는 기기 · 후처리나 만화 효과를 끈 실행은 log. ?depth=log|rev|std 로 고른다
+ */
+const DEPTH_QUERY = QUERY.get("depth");
+// 거꾸로 깊이는 실수형 깊이 버퍼라야 정밀도가 나온다. 후처리가 깊이를 읽을 때(만화 효과)만 실수형 깊이 텍스처가 잡히고,
+// 후처리나 만화 효과를 끈 실행은 24비트 정수 깊이라 뒤집어도 먼 겹면이 떨린다(Codex 리뷰) — 그때는 로그 깊이 그대로
+const CAN_REVERSE_DEPTH = !IS_POSTFX_DISABLED && QUERY.get("만화") !== "off";
+export const DEPTH_MODE: "log" | "rev" | "std" =
+  DEPTH_QUERY === "log" || DEPTH_QUERY === "std"
+    ? DEPTH_QUERY
+    : DEPTH_QUERY === "rev" || (CAN_REVERSE_DEPTH && hasClipControl())
+      ? "rev"
+      : "log";
+/** 거꾸로 깊이로 도는가 — 그림자 보정값처럼 깊이 방향에 기대는 곳이 본다 */
+export const IS_REVERSED_DEPTH = DEPTH_MODE === "rev";
 /** ?fb=half — 후처리 버퍼를 HalfFloat 로 쓴다. 이 버퍼에서 3D 가 까맣게 나오는 증상을 재현할 때 */
 export const USE_HALF_FLOAT_BUFFER = QUERY.get("fb") === "half";
+/**
+ * ?at=V1 · V2 · V3 — 실기기 측정용: 씬이 그려지면 그 관측 지점(plan/sitePlan VIEWPOINTS)으로 옮긴다.
+ * 개발 빌드(npm run dev)에서만 듣는다. 운영 빌드는 ?dev 를 붙여도 무시한다 — 주소는 누구나 고칠 수 있어,
+ * 열어 두면 박람회 랭킹 · 타임어택에서 스테이지 문을 건너뛸 수 있다(11/8 미르 · 해랑 검토).
+ */
+export const TEST_START_AT = import.meta.env.DEV ? QUERY.get("at") : null;
 /** ?stage=16x9 — 본편과 같은 레터박스(시야 검증용). 기본은 창을 꽉 채운다 */
 export const IS_STAGE_16X9 = QUERY.get("stage") === "16x9";
 /** ?from=hub — 허브의 진입 연출을 타고 왔다. 검은 화면에서 첫 프레임에 밝아진다. 주소를 직접 치거나 새로고침하면 페이드가 없다 */
@@ -35,17 +77,49 @@ export const PRESENTATION_MOOD: PresentationMood | null =
 // minimal 은 light 위에 더 끈다 — 해상도·MSAA 를 줄이는 쪽은 둘이 같다
 export const IS_LIGHT_PRESENTATION = PRESENTATION_MODE === "light" || PRESENTATION_MODE === "minimal";
 /** 후처리 MSAA — 가벼운 발표 프리셋에서 4 → 2 */
-export const MSAA_SAMPLES = IS_LIGHT_PRESENTATION ? 2 : 4;
+const MSAA_PARAM = QUERY.get("msaa");
+export const MSAA_SAMPLES =
+  MSAA_PARAM !== null && [0, 2, 4, 8].includes(+MSAA_PARAM)
+    ? +MSAA_PARAM
+    : IS_MOBILE_QUALITY || IS_LOW_QUALITY
+      ? 0
+      : IS_LIGHT_PRESENTATION
+        ? 2
+        : 4;
+/**
+ * 그림자 — 기본은 2048, 저사양 · 모바일은 끈다(그림자는 장면을 한 번 더 그린다). ?shadow=off · half · full 로 견준다.
+ */
+const SHADOW_PARAM = QUERY.get("shadow");
+export const SHADOW_QUALITY: "off" | "half" | "full" =
+  SHADOW_PARAM === "off" || SHADOW_PARAM === "half" || SHADOW_PARAM === "full"
+    ? SHADOW_PARAM
+    : IS_MOBILE_QUALITY
+      ? "off"
+      : IS_LOW_QUALITY
+        ? "off"
+        : "full";
+export const SHADOW_MAP_SIZE = SHADOW_QUALITY === "half" ? 1024 : 2048;
 
 // 이 씬은 픽셀에 걸려 있다(땅이 픽셀마다 삼면 노이즈를 돈다). 1.75 는 레티나에서 글자·외곽선이 안 무너지는 가장 낮은 값.
 // 가벼운 발표 프리셋은 느린 노트북용이라 1.5(픽셀 27 % 감소)까지 내린다.
 // ?dpr=1.5 처럼 숫자를 주면 그 값에 못 박고 자동 조절을 끈다(A/B 비교용).
 const DPR_PARAM = QUERY.get("dpr");
-const DEFAULT_MAX_DPR = IS_LIGHT_PRESENTATION ? 1.5 : 1.75;
+// 모바일은 기기 배율 3 이라 상한을 따로 둔다 — 픽셀은 배율의 제곱으로 는다
+// 저사양 모드는 1 을 넘기지 않고, 느리면 0.65 까지 내린다 — 글 · 단추는 DOM 이라 흐려지지 않는다(미르 11/12)
+const DEFAULT_MAX_DPR = IS_LOW_QUALITY ? 1 : IS_MOBILE_QUALITY ? MOBILE_MAX_DPR : IS_LIGHT_PRESENTATION ? 1.5 : 1.75;
 export const MAX_DPR = Math.min(3, Math.max(1, +(DPR_PARAM || DEFAULT_MAX_DPR) || DEFAULT_MAX_DPR));
+/**
+ * 자동 조절의 상한 — 기기 픽셀비보다 높게 그리지 않는다. 픽셀비 1 인 모니터(윈도우 데스크톱)에서 1.75 까지 올리면
+ * 화면의 3배 픽셀을 MSAA 로 그린다 — 빠른 그래픽 카드일수록 끝까지 올라가 GPU 를 다 썼다(베타 11/16, 4K 에서 6720×3780).
+ * 창을 다른 모니터로 옮기면 값이 바뀌므로 그릴 때마다 읽는다. ?dpr= 로 못 박은 값(A/B)은 자르지 않는다
+ */
+export const autoMaxDpr = () =>
+  Math.min(MAX_DPR, Math.max(1, (typeof window !== "undefined" && window.devicePixelRatio) || 1));
 /** 자동 조절 하한 — 이보다 내리면 너무 뿌예진다 */
-export const MIN_DPR = 1;
-export const IS_DPR_AUTO = !DPR_PARAM && !IS_LOW_QUALITY;
+export const MIN_DPR = IS_LOW_QUALITY ? 0.65 : 1;
+export const IS_DPR_AUTO = !DPR_PARAM;
+/** 자동 조절이 시작하는 값 */
+export const START_DPR = IS_LOW_QUALITY ? 0.85 : 1.25;
 
 // 발표 프리셋(?present)이면 작업 화면 UI 를 숨긴다
 const IS_PRESENTING = PRESENTATION_MODE !== null;

@@ -1,3 +1,4 @@
+import { isMobileLayout } from "@/mobile/layoutMode";
 import { useEffect, useState, type CSSProperties } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -30,8 +31,10 @@ export default function SocialCallbackPage() {
         }
         // replace: 뒤로 가기로 code·state 가 남은 콜백 주소에 돌아오지 않게. 증표는 메모리로만 넘긴다.
         holdOnboarding(result.onboarding, returnTo);
-        // 홈에서 시작했으면 홈 패널이 그 자리에서 이어받는다.
-        navigate(returnTo === ROUTES.home ? ROUTES.home : ROUTES.socialOnboarding, { replace: true });
+        // 홈에서 시작했으면 홈 패널이 그 자리에서 이어받는다. 모바일 홈에는 그 패널이 없어 전용 가입 마무리로 간다.
+        navigate(returnTo === ROUTES.home && !isMobileLayout() ? ROUTES.home : ROUTES.socialOnboarding, {
+          replace: true,
+        });
       })
       .catch((error: unknown) => {
         if (!alive) return;
@@ -58,6 +61,9 @@ export default function SocialCallbackPage() {
 }
 
 const frameStyle: CSSProperties = {
+  // 모바일 정지 배경(fixed z 0) 위 층 — 위치 지정 없는 글은 그 아래에 깔린다
+  position: "relative",
+  zIndex: 1,
   minHeight: "70vh",
   display: "grid",
   placeItems: "center",

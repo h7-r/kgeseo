@@ -245,6 +245,8 @@ interface TrapMotionHooks {
   staysAshore: (trap: Trap) => boolean;
   /** 뭍에 올라온 순간 */
   onLanded: (trap: Trap) => void;
+  /** 처음 굴러 들어가 물에 잠긴 순간(건졌다 다시 내려가는 것은 아니다) */
+  onEnteredWater?: (trap: Trap) => void;
 }
 
 /** 통발 한 프레임 — 자리에 따라 움직이고 자세를 잡는다. 자리가 바뀌면 true */
@@ -271,6 +273,7 @@ export function advanceTrap(trap: Trap, dt: number, hooks: TrapMotionHooks) {
       trap.place = "water";
       audio.play("첨벙");
       changed = true;
+      hooks.onEnteredWater?.(trap);
     }
   } else if (trap.place === "water") {
     trap.object.position.copy(trap.waterPosition);

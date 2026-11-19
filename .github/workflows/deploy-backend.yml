@@ -1,4 +1,4 @@
-# main에 backend/ 변경이 병합되면 운영 API 서버(EC2)에 자동 배포한다.
+# main에 backend/ · lobby/ 변경이 병합되면 운영 API 서버(EC2)에 자동 배포한다. 로비 방 서버(waegok-lobby)도 같은 묶음으로 간다(11/8).
 # AWS 키 없이 GitHub OIDC로 역할(waegok-github-deploy)을 빌려 쓴다 — 이 역할은 main 브랜치에서만 쓸 수 있다.
 # 수동 배포: Actions 탭 → deploy-backend → Run workflow (main)
 name: deploy-backend
@@ -6,7 +6,7 @@ name: deploy-backend
 on:
   push:
     branches: [main]
-    paths: ['backend/**', '.github/workflows/deploy-backend.yml']
+    paths: ['backend/**', 'lobby/**', '.github/workflows/deploy-backend.yml']
   workflow_dispatch:
 
 permissions:
@@ -31,10 +31,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 로비 방 서버 빌드(tsc → lobby/dist). 실행 의존성은 서버가 package-lock 으로 설치한다
+        run: cd lobby && npm ci --no-audit --no-fund && npm run build
+
       - name: 배포 묶음 만들기
         run: |
           tar --exclude='backend/tests' --exclude='__pycache__' --exclude='backend/.env' \
-              --exclude='backend/.venv' -czf release.tgz backend
+              --exclude='backend/.venv' -czf release.tgz backend \
+              lobby/dist lobby/data lobby/package.json lobby/package-lock.json
           ls -lh release.tgz
 
       - uses: aws-actions/configure-aws-credentials@v4

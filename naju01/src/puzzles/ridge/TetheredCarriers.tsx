@@ -18,7 +18,7 @@ import { releasePropColliders } from "../../movement/propColliders";
 import { addDynamicSolid, type DynamicSolid } from "../../movement/solidField";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
-import { aimedId, registerInteractable, showNotice } from "../interaction";
+import { aimedId, interactableFor, noticeFor } from "../interaction";
 import { prewarmShaders } from "../prewarm";
 import { M, groundY } from "../units";
 import {
@@ -30,8 +30,16 @@ import {
   findLegTip,
   ropeMaterial,
 } from "./carrierRope";
+import { isPointerActive } from "@/engine/input/virtualLock";
 import { RIDGE_CENTER } from "./ridgeShape";
 import { ridge, ridgeCarry, ridgeQuest, useRidgeStage } from "./ridgeState";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("cart");
+const registerInteractable = interactableFor("cart");
+
+/** 빈 지게를 허공 E 로 내려놓으면 발 앞에 둔다(예전: 바람이 채 간다) */
+const KEEPS_JIGE_ON_PUT_DOWN = true;
 
 /** 지게 자리(씬2 지게 표본) */
 const CARRIERS = [
@@ -70,6 +78,9 @@ type CarrierState =
   | "falling"
   | "fallingTied"
   | "dropped";
+
+/** 밧줄 끝이 이만큼(2 mm) 움직이기 전에는 다시 짓지 않는다 */
+const ROPE_REDRAW_UNITS = 0.002 * M;
 
 interface Carrier {
   group: THREE.Group;
@@ -197,6 +208,8 @@ export default function TetheredCarriers() {
   /** 화면에서 빌려 온 지게 메시 — 전부 숨긴다 */
   const borrowedRef = useRef<THREE.Mesh[]>([]);
   const lastSearchRef = useRef(-99);
+  /** 지게마다 마지막으로 밧줄을 지은 양 끝 · 늘어짐 */
+  const ropeDrawnRef = useRef(new WeakMap<Carrier, { start: THREE.Vector3; end: THREE.Vector3; slack: number }>());
   /** 어느 모양을 빌렸나 — 교체본(공개 에셋)이 서면 그것으로 갈아 끼운다 */
   const lookSourceRef = useRef<"aihub" | "original" | null>(null);
   const poleRef = useRef<{ wraps: THREE.Group; radius: number } | null>(null);
@@ -411,10 +424,19 @@ export default function TetheredCarriers() {
     );
     // 빈 지게 내려놓기 — 겨눈 것이 없을 때의 [E]. 줄이 없으니 바람이 채 간다
     const onKey = (event: KeyboardEvent) => {
-      if (event.code !== "KeyE" || event.repeat || !document.pointerLockElement) return;
+      if (event.code !== "KeyE" || event.repeat || !isPointerActive()) return;
       if (ridgeCarry.load !== "jige" || aimedId() || ridgeCarry.isCartGrabbed) return;
       const carrier = carriers.find((entry) => entry.state === "carried");
       if (!carrier) return;
+      // 날려 보내지 않고 발 앞에 내려놓는다 — E 를 마구 누르다 지게를 잃고 뛰어 붙잡느라 헤매지 않게(박람회판 정리 · 미르 11/8).
+      // 발밑 자리는 선 자리라 막힘 · 턱이 없다. 아래 바람에 날리는 분기는 이제 쓰지 않지만 저장본 · 개발 훅을 위해 남긴다
+      if (KEEPS_JIGE_ON_PUT_DOWN) {
+        ridgeCarry.putDown = { x: camera.position.x / M, z: camera.position.z / M };
+        ridgeCarry.load = "none";
+        audio.play("똑");
+        showNotice("지게를 발 앞에 내려놓았다. 겨누고 E 로 다시 진다.", 3);
+        return;
+      }
       carrier.state = "flown";
       carrier.flownAt = -1;
       carrier.flownFrom.copy(carrier.group.position);
@@ -469,7 +491,8 @@ export default function TetheredCarriers() {
     if (carrier.state === "ground" && lifting) {
       carrier.state = "rising";
       carrier.risenAt = time;
-      if (k === 0) showNotice("기둥에 묶인 지게 둘이 바람에 들려 떠오른다 — 밧줄이 팽팽하게 당겨진다.", 4);
+      if (k === 0)
+        showNotice("기둥에 묶인 지게 둘이 바람에 들려 떠오른다 — 밧줄이 팽팽하게 당겨진다.", 4, { fleeting: true });
     }
     // 밧줄 방향 — 위로, 바람 따라 기울며 맴돈다
     const phi = 0.9 + k * 1.6 + Math.sin(time * 0.37 + k * 2) * 0.55;
@@ -583,6 +606,7 @@ export default function TetheredCarriers() {
   };
 
   /** 밧줄 — 땅에 늘어진 줄 · 팽팽한 줄 · 매인 채 떨어진 줄 · 풀린 뒤에는 없다. 다리에 감은 매듭에서 기둥에 감은 바퀴까지 잇는다 */
+  const ropeDrawn = ropeDrawnRef.current;
   const drawRope = (carrier: Carrier, time: number) => {
     carrier.group.updateMatrixWorld(true);
     carrier.end.copy(carrier.legTie).applyMatrix4(carrier.group.matrixWorld);
@@ -604,6 +628,23 @@ export default function TetheredCarriers() {
       const toward = new THREE.Vector3(carrier.end.x - knot.x, 0, carrier.end.z - knot.z).normalize();
       start.addScaledVector(toward, (poleRef.current.radius + ROPE_RADIUS) * M);
     }
+    // 밧줄 모양은 양 끝 · 늘어짐이 바뀔 때만 다시 짓는다 — 땅에 놓인 지게는 그대로인데 매 프레임 새 지오메트리를
+    // 만들어 올렸다(맵 어디에 있든, 성능 진단 11/13)
+    const drawn = ropeDrawn.get(carrier) ?? {
+      start: new THREE.Vector3(Infinity, 0, 0),
+      end: new THREE.Vector3(),
+      slack: -1,
+    };
+    ropeDrawn.set(carrier, drawn);
+    if (
+      drawn.slack === slack &&
+      drawn.start.distanceToSquared(start) < ROPE_REDRAW_UNITS ** 2 &&
+      drawn.end.distanceToSquared(carrier.end) < ROPE_REDRAW_UNITS ** 2
+    )
+      return;
+    drawn.start.copy(start);
+    drawn.end.copy(carrier.end);
+    drawn.slack = slack;
     const curve = buildRopeCurve(start, carrier.end, slack);
     carrier.rope.geometry.dispose();
     carrier.rope.geometry = new THREE.TubeGeometry(curve, 28, ROPE_RADIUS * M, 5, false);

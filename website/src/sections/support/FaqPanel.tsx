@@ -2,6 +2,7 @@ import { useId, useState, type CSSProperties } from "react";
 
 import chevronDownIcon from "@/assets/images/imgChevronDown.svg";
 import chevronRightIcon from "@/assets/images/imgChevronRight2.svg";
+import { SUPPORT_EMAIL } from "@/data/contact";
 import { ALL_CATEGORIES, FAQ_FILTERS, FAQ_ITEMS } from "@/data/support";
 import { FONT } from "@/lib/style";
 import { COLOR } from "@/styles/tokens";
@@ -77,7 +78,7 @@ export default function FaqPanel() {
                 <>
                   <div style={{ height: "1px", background: COLOR.lightDivider }} />
                   <div id={answerId} role="region" aria-label={item.question} style={answerStyle}>
-                    {item.answer || "답변을 준비하고 있습니다. 급한 내용은 1:1 문의로 남겨 주세요."}
+                    {item.answer || `답변을 준비하고 있습니다. 급한 내용은 ${SUPPORT_EMAIL} 로 보내 주세요.`}
                   </div>
                 </>
               )}

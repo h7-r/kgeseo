@@ -1,0 +1,38 @@
+{
+  "name": "waegok-lobby",
+  "private": true,
+  "version": "0.0.0",
+  "description": "왜곡 본부실 로비 방 서버(설계 v0.19). 운영은 --profile=production, 로컬은 npm run dev(test 프로필)",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts --profile=test",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js --profile=production",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "make-dev-env": "node scripts/make-dev-env.mjs",
+    "extract-look": "node scripts/extract-look-allowlist.mjs",
+    "extract-profanity": "node scripts/extract-profanity.mjs"
+  },
+  "dependencies": {
+    "@colyseus/core": "0.18.10",
+    "@colyseus/schema": "5.0.42",
+    "@colyseus/ws-transport": "0.18.4",
+    "colyseus": "0.18.11",
+    "jose": "6.2.13"
+  },
+  "devDependencies": {
+    "@colyseus/loadtest": "0.18.4",
+    "@colyseus/sdk": "0.18.9",
+    "@types/node": "22.20.5",
+    "tsx": "4.23.14",
+    "typescript": "6.0.3"
+  },
+  "overrides": {
+    "@colyseus/core": "0.18.10",
+    "@colyseus/schema": "5.0.42"
+  }
+}

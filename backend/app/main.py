@@ -13,20 +13,27 @@ from app.api.v1.anonymous_sessions import (
     router as anonymous_sessions_router,
 )
 from app.api.v1.auth import router as auth_router
+from app.api.v1.beta_events import router as beta_events_router
 from app.api.v1.cases import router as cases_router
 from app.api.v1.health import router as health_router
 from app.api.v1.hints import router as hints_router
+from app.api.v1.inquiries import router as inquiries_router
 from app.api.v1.interactions import router as interactions_router
+from app.api.v1.lobby import router as lobby_router
 from app.api.v1.me import router as me_router
+from app.api.v1.notices import router as notices_router
 from app.api.v1.npc import router as npc_router
 
 # 플레이 세션 Router
 from app.api.v1.play_sessions import (
     router as play_sessions_router,
 )
+from app.api.v1.site import router as site_router
 from app.core.config import settings
+from app.core.deployment import api_docs_settings
 from app.db.session import AsyncSessionLocal
 from app.services.content_release import restore_on_startup
+from app.services.lobby_config import get_lobby_issuer_state
 from app.services.session_content import get_pinned_content_store
 
 
@@ -36,14 +43,17 @@ async def lifespan(app: FastAPI):
     await restore_on_startup(
         settings.published_content_root, AsyncSessionLocal, get_pinned_content_store()
     )
+    # 로비 입장권 발급 설정을 읽어 결과(활성 여부 · 실패 항목)를 로그에 남긴다. 실패해도 본편은 그대로 뜬다.
+    get_lobby_issuer_state()
     yield
 
 
-# FastAPI 애플리케이션 생성
+# FastAPI 애플리케이션 생성. API 문서(/docs · /redoc · /openapi.json)는 운영에서 끈다.
 app = FastAPI(
     title="왜곡 Backend API",
     version="0.1.0",
     lifespan=lifespan,
+    **api_docs_settings(settings.app_env),
 )
 
 
@@ -51,8 +61,12 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    # PATCH — 관리자 부분 수정(문의 상태 · 공지). 운영 웹(www)은 다른 출처(api.k-escape.com)로 부르므로 사전 요청에서 허용해야 한다.
+    # 허용 출처는 settings.cors_origins 그대로(운영은 validate_deployment 가 HTTPS 정확 origin 만 허용) — 넓히지 않는다
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Accept"],
+    # 로비 입장권 429 의 다음 발급까지 남은 초를 게임 화면이 읽을 수 있게 한다(로비 설계 2.2절)
+    expose_headers=["Retry-After"],
 )
 
 
@@ -77,6 +91,8 @@ SENSITIVE_INPUT_FIELDS = {
     "/api/v1/auth/register": ("email", "password", "nickname"),
     "/api/v1/auth/login": ("email", "password"),
     "/api/v1/auth/social-onboarding/complete": ("nickname",),
+    # 회원 탈퇴(11/17) — 비밀번호 재확인 값을 오류 본문에 되돌려 보내지 않는다
+    "/api/v1/me/withdrawal": ("password",),
 }
 
 
@@ -121,6 +137,43 @@ app.include_router(
 )
 app.include_router(
     admin_router,
+    prefix="/api/v1",
+)
+# 1:1 문의 공개 접수 · 사이트 점검 상태(관리자 API v0.3 3단계, 해랑 11/13)
+app.include_router(
+    inquiries_router,
+    prefix="/api/v1",
+)
+app.include_router(
+    site_router,
+    prefix="/api/v1",
+)
+# 공지사항 공개 조회(11/16 세진). 관리자 공지는 admin_router(/api/v1/admin/notices)
+#
+# 최종 경로:
+# /api/v1/notices · /api/v1/notices/{notice_id}
+app.include_router(
+    notices_router,
+    prefix="/api/v1",
+)
+
+
+# 베타 분석 기록 받기(11/11). 게임 진행 · 저장과 따로다.
+#
+# 최종 경로:
+# /api/v1/beta-events
+app.include_router(
+    beta_events_router,
+    prefix="/api/v1",
+)
+
+
+# 로비 입장권 발급 API 등록
+#
+# 최종 경로:
+# /api/v1/lobby/ticket
+app.include_router(
+    lobby_router,
     prefix="/api/v1",
 )
 

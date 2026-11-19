@@ -3,12 +3,14 @@ import type { ReactNode } from "react";
 import DividerArc from "@/components/DividerArc";
 import Stage from "@/components/Stage";
 import Footer from "@/layout/Footer";
+import { useIsMobileLayout } from "@/mobile/layoutMode";
+import MobileHomePage from "@/mobile/MobileHomePage";
 import { SHIFT_BOX_ATTR, useStageScale } from "@/lib/layout";
 import AngamRock from "@/sections/home/AngamRock";
 import BackgroundDecor, { CenterGlow, LargeGlow } from "@/sections/home/BackgroundDecor";
 import CaseFile from "@/sections/home/CaseFile";
 import Closing from "@/sections/home/Closing";
-import HeroPin, { HERO_BOTTOM } from "@/sections/home/HeroPin";
+import HeroPin, { STAGE_PULL_UP } from "@/sections/home/HeroPin";
 import {
   ANGAM_PIN_LENGTH,
   INTRO_CENTER_Y,
@@ -22,16 +24,20 @@ import QuickSignup from "@/sections/home/QuickSignup";
 import RegionSelect from "@/sections/home/RegionSelect";
 import ScenarioCards from "@/sections/home/ScenarioCards";
 
-/** 메인 랜딩. */
+/** 메인 랜딩. 모바일은 따로 그린다 — 무대 배율 · 핀 스크롤 훅이 모바일에서 돌지 않게 진입에서만 가른다. */
 export default function HomePage() {
+  return useIsMobileLayout() ? <MobileHomePage /> : <DesktopHomePage />;
+}
+
+function DesktopHomePage() {
   const scale = useStageScale();
 
   return (
     <>
       {/* 무대 밖이어야 sticky 가 잡힌다. */}
       <HeroPin />
-      {/* 무대를 히어로 높이만큼 끌어올려 핀이 풀리는 순간 소개가 바로 이어지게 한다. */}
-      <div style={{ marginTop: `-${Math.round(HERO_BOTTOM * scale)}px` }}>
+      {/* 무대를 끌어올려 히어로가 끝나는 자리에서 소개가 바로 이어지게 한다. */}
+      <div style={{ marginTop: `-${Math.round(STAGE_PULL_UP * scale)}px` }}>
         <Stage height={7044} bottomGap={0}>
           {/* 칠하는 순서 = 디자인 레이어 순서(아래로 갈수록 앞).
               큰 빛과 가입 폼은 반드시 맨 뒤 — 앞으로 옮기면 렌즈가 빛 위로 떠올라 검은 덩어리가 된다. */}

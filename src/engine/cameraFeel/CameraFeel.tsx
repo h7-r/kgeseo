@@ -4,6 +4,7 @@ import * as THREE from "three";
 
 import { cameraOwner, MAX_FRAME_DELTA } from "@/engine/camera";
 import { useSavedControls } from "@/engine/leva/savedControls";
+import { isMotionReduced } from "@/settings/settings";
 
 import { cameraFeel, smoothNoise } from "./feelState";
 
@@ -46,7 +47,9 @@ export default function CameraFeel({ firstPerson }: { firstPerson: boolean }) {
 
     // ── 충격 ──
     cameraFeel.trauma = Math.max(0, cameraFeel.trauma - dt * 0.8);
-    const shake = values.shake ? cameraFeel.trauma * cameraFeel.trauma * values.shakeStrength : 0;
+    // 「화면 흔들림 줄이기」(설정) — 충격 흔들림 · 걸음 출렁임을 다 끈다(멀미 피드백, 베타 11/13)
+    const isReduced = isMotionReduced();
+    const shake = values.shake && !isReduced ? cameraFeel.trauma * cameraFeel.trauma * values.shakeStrength : 0;
     // 나주의 0.6 배 — 좁은 방에서 같은 각도면 벽이 크게 움직여 멀미가 난다
     fx.yaw = shake * 0.027 * smoothNoise(w.time * 17, 1);
     fx.pitch = shake * 0.021 * smoothNoise(w.time * 19, 2);
@@ -73,7 +76,7 @@ export default function CameraFeel({ firstPerson }: { firstPerson: boolean }) {
     // 멈출 때 출렁임이 뚝 끊기지 않게 무게를 천천히 뺀다
     const target = isWalking ? Math.min(1.4, horizontal / 4) : 0;
     w.weight += (target - w.weight) * (1 - Math.exp(-dt * (isWalking ? 6 : 4)));
-    const amount = w.weight * values.bobAmount;
+    const amount = isReduced ? 0 : w.weight * values.bobAmount;
     fx.lift = -0.05 * amount * (1 - Math.cos(2 * w.phase)) * 0.5;
     fx.side = 0.025 * amount * Math.sin(w.phase);
     fx.roll += 0.0025 * amount * Math.sin(w.phase);

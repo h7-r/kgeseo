@@ -12,6 +12,12 @@ from app.schemas.anonymous_session import (
 )
 from app.services.guest_session import guest_from_request, issue_guest
 from app.services.play_principal import require_play_origin
+from app.services.request_rate_limit import (
+    ANONYMOUS_SESSION_CREATE,
+    SlidingWindowLimiter,
+    enforce_rate_limit,
+    get_request_rate_limiter,
+)
 
 # 익명 세션 관련 API들을 묶는 Router
 router = APIRouter(
@@ -34,12 +40,14 @@ async def create_anonymous_session_endpoint(
     response: Response,
     # 요청마다 사용할 DB 세션을 주입받는다.
     db: AsyncSession = Depends(get_db),
+    limiter: SlidingWindowLimiter = Depends(get_request_rate_limiter),
 ) -> AnonymousSessionCreateResponse:
     """게스트 발급 창구(11/6 PM).
 
     - 유효한 게스트 쿠키: 그 게스트의 익명 세션을 그대로 돌려준다(새로 만들지 않는다).
     - 유효한 게스트 쿠키 없음: 새 익명 세션 + 게스트 세션 + 게스트 쿠키.
     - 로그인 쿠키가 함께 있어도 플레이 소유자는 로그인 계정이다.
+    - 요청 빈도 제한(PR B)은 **새로 만들 때만** 센다. 유효한 게스트의 재사용 조회는 세지도 막지도 않는다.
     """
     response.headers["Cache-Control"] = "no-store"
     guest = await guest_from_request(db, request)
@@ -49,6 +57,7 @@ async def create_anonymous_session_endpoint(
         else None
     )
     if anonymous_session is None:
+        enforce_rate_limit(limiter, ANONYMOUS_SESSION_CREATE, request)
         anonymous_session = await issue_guest(db, response)
 
     # DB에는 UTC 기준이지만 timezone 정보 없이 저장되어 있으므로

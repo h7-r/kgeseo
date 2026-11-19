@@ -23,9 +23,15 @@ export function sectionAnchor(id: SectionId) {
 
 const bySection = (id: SectionId) => `[data-section="${id}"]`;
 
+/** 로그인 여부에 따라 바뀌는 이름. 그 덩이에 가입 칸과 환영 칸이 번갈아 뜬다. */
+interface AccountLabel {
+  signedOut: string;
+  signedIn: string;
+}
+
 interface SectionItem {
   id: string;
-  label: string;
+  label: string | AccountLabel;
   /** 덩이를 찾는 선택자. null 이면 페이지 맨 위. */
   selector: string | null;
   /** 덩이가 화면에 멈춰 있는(핀) 스크롤 거리(설계 px). */
@@ -46,7 +52,8 @@ const SUB_MENUS: Readonly<Record<string, SubMenu>> = {
   [ROUTES.home]: {
     items: [
       { id: "top", label: "홈", selector: null },
-      { id: "intro", label: "소개", selector: bySection("intro") },
+      // 소개 글 옆이 가입 칸(로그인 뒤엔 환영 칸)이라, 눌렀을 때 보이는 것으로 부른다.
+      { id: "intro", label: { signedOut: "로그인", signedIn: "내 정보" }, selector: bySection("intro") },
       { id: "case-file", label: "플레이 방법", selector: bySection("case-file") },
       { id: "angam", label: "앙암바위", selector: bySection("angam"), pinLength: ANGAM_PIN_LENGTH },
       { id: "legend-regions", label: "전설 지역", selector: bySection("legend-regions") },
@@ -70,6 +77,12 @@ const SUB_MENUS: Readonly<Record<string, SubMenu>> = {
     ],
   },
 };
+
+/** 화면에 쓸 이름. */
+export function itemLabel(label: SectionItem["label"], isSignedIn: boolean): string {
+  if (typeof label === "string") return label;
+  return isSignedIn ? label.signedIn : label.signedOut;
+}
 
 export function getSubMenu(path: string): SubMenu | undefined {
   return Object.hasOwn(SUB_MENUS, path) ? SUB_MENUS[path] : undefined;

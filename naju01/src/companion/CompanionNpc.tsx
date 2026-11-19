@@ -1,9 +1,9 @@
 /**
- * 동행 NPC — 플레이어 오른쪽 뒤를 떠서 따라다니고, 겨누면 [E] 로 말을 건다.
+ * 동행 NPC — 플레이어 오른쪽 뒤를 떠서 따라다닌다. 말은 [F] 로 건다(dialogue/ — 계약 v0.4.16 §10-2: E 는 물건 쓰기 전용).
  *
  * 이동 · 추종 · 장애물 우회 · 지형 판정은 프로토타입(prototypes/npc-follow/src/npc)을 그대로 쓴다.
  * 나주 지형 · 소품 충돌 · 플레이어 상자를 미터로 바꾸는 일도 프로토타입의 나주 어댑터가 맡는다.
- * 여기서 하는 일은 나주 씬에 붙이기 — 프레임마다 추종을 한 걸음 진행하고, 겨냥 대상으로 등록하고,
+ * 여기서 하는 일은 나주 씬에 붙이기 — 프레임마다 추종을 한 걸음 진행하고,
  * 텔레포트(낙하 복귀 · 물굴 이동)로 멀어지면 플레이어 곁으로 다시 데려오는 것뿐이다.
  * NajuScene 안(useTerrainMovement 뒤)에 붙어야 같은 프레임의 플레이어 위치를 읽는다.
  */
@@ -24,17 +24,14 @@ import { createCompressedGltfLoader } from "../loaders/compressedGlb";
 import { buildPropColliders } from "../movement/propColliders";
 import type { InstanceGroup } from "../placement/instanceGroups";
 import { UNITS_PER_METER } from "../plan/sitePlan";
-import { getUnderwater, cave, withCave } from "../puzzles/cave/caveState";
-import { isGaugeActive } from "../puzzles/fishTrap/pullGauge";
-import { aimedId, registerInteractable } from "../puzzles/interaction";
-import { isPaperOpenNow } from "../puzzles/ridge/oldPaper";
-import { isCameraFocused } from "../scene/cameraFocus";
+import { cave, withCave } from "../puzzles/cave/caveState";
 import { CORE_BOUNDS, type Terrain } from "../terrain/terrain";
-import { COMPANION_TARGET_ID, cancelCompanionHold, companionPromptLabel, pressCompanion } from "./companionPrompt";
-import { companionDialog, useCompanionDialog } from "./companionRuntime";
+import { companionDialog } from "./companionRuntime";
+import { companionStage, isCompanionCalled } from "./companionStage";
 
 const U = UNITS_PER_METER;
 const cameraForward = new THREE.Vector3();
+const sightEye = new THREE.Vector3();
 /**
  * 보이는 몸의 반지름(m). 충돌 반지름(0.35 m)으로 그리면 눈높이 1.3 m 곁에서 화면 한쪽을 다 가린다 —
  * 판정은 그대로 0.35 m 로 하고, 그림만 작은 빛망울로 둔다.
@@ -86,6 +83,11 @@ function disposeCompanionModel(model: THREE.Object3D) {
   });
 }
 
+/** 걷기 훅이 적은 플레이어 이동 빠르기(m/s) — 플레이어 상자의 speed 는 월드 유닛/s 다 */
+function readWalkSpeed(link: RefObject<AvatarLink>) {
+  return (link.current?.speed ?? 0) / U;
+}
+
 /** 각도 a 에서 b 로 가장 가까운 쪽으로 t 만큼 */
 function turnToward(a: number, b: number, t: number) {
   const diff = Math.atan2(Math.sin(b - a), Math.cos(b - a));
@@ -104,13 +106,8 @@ const COMPANION_CONFIG = {
   maxFrameTime: 0.25,
   /** 다시 세울 자리와 플레이어 발의 높이 차 한도 (m) */
   maxPlaceRise: 1,
-  /** 말을 걸 수 있는 거리 · 겨냥 너그러움 (m) */
-  reach: 3,
-  aimRadius: 0.7,
   /** 장애물 목록은 이만큼 움직였을 때만 다시 모은다 (m) — 소품이 수백 개라 매 프레임 모으지 않는다 */
   collisionRefreshDistance: 1,
-  /** 구역을 확인하는 간격 (s) */
-  zoneCheckInterval: 0.5,
 } as const;
 
 /** 플레이어 곁에 다시 세울 자리 — 오른쪽 뒤 · 왼쪽 뒤 · 뒤 · 옆 순으로 걸을 수 있는 첫 자리 */
@@ -123,6 +120,24 @@ const CATCH_UP_OFFSETS: readonly [side: number, back: number][] = [
   [1.2, -0.8],
   [-1.2, -0.8],
 ];
+
+/**
+ * 앞으로 불렸을 때(첫 인사 클로즈업) 설 자리 — 카메라 정면 기준 (오른쪽, 앞) m. 걸을 수 있고 소품에 안 박히는 첫 자리.
+ * 조금 오른쪽이 먼저 — 정가운데면 화면 아래 대사 상자 위로 몸이 바로 얹혀 답답하다.
+ */
+const STAGE_OFFSETS: readonly [side: number, ahead: number][] = [
+  [0.3, 1.5],
+  [0, 1.5],
+  [-0.3, 1.5],
+  [0.3, 1.1],
+  [0, 1.1],
+];
+/** 불린 자리로 날아가는 빠르기(1/s) — 1초면 거의 닿는다 */
+const STAGE_FLY_RATE = 4;
+/** 이만큼(m) 안이면 불린 자리에 닿았다 */
+const STAGE_ARRIVE = 0.05;
+/** 카메라와 불린 자리 사이를 이 비율 자리마다 확인한다 — 소품 · 땅에 가리면 그 자리는 안 쓴다 */
+const SIGHT_SAMPLES = [0.2, 0.4, 0.6, 0.8] as const;
 
 interface CompanionNpcProps {
   playerRef: RefObject<AvatarLink>;
@@ -155,8 +170,6 @@ export default function CompanionNpc({ playerRef, terrain, instanceGroups }: Com
       if (loaded) disposeCompanionModel(loaded);
     };
   }, []);
-  const dialog = useCompanionDialog();
-  const label = companionPromptLabel(dialog);
 
   // 플레이어 이동과 같은 지형(물굴 포함) · 같은 소품 충돌. 코어 밖은 물굴이 열렸을 때 그 안만 걷는다
   const world = useMemo(
@@ -177,39 +190,15 @@ export default function CompanionNpc({ playerRef, terrain, instanceGroups }: Com
   const lastPlayer = useRef<THREE.Vector3 | null>(null);
   const frames = useRef(0);
   const collision = useRef<{ world: CollisionWorld; x: number; z: number } | null>(null);
-  const zone = useRef<{ code: string | null; checkedAt: number }>({ code: null, checkedAt: 0 });
+  /** 앞으로 불려 날아갈 자리(m) — 불리지 않았으면 null */
+  const stageSpot = useRef<THREE.Vector3 | null>(null);
+  /** 마지막으로 받아들인 「보낼 자리」 — 같은 요청을 두 번 받아들이지 않는다 */
+  const sentSpot = useRef<{ x: number; z: number } | null>(null);
 
-  // 말하는 동안(기다림 · 자막)은 그 자리에 멈춘다 — 프로토타입 행동 상태 Interact
-  const isTalking = dialog.waiting !== null || dialog.line !== null;
-  useEffect(() => {
-    behavior.dispatch({ type: isTalking ? "START_INTERACT" : "END_INTERACT", source: "dialog" });
-  }, [behavior, isTalking]);
+  // 말하는 동안(기다림 · 자막)에도 따라온다 — 예전엔 그 자리에 멈춰(프로토타입 행동 상태 Interact) 돌아서거나 되돌아오는
+  // 플레이어 눈앞 · 길에 남았다(미르 11/11 「동행이 길을 막는다」). 말은 화면 아래 대화창에 뜨니 멈춰 설 까닭이 없다
 
-  // 겨냥 대상 — 문구가 바뀌면 다시 등록한다(겨냥은 대상이 바뀔 때만 알약을 다시 그린다)
-  useEffect(
-    () =>
-      registerInteractable({
-        id: COMPANION_TARGET_ID,
-        position: worldPosition.current,
-        label,
-        radius: COMPANION_CONFIG.aimRadius * U,
-        reach: COMPANION_CONFIG.reach * U,
-        // 퍼즐 물건과 한 시야에 겹치면 그쪽에 양보한다(일반 대상 점수는 2 를 넘지 않는다)
-        aimPenalty: 2,
-        // 손에 든 물건은 내려놓지 않고 든 채로 말을 건다
-        keepHand: true,
-        enabled: () =>
-          companionDialog.getState().isEnabled &&
-          !isGaugeActive() &&
-          !getUnderwater() &&
-          !isPaperOpenNow() &&
-          !isCameraFocused(),
-        use: () => pressCompanion(() => aimedId() === COMPANION_TARGET_ID),
-        highlight: () => bodyRef.current,
-      }),
-    [label],
-  );
-  useEffect(() => cancelCompanionHold, []);
+  // 겨냥 대상 등록(E 로 말 걸기 · E 꾹 힌트)은 뺐다 — 계약 v0.4.16 §10-2: 말 거는 키는 F 하나, E 는 물건 쓰기 전용
 
   /**
    * 플레이어 오른쪽 뒤에 새로 세운다 — 처음 · 텔레포트 · 너무 멀어졌을 때.
@@ -241,6 +230,44 @@ export default function CompanionNpc({ playerRef, terrain, instanceGroups }: Com
     return next;
   }
 
+  /**
+   * 카메라 앞 빈자리(m, 몸 가운데 높이) — 첫 인사 때 화면 안에 들어와 말하게.
+   * 걸을 수 있는 땅 · 발과 높이차 1 m 안 · 소품에 안 박힘 · 카메라와 사이에 소품이나 땅이 없는 첫 자리. 없으면 null(대사만).
+   * 날아오는 길은 따지지 않는다 — 떠다니는 정령이 1초 남짓 소품을 스쳐 지나가는 것은 그대로 둔다.
+   */
+  function pickStageSpot(target: FollowTargetPose, eye: THREE.Vector3): THREE.Vector3 | null {
+    const { x, y: footY, z } = target.position;
+    const { yaw } = target;
+    const forward = { x: Math.sin(yaw), z: Math.cos(yaw) };
+    const right = { x: -Math.cos(yaw), z: Math.sin(yaw) };
+    const obstacles = world.collisionNear(x, z);
+    const at = ([side, ahead]: readonly [number, number]) => ({
+      x: x + right.x * side + forward.x * ahead,
+      z: z + right.z * side + forward.z * ahead,
+    });
+    const isInSight = (cx: number, cy: number, cz: number) =>
+      SIGHT_SAMPLES.every((t) => {
+        const px = eye.x + (cx - eye.x) * t;
+        const py = eye.y + (cy - eye.y) * t;
+        const pz = eye.z + (cz - eye.z) * t;
+        return world.terrain.sample(px, pz).y < py - 0.05 && isPointClear(obstacles, px, pz, py, 0.05);
+      });
+    for (const offset of STAGE_OFFSETS) {
+      const candidate = at(offset);
+      const ground = world.terrain.sample(candidate.x, candidate.z);
+      const y = ground.y + HOVER_CONFIG.baseHeight;
+      if (
+        ground.walkable &&
+        Math.abs(ground.y - footY) <= COMPANION_CONFIG.maxPlaceRise &&
+        isPointClear(obstacles, candidate.x, candidate.z, y) &&
+        isInSight(candidate.x, y, candidate.z)
+      ) {
+        return new THREE.Vector3(candidate.x, y, candidate.z);
+      }
+    }
+    return null;
+  }
+
   useFrame(({ clock, camera }, delta) => {
     const target = world.readPlayer(pose.current);
     if (!target) return;
@@ -260,6 +287,9 @@ export default function CompanionNpc({ playerRef, terrain, instanceGroups }: Com
     const jumped =
       lastPlayer.current !== null && lastPlayer.current.distanceTo(target.position) > COMPANION_CONFIG.teleportDistance;
     (lastPlayer.current ??= new THREE.Vector3()).copy(target.position);
+    // 걷는 빠르기(m/s)는 걷기 훅이 적은 실제 이동 빠르기를 넘긴다(눈앞 길목 판정이 쓴다) — 위치 차이로 어림하면
+    // 이 훅이 걷기 훅보다 먼저 돌아 한 프레임 늦은 위치를 읽고, 아래서 한 프레임을 여러 걸음으로 나눠 값이 출렁였다(Codex 리뷰)
+    target.speed = jumped ? 0 : readWalkSpeed(playerRef);
     let state = follow.current;
     const distance = state ? Math.hypot(state.position.x - target.position.x, state.position.z - target.position.z) : 0;
     if (!state || jumped || distance > COMPANION_CONFIG.catchUpDistance) {
@@ -278,12 +308,44 @@ export default function CompanionNpc({ playerRef, terrain, instanceGroups }: Com
         z: state.position.z,
       };
     }
-    const isFollowing = behavior.getState().current === "Follow";
-    // 한 걸음은 0.05 s 까지(프로토타입과 같다 — 길게 뛰면 벽을 지나친다). 느린 PC(프레임이 길다)에서도 처지지 않게
-    // 쪼개 여러 걸음 걷되, 탭을 다녀온 긴 공백은 순간이동하지 않게 한 프레임에 0.25 s 까지만 쓴다.
-    for (let left = Math.min(delta, COMPANION_CONFIG.maxFrameTime); left > 1e-6; left -= COMPANION_CONFIG.maxStep) {
-      const step = Math.min(left, COMPANION_CONFIG.maxStep);
-      advanceFollow(state, target, step, collision.current!.world, isFollowing, world.terrain);
+    if (companionStage.status === "picking") {
+      const picked = pickStageSpot(target, sightEye.copy(camera.position).divideScalar(U));
+      stageSpot.current = picked;
+      companionStage.spot = picked ? world.toWorld(picked, new THREE.Vector3()) : null;
+      companionStage.status = picked ? "flying" : "failed";
+    }
+    if (!companionStage.sent) sentSpot.current = null;
+    if (companionStage.status === "flying" && companionStage.sent && sentSpot.current !== companionStage.sent) {
+      // 새로 보낸 자리 — 앞서 불려 가 있던 자리가 남아 있어도 이쪽으로 바꾼다(Codex 리뷰 4)
+      sentSpot.current = companionStage.sent;
+      // 정해 준 자리로 — 높이는 지금 떠 있는 높이 그대로
+      stageSpot.current = new THREE.Vector3(companionStage.sent.x, state.position.y, companionStage.sent.z);
+      companionStage.spot = world.toWorld(stageSpot.current, new THREE.Vector3());
+    }
+    if (isCompanionCalled() && stageSpot.current) {
+      // 앞으로 불렸다 — 고른 자리로 날아가 멈춘다(추종은 쉰다). 플레이어는 화면 고정으로 묶여 있다
+      state.position.lerp(
+        stageSpot.current,
+        1 - Math.exp(-Math.min(delta, COMPANION_CONFIG.maxFrameTime) * STAGE_FLY_RATE),
+      );
+      state.velocity.set(0, 0, 0);
+      if (companionStage.status === "flying" && state.position.distanceTo(stageSpot.current) < STAGE_ARRIVE) {
+        companionStage.status = "arrived";
+      }
+    } else {
+      if (stageSpot.current) {
+        // 풀렸다 — 지금 자리에서 다시 따라온다(날아온 동안의 추종 상태는 버린다)
+        stageSpot.current = null;
+        state = createFollowState(state.position);
+        follow.current = state;
+      }
+      const isFollowing = behavior.getState().current === "Follow";
+      // 한 걸음은 0.05 s 까지(프로토타입과 같다 — 길게 뛰면 벽을 지나친다). 느린 PC(프레임이 길다)에서도 처지지 않게
+      // 쪼개 여러 걸음 걷되, 탭을 다녀온 긴 공백은 순간이동하지 않게 한 프레임에 0.25 s 까지만 쓴다.
+      for (let left = Math.min(delta, COMPANION_CONFIG.maxFrameTime); left > 1e-6; left -= COMPANION_CONFIG.maxStep) {
+        const step = Math.min(left, COMPANION_CONFIG.maxStep);
+        advanceFollow(state, target, step, collision.current!.world, isFollowing, world.terrain);
+      }
     }
 
     world.toWorld(state.position, worldPosition.current);
@@ -304,17 +366,7 @@ export default function CompanionNpc({ playerRef, terrain, instanceGroups }: Com
       body.rotation.y = facing.current;
     }
 
-    // 구역에 처음 들어선 순간 — 끼어들어도 되는지 서버에 한 번 묻는다(주기 호출 아님)
-    zone.current.checkedAt += delta;
-    if (zone.current.checkedAt >= COMPANION_CONFIG.zoneCheckInterval) {
-      zone.current.checkedAt = 0;
-      const code = terrain.groundAt(target.position.x, target.position.z).zone ?? null;
-      const previous = zone.current.code;
-      if (code && code !== previous) {
-        zone.current.code = code;
-        if (previous !== null) void companionDialog.autoTurn();
-      }
-    }
+    // 구역 진입 auto 턴은 dialogue/companionBridge 한 길로 옮겼다 — 상황 감지와 같은 자리에서 하나씩만 보낸다(소개 중엔 안 보낸다)
   });
 
   useEffect(() => {
@@ -345,15 +397,13 @@ export default function CompanionNpc({ playerRef, terrain, instanceGroups }: Com
               }
             : null,
           walkable: state ? world.terrain.sample(state.position.x, state.position.z).walkable : null,
-          zone: zone.current.code,
           dialog: companionDialog.getState(),
         };
       },
     });
   }, [world, behavior]);
 
-  // 겨냥 빛남(interaction.updateAimGlow)은 몸 묶음 전체(모델 또는 빛망울)에 걸린다.
-  // 빛망울 둘레의 흐린 빛무리는 그림자 · 겨냥에 끼지 않는다
+  // 빛망울 둘레의 흐린 빛무리는 그림자에 끼지 않는다(겨냥 대상 등록은 뺐다 — §10-2)
   return (
     <group ref={bodyRef} name="companion-npc">
       {model ? (

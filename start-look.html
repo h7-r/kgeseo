@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>캐릭터 시작 모습 정하기</title>
+    <style>
+      html, body, #root { margin: 0; width: 100%; height: 100%; background: #02040a; }
+      body { overflow: hidden; }
+    </style>
+  </head>
+  <body>
+    <!-- 캐릭터 생성 화면에서 남성 · 여성을 처음 골랐을 때 보여 줄 모습을 미르가 직접 정해 저장하는 화면(개발 서버 전용, 11/10).
+         저장 창구는 본편 개발 서버(vite.config.ts 의 startLookSavePlugin)에만 있다 → http://localhost:5173/start-look.html
+         저장하면 naju01/src/characterCreation/startLooks.json 이 바뀐다 — 커밋해야 모두에게 반영된다.
+         vite build 는 index.html 만 묶으므로 배포본에 들어가지 않는다. -->
+    <div id="root"></div>
+    <script type="module" src="/src/dev/startLook/main.tsx"></script>
+  </body>
+</html>

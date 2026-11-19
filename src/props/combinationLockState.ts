@@ -99,6 +99,12 @@ export function registerLock(id: string, { digits, answer, glyphs = "0123456789"
 
 export const getLockState = (id: string | null | undefined) => (id ? (locks.get(id) ?? null) : null);
 
+/** id 를 모를 때(밸브 막힘 시간 — 자물쇠 밖에서 잰다) 조건에 맞는 첫 자물쇠 상태 */
+export function findLockState(test: (id: string) => boolean) {
+  for (const [id, state] of locks) if (test(id)) return state;
+  return null;
+}
+
 /** 등록돼 있고 아직 안 풀렸으면 잠긴 것이다. */
 export const isLocked = (id: string | null | undefined) => {
   const lock = getLockState(id);
@@ -136,6 +142,15 @@ export function leaveLockControl() {
   if (!activeControl || activeControl.phase === "leaving") return;
   activeControl = { id: activeControl.id, phase: "leaving" };
   signal.notify();
+}
+
+/**
+ * 그 자물쇠를 아직 만지고 있을 때만 나간다 — 늦게 온 서버 판정 · 정답 뒤 타이머가 그사이 ESC 로 나갔다가 새로 연
+ * 다른 자물쇠 조작을 끝내지 않게(튜토피드백 12회차 Codex)
+ */
+export function leaveLockControlIf(id: string) {
+  if (activeControl?.id !== id || activeControl.phase !== "active") return;
+  leaveLockControl();
 }
 
 export function endLockControl() {
@@ -180,12 +195,17 @@ export function turnLockDigit(id: string, direction: number) {
 }
 
 /** 지금 맞춰 놓은 번호가 정답인가. 맞으면 풀린 채로 남는다. */
-export function tryLockAnswer(id: string) {
+/**
+ * 로컬 판정. digits 를 주면 그 글자로 판다 — 서버 판정이 실패해 나중에 대신 팔 때는 「낸 순간」의 글자를 넘겨야
+ * 그사이 다이얼을 정답으로 돌리기만 해도 열리지 않는다(튜토피드백 15회차 Codex).
+ */
+export function tryLockAnswer(id: string, digits?: readonly number[]) {
   const lock = locks.get(id);
   if (!lock) return false;
   // 정답이 없으면 아무 번호나 통과시키지 않는다 — 문이 그냥 열려 버린다.
   if (lock.answer.length === 0) return false;
-  const correct = lock.answer.length === lock.digits.length && lock.answer.every((v, i) => v === lock.digits[i]);
+  const judged = digits ?? lock.digits;
+  const correct = lock.answer.length === judged.length && lock.answer.every((v, i) => v === judged[i]);
   if (correct && !lock.unlocked) {
     locks.set(id, { ...lock, unlocked: true, openInstantly: false });
     playSound("lockOpen", { volume: 0.9 });

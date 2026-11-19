@@ -56,6 +56,14 @@ function MapTag({ destination, isLinked, onLink, onPress }: MapTagProps) {
       <circle className="dest-map-tag__ping" cx={x} cy={y} r={7} />
       <circle className="dest-map-tag__dot" cx={x} cy={y} r={isOpen ? 5 : 3.5} />
       <rect className="dest-map-tag__box" x={tag.x} y={tag.y} width={tag.w} height={tag.h} rx={tag.h / 2} />
+      {/* 누르는 자리만 위아래로 넓힌다 — 태블릿에서 이름표가 34px 라 손가락에 작았다(보이는 모양은 그대로) */}
+      <rect
+        className="dest-map-tag__hit"
+        x={tag.x - 6}
+        y={tag.y - tag.h * 0.25}
+        width={tag.w + 12}
+        height={tag.h * 1.5}
+      />
       {isOpen ? (
         <text className="dest-map-tag__name" x={tag.x + tag.w / 2} y={anchorY + 1}>
           {name}

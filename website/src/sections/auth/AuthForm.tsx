@@ -22,6 +22,8 @@ import {
 } from "@/hooks/useForm";
 import { FONT } from "@/lib/style";
 import { suggestEmailTypo, type FieldName } from "@/lib/validation";
+import { isMobileLayout } from "@/mobile/layoutMode";
+import { SIGNED_UP_STATE } from "@/mobile/signedUpState";
 import { QUERY, ROUTES, safeNextPath, withQuery, type RoutePath } from "@/navigation/routes";
 import type { AuthMode } from "@/pages/AuthPage";
 import { authenticate, signUp } from "@/services/account/authApi";
@@ -98,6 +100,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
           } else if (mode === "login") {
             setAlertMessage(describeBlockedSubmit("로그인", fieldErrors));
           }
+          focusFirstInvalidField();
           return;
         }
 
@@ -115,7 +118,10 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
             consents: consent.consents,
           });
           if (!result.ok) {
+            // 「이미 가입된 이메일」처럼 칸이 분명하면 그 칸 옆에도 띄운다 — 아래 안내만 보고 어느 칸인지 찾게 하지 않는다
+            if (result.field) form.setRemoteError(result.field, result.reason);
             setAlertMessage(result.reason);
+            focusFirstInvalidField();
             return;
           }
           form.clearFields(["password", "passwordConfirm"]);
@@ -152,6 +158,11 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
           }
           clearResetState();
         }
+        // 휴대폰에서 가입을 막 마쳤으면 게임으로 바로 넘기지 않고 웹(홈)에 둔다 — 가로로 돌리고 「게임 시작」을 직접 누르게(11/7 미르)
+        if (mode === "signup" && returnTo === ROUTES.play && isMobileLayout()) {
+          navigate(ROUTES.home, { replace: true, state: SIGNED_UP_STATE });
+          return;
+        }
         navigate((mode === "login" || mode === "signup") && returnTo ? returnTo : config.next);
       } catch {
         setAlertMessage(STORAGE_ERROR_MESSAGE[mode]);
@@ -180,7 +191,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
       }}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "8px", paddingBottom: "16px", width: "100%" }}>
-        <div style={titleStyle}>{config.title}</div>
+        <h1 style={titleStyle}>{config.title}</h1>
         <div style={subtitleStyle}>{config.subtitle}</div>
       </div>
 
@@ -192,6 +203,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
               label="닉네임"
               placeholder="이름"
               grow
+              autoFocus
               autoComplete="nickname"
               {...bind("nickname")}
             />
@@ -216,6 +228,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
           placeholder="explorer@escape.kr"
           dimmed={mode === "resetPassword"}
           autoComplete={mode === "login" ? "username" : "email"}
+          autoFocus={mode === "login" || mode === "forgotPassword" || mode === "verifyCode"}
           inputMode="email"
           typo={typo}
           onFixTypo={() => form.setField("email", typo.replace(/^혹시 | 인가요\?$/g, ""))}
@@ -286,6 +299,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
               label="새 비밀번호"
               placeholder="8자 이상"
               type="password"
+              autoFocus
               autoComplete="new-password"
               {...bind("newPassword")}
             />
@@ -356,7 +370,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
       )}
 
       {/* 화면끼리 이어지는 자리. 회원가입 화면의 「로그인」만 Regular 이다(디자인 그대로). */}
-      <div style={footerStyle}>
+      <div className="auth-form-footer" style={footerStyle}>
         {mode === "login" && (
           <>
             <span style={footerPromptStyle}>아직 계정이 없으신가요?</span>
@@ -382,6 +396,13 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
       </div>
     </div>
   );
+}
+
+/** 막힌 제출 뒤 첫 틀린 칸(aria-invalid)에 커서를 둔다. 칸 오류 표시가 렌더된 다음 프레임에 */
+function focusFirstInvalidField() {
+  requestAnimationFrame(() => {
+    document.querySelector<HTMLInputElement>('input[aria-invalid="true"]')?.focus();
+  });
 }
 
 // 비밀번호 찾기는 백엔드가 준비될 때까지 누를 수 없는 「준비 중」 표시로 둔다
@@ -421,7 +442,9 @@ const outerShadowStyle: CSSProperties = { filter: "drop-shadow(0px 8px 16px rgba
 
 const innerShadowStyle: CSSProperties = { overflow: "hidden", boxShadow: "0px 8px 32px 0px rgba(47,62,112,0.13)" };
 
+/** 화면 제목 — 쪽마다 h1 하나(보조 기술 · 검사용). 모양은 예전 div 그대로 */
 const titleStyle: CSSProperties = {
+  margin: 0,
   fontFamily: FONT.display,
   fontWeight: 700,
   fontSize: "36px",

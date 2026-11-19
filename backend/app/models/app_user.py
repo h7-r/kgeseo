@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import CHAR, VARCHAR, Index
+from sqlalchemy import CHAR, VARCHAR, Boolean, Index, false
 from sqlalchemy.dialects.mysql import DATETIME
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -61,6 +61,30 @@ class AppUser(Base):
         server_default="user",
     )
 
+    # 팀 테스트 계정 표시(미르 11/13). 관리자 통계의 기본값(include_internal=false)에서 관리자와 함께 뺀다.
+    # 서버 명령(scripts/set_test_account.py)으로만 바꾼다 — 일반 API 는 없다.
+    is_test: Mapped[bool] = mapped_column(
+        Boolean(create_constraint=False),
+        nullable=False,
+        default=False,
+        server_default=false(),
+    )
+    # 최근 로그인 = 마지막으로 새 로그인 세션을 발급한 시각(UTC naive, 미르 11/16). 마지막 활동 시각이 아니다.
+    # 갱신은 user_session.start_session 한 곳(세션 INSERT 와 같은 트랜잭션, 더 최근 값만). 쿠키 재접속 · /me · 로그아웃 ·
+    # 로그인 실패 · 소셜 가입 미완료는 바꾸지 않는다. 프로필 updated_at 은 함께 바꾸지 않는다. 기존 회원은 migration 이
+    # MAX(user_sessions.created_at) 로 한 번 채웠다(세션이 없던 회원은 NULL).
+    last_login_at: Mapped[datetime | None] = mapped_column(
+        DATETIME(fsp=6),
+        nullable=True,
+    )
+
+    # 회원 탈퇴 시각(회원 탈퇴 Phase 1, 11/17). NULL = 회원. 값이 있으면 탈퇴한 계정이다 — 행은 남기고(플레이 · 베타 기록의
+    # 가명 키) 이메일 · 닉네임은 무작위 값, 지역 · 동의 · 최근 로그인은 NULL 로 바꾼다(`services/account_withdrawal.py`).
+    # 로그인 세션 조회 · 새 세션 발급 · 현재 회원 수 · 회원 목록에서 뺀다. role · is_test 는 그대로 둔다(통계 내부 계정 판정).
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DATETIME(fsp=6),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DATETIME(fsp=6),
         nullable=False,

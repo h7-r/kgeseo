@@ -14,6 +14,7 @@ import { useEffect, useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
 import { createRandom } from "@/engine/random";
 import { assetUrl } from "@/config/env";
+import { bakeDressers, sceneChangeListeners } from "../../puzzles/lightBudgetEnforce";
 import { useFrame, useThree } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
@@ -451,6 +452,22 @@ export default function ImmersionLayer({ terrain, playerRef, gateSpots, active =
     if (gateSpots) audio.buildGates(gateSpots);
   }, [gateSpots]);
   const plantScanAt = useRef(-99);
+  // 물체가 붙은 그 프레임(그리기 직전) · 셰이더를 미리 굽기 직전에도 덧댄다 — 3초마다만 찾으면 새 재질이 덧대기 전에 한 번,
+  // 덧댄 뒤에 한 번 두 번 구워진다. 시작 카드처럼 프레임이 멈춘 동안에는 아래 useFrame 이 아예 안 돈다
+  useEffect(() => {
+    const dress = (root: THREE.Object3D) => {
+      findPlants(root);
+      findWetTargets(root);
+      fixOutlines(root);
+    };
+    const scan = () => dress(scene);
+    sceneChangeListeners.add(scan);
+    bakeDressers.add(dress);
+    return () => {
+      sceneChangeListeners.delete(scan);
+      bakeDressers.delete(dress);
+    };
+  }, [scene]);
   useFrame((st, dt) => {
     if (stage.time - plantScanAt.current > 3) {
       plantScanAt.current = stage.time;

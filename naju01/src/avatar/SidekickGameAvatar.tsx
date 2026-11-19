@@ -761,6 +761,8 @@ function SidekickGameAvatar({
       const attackClip = state.attackMotion ? prepared.clipFor(state.attackMotion) : null;
       attackEnd.current = now + THREE.MathUtils.clamp((attackClip?.duration ?? 0.62) / 1.2, 0.45, 0.82);
     }
+    // 주먹 도중 걷기 시작하면 끊는다(useMotionPlayer 와 같은 규칙)
+    if (state.moving && now < attackEnd.current) attackEnd.current = 0;
     let next = config.motion;
     if (FORCED_MOTION) next = FORCED_MOTION;
     if (!next || next === AUTO_MOTION) {

@@ -2,6 +2,7 @@ import { useId, useMemo, type CSSProperties } from "react";
 
 import type { AvatarGender } from "../avatar/sidekickOptions";
 import { computeNearestTickIndex, computeTickValues, type BodyField, type BodyFieldKey } from "./appearanceData";
+import { useIsTouchSized } from "./compactLayout";
 import { COLORS, FONTS, SPACING, smallTextStyle, tileStyle } from "./styles";
 
 // 「아주 작게 · 작게 · 기본」 대신 와닿는 말로. 다섯 칸은 computeTickValues 순서와 같다(기본이 한쪽 끝인 항목은 첫 칸이 기본).
@@ -13,7 +14,8 @@ const TICK_LABELS: Record<BodyFieldKey, readonly string[]> = {
   footScale: ["230mm 이하", "245mm", "260mm", "275mm", "290mm 이상"],
   shoulderWidth: ["좁은 어깨", "조금 좁음", "보통", "조금 넓음", "넓은 어깨"],
   hipWidth: ["좁은 골반", "조금 좁음", "보통", "조금 넓음", "넓은 골반"],
-  armLength: ["짧은 팔", "조금 짧음", "보통", "조금 긺", "긴 팔"],
+  // 기본이 가장 짧은 쪽 끝이라 한 방향으로만 늘어난다(머리 크기와 같다).
+  armLength: ["보통", "조금 긺", "긺", "많이 긺", "아주 긴 팔"],
   legLength: ["짧은 다리", "조금 짧음", "보통", "조금 긺", "긴 다리"],
   armThickness: ["아주 가늚", "가늚", "보통", "굵음", "아주 굵음"],
   legThickness: ["아주 가늚", "가늚", "보통", "굵음", "아주 굵음"],
@@ -34,7 +36,7 @@ const valueBadgeStyle: CSSProperties = {
   borderRadius: 6,
   background: "rgba(255,255,255,0.10)",
   color: "#FFFFFF",
-  font: `600 12.5px/1 ${FONTS.body}`,
+  font: `600 13px/1 ${FONTS.body}`,
 };
 const stepButtonStyle: CSSProperties = {
   ...tileStyle,
@@ -68,6 +70,11 @@ export default function TickSlider({
   onReset,
 }: TickSliderProps) {
   const sliderId = useId();
+  // 휴대폰 가로 — −/＋/초기화 44px(예전 26), 슬라이더 입력 44px · 트랙 6 · 손잡이 24(styles 의 .is-compact), 늘 선명하게
+  const isCompact = useIsTouchSized(); // 손가락 기기(휴대폰 · 태블릿)
+  const stepStyle = isCompact
+    ? { ...stepButtonStyle, width: 44, height: 44, font: `600 18px/1 ${FONTS.body}` }
+    : stepButtonStyle;
   const ticks = useMemo(() => computeTickValues(field, gender), [field, gender]);
   const tickIndex = computeNearestTickIndex(ticks, value);
   const getTickLabel = (i: number) => TICK_LABELS[field.key]?.[i] ?? ticks[i]?.label ?? "";
@@ -77,7 +84,10 @@ export default function TickSlider({
     onChange(ticks[i].value, isHistoryStep);
   };
   return (
-    <div className="tick-slider" style={sliderCardStyle}>
+    <div
+      className="tick-slider"
+      style={isCompact ? { ...sliderCardStyle, gap: 6, padding: "10px 10px 8px" } : sliderCardStyle}
+    >
       <div style={{ display: "flex", alignItems: "center", gap: SPACING.s }}>
         <label htmlFor={sliderId} style={{ font: `600 14px/1.3 ${FONTS.body}`, color: COLORS.text }}>
           {field.label}
@@ -89,7 +99,7 @@ export default function TickSlider({
           <button
             type="button"
             aria-label={`${field.label} 한 칸 줄이기`}
-            style={stepButtonStyle}
+            style={stepStyle}
             onClick={() => moveToTick(tickIndex - 1, true)}
           >
             −
@@ -97,12 +107,12 @@ export default function TickSlider({
           <button
             type="button"
             aria-label={`${field.label} 한 칸 늘리기`}
-            style={stepButtonStyle}
+            style={stepStyle}
             onClick={() => moveToTick(tickIndex + 1, true)}
           >
             ＋
           </button>
-          <button type="button" aria-label={`${field.label} 초기화`} style={stepButtonStyle} onClick={onReset}>
+          <button type="button" aria-label={`${field.label} 초기화`} style={stepStyle} onClick={onReset}>
             ↺
           </button>
         </span>
@@ -130,7 +140,14 @@ export default function TickSlider({
         ))}
       </datalist>
       {/* 양 끝 말 — 어느 쪽으로 밀면 무엇이 되나가 손대기 전에 읽힌다 */}
-      <div style={{ display: "flex", justifyContent: "space-between", ...smallTextStyle }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          ...smallTextStyle,
+          ...(isCompact ? { fontSize: 13 } : null),
+        }}
+      >
         <span>{getTickLabel(0)}</span>
         <span>{getTickLabel(ticks.length - 1)}</span>
       </div>

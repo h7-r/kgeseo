@@ -39,12 +39,12 @@ const endBoxStyle: CSSProperties = {
   background: `#01040a url(${AMBIENT_STILL_URL}) center / cover no-repeat`,
 };
 
-// 가장자리를 눌러 빨려드는 느낌을 키우고 흰 글자를 읽히게 한다.
+// 영상 전체에 옅은 남색 막을 덮어 밝은 장면의 눈부심을 줄이고, 가장자리를 눌러 빨려드는 느낌 · 흰 글자 대비를 키운다.
 const shadeStyle: CSSProperties = {
   position: "absolute",
   inset: 0,
   zIndex: 0,
   pointerEvents: "none",
   background:
-    "radial-gradient(120% 90% at 50% 42%, rgba(67,88,127,0) 34%, rgba(16,25,56,0.5) 78%, rgba(11,16,40,0.78) 100%)",
+    "radial-gradient(120% 90% at 50% 42%, rgba(67,88,127,0) 34%, rgba(16,25,56,0.5) 78%, rgba(11,16,40,0.78) 100%), rgba(4,8,22,0.38)",
 };

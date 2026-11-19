@@ -1,3 +1,5 @@
+import { useIsMobileLayout } from "@/mobile/layoutMode";
+import { MobileSupportPage } from "@/mobile/MobilePages";
 import Stage from "@/components/Stage";
 import { SUPPORT_TABS, type SupportTabId } from "@/data/support";
 import { useQueryTab } from "@/hooks/useQueryTab";
@@ -17,7 +19,7 @@ const CONTENT_HEIGHTS: Record<SupportTabId, number> = {
 };
 
 /** 고객센터 페이지. nav + 머리(230) + 탭(100) + 내용 + 푸터 */
-export default function SupportPage() {
+function DesktopSupportPage() {
   // 탭을 주소에 두어 머리띠 아래 하위 메뉴도 탭을 바꿀 수 있다.
   const [tab, setTab] = useQueryTab(SUPPORT_TABS, "notices");
   const panelHeight = CONTENT_HEIGHTS[tab] + SUPPORT_CONTENT_PADDING.top + SUPPORT_CONTENT_PADDING.bottom;
@@ -37,4 +39,9 @@ export default function SupportPage() {
       <PageFooter />
     </Stage>
   );
+}
+
+/** 모바일은 따로 그린다 — 데스크톱판의 무대 배율 훅이 모바일에서 돌지 않게 진입에서만 가른다(src/mobile/MobilePages) */
+export default function SupportPage() {
+  return useIsMobileLayout() ? <MobileSupportPage /> : <DesktopSupportPage />;
 }

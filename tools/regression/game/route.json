@@ -16,7 +16,7 @@
       "op": "checkpoint",
       "name": "01-initial-load",
       "desc": "첫 화면 — 비상계단 앞 3인칭, 튜토리얼 1/8 안내판",
-      "expect": ["조작 익히기 1 / 8", "비상계단 앞", "⚙ 설정 [P]"]
+      "expect": ["조작 익히기 1 / 8", "비상계단 앞", "설정 [P]"]
     },
     {
       "op": "key",
@@ -70,7 +70,7 @@
       "op": "checkpoint",
       "name": "05-tut-F1-hidden",
       "desc": "F1 — 튜토리얼 안내판 접힘",
-      "expect": ["[F1] 안내 보기"]
+      "expect": ["안내 보기"]
     },
     {
       "op": "key",
@@ -549,6 +549,12 @@
       "ms": 2500
     },
     {
+      "op": "waitText",
+      "text": "열렸다",
+      "absent": true,
+      "maxMs": 8000
+    },
+    {
       "op": "checkpoint",
       "name": "22-breaker-lock-exited",
       "desc": "자물쇠 조작을 마치고 1인칭으로 복귀 — 퍼즐 4/4 안내",
@@ -854,9 +860,9 @@
     },
     {
       "op": "checkpoint",
-      "name": "31-third-person-at-breaker",
-      "desc": "V — 3인칭(차단기함 앞)",
-      "expect": ["[V] 1인칭"]
+      "name": "31-third-person-blocked-at-breaker",
+      "desc": "V — 튜토리얼 공간에선 3인칭 전환이 막혀 안내만 뜬다(로비에서만 가능)",
+      "expect": ["로비(수사 본부) 공간에서만"]
     },
     {
       "op": "key",
@@ -1320,9 +1326,13 @@
       "expect": []
     },
     {
+      "op": "run",
+      "ms": 3500
+    },
+    {
       "op": "mouse",
-      "dx": 1065,
-      "dy": -202,
+      "dx": -169,
+      "dy": 64,
       "after": 50
     },
     {
@@ -1332,31 +1342,15 @@
       "after": 300
     },
     {
-      "op": "mouse",
-      "dx": 275,
-      "dy": -92,
-      "after": 50
-    },
-    {
       "op": "checkpoint",
       "name": "35-test-panel-picture",
-      "desc": "그림 「막차」 와 객차 조명 시험반",
+      "desc": "그림 「막차」 와 객차 조명 시험반(분리수거 뒤 카메라가 그림을 본 채 잠기는 2.5초를 기다린 뒤 걸어옴)",
       "expect": []
     },
     {
       "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
       "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -24,
-      "dy": 76,
+      "dy": -5,
       "after": 50
     },
     {
@@ -1370,18 +1364,8 @@
     },
     {
       "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 98,
-      "dy": 0,
+      "dx": 107,
+      "dy": -1,
       "after": 50
     },
     {
@@ -1395,17 +1379,7 @@
     },
     {
       "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 48,
+      "dx": 58,
       "dy": 0,
       "after": 50
     },
@@ -1430,42 +1404,182 @@
     },
     {
       "op": "mouse",
-      "dx": -894,
-      "dy": 16,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW", "ShiftLeft"],
-      "ms": 1400,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": -4,
+      "dx": -677,
       "dy": 0,
       "after": 50
     },
     {
       "op": "hold",
       "codes": ["KeyW"],
-      "ms": 420,
-      "after": 300
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
     },
     {
       "op": "mouse",
       "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
       "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
-      "dx": 485,
-      "dy": -4,
+      "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 7,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 19,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 30,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 56,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 143,
+      "dy": -2,
       "after": 50
     },
     {
@@ -1484,92 +1598,223 @@
       "expect": []
     },
     {
-      "op": "mouse",
-      "dx": -1245,
-      "dy": 4,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW"],
-      "ms": 760,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 757,
-      "dy": 207,
-      "after": 50
-    },
-    {
       "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 1500
+      "ms": 2500
     },
     {
       "op": "checkpoint",
       "name": "38-end-door-open",
-      "desc": "비상계단 끝문 [E]",
+      "desc": "끝문 열림",
       "expect": []
     },
     {
       "op": "mouse",
-      "dx": -1568,
-      "dy": -207,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW", "ShiftLeft"],
-      "ms": 6200,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": -36,
+      "dx": 1273,
       "dy": 0,
       "after": 50
     },
     {
       "op": "hold",
-      "codes": ["KeyW"],
-      "ms": 200,
-      "after": 300
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
     },
     {
       "op": "checkpoint",
       "name": "39-vending-area",
-      "desc": "자판기 두 대 앞 — 완전 전원 뒤 밝은 복도",
+      "desc": "자판기 구역 — 컵 동전 앞",
       "expect": []
     },
     {
       "op": "mouse",
       "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -742,
-      "dy": 568,
+      "dy": 630,
       "after": 50
     },
     {
@@ -1579,89 +1824,102 @@
     {
       "op": "key",
       "code": "KeyE",
-      "after": 600
+      "after": 500
     },
     {
       "op": "checkpoint",
       "name": "40-coin-cup-held",
-      "desc": "종이컵 그림 동전을 든 화면",
+      "desc": "컵 동전을 든 화면",
       "expect": []
     },
     {
       "op": "mouse",
-      "dx": 751,
-      "dy": -568,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW", "ShiftLeft"],
-      "ms": 700,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 3,
+      "dx": 52,
       "dy": 0,
       "after": 50
     },
     {
       "op": "hold",
       "codes": ["KeyW"],
-      "ms": 440,
-      "after": 300
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
     },
     {
       "op": "mouse",
       "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -756,
-      "dy": 55,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 1200
-    },
-    {
-      "op": "mouse",
-      "dx": -795,
-      "dy": -55,
+      "dy": 0,
       "after": 50
     },
     {
       "op": "hold",
       "codes": ["KeyW"],
-      "ms": 680,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
       "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
-      "dx": 784,
-      "dy": -10,
+      "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -811,
+      "dy": -556,
       "after": 50
     },
     {
@@ -1671,28 +1929,37 @@
     {
       "op": "key",
       "code": "KeyE",
-      "after": 2500
+      "after": 500
+    },
+    {
+      "op": "mouse",
+      "dx": -358,
+      "dy": -74,
+      "after": 50
+    },
+    {
+      "op": "run",
+      "ms": 100
+    },
+    {
+      "op": "key",
+      "code": "KeyE",
+      "after": 500
+    },
+    {
+      "op": "run",
+      "ms": 1500
     },
     {
       "op": "checkpoint",
       "name": "41-coffee-dispensed",
-      "desc": "커피 자판기 버튼 → 종이컵 배출",
+      "desc": "커피 자판기 — 동전을 넣고 버튼, 커피가 나온다",
       "expect": []
     },
     {
       "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 201,
-      "dy": 305,
+      "dx": 89,
+      "dy": 342,
       "after": 50
     },
     {
@@ -1702,28 +1969,18 @@
     {
       "op": "key",
       "code": "KeyE",
-      "after": 1000
+      "after": 500
     },
     {
       "op": "checkpoint",
       "name": "42-coffee-door-open",
-      "desc": "커피 배출부 투명문 열림",
+      "desc": "커피 배출구 문 열림",
       "expect": []
     },
     {
       "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -32,
-      "dy": -19,
+      "dx": 39,
+      "dy": -26,
       "after": 50
     },
     {
@@ -1733,66 +1990,86 @@
     {
       "op": "key",
       "code": "KeyE",
-      "after": 800
+      "after": 500
     },
     {
       "op": "checkpoint",
       "name": "43-coffee-cup-held",
-      "desc": "종이컵을 든 화면",
+      "desc": "커피 컵을 든 화면",
       "expect": []
     },
     {
       "op": "key",
       "code": "KeyE",
-      "after": 1200
+      "after": 600
     },
     {
       "op": "key",
       "code": "KeyE",
-      "after": 1200
+      "after": 600
     },
     {
       "op": "key",
       "code": "KeyE",
-      "after": 1200
+      "after": 600
     },
     {
       "op": "key",
       "code": "KeyE",
-      "after": 1200
+      "after": 600
     },
     {
       "op": "checkpoint",
       "name": "44-coffee-after-drinking",
-      "desc": "E 로 마시고 다 비운 뒤 버림",
+      "desc": "커피를 다 마신 뒤",
       "expect": []
     },
     {
       "op": "mouse",
-      "dx": -1168,
-      "dy": -276,
+      "dx": -578,
+      "dy": 0,
       "after": 50
     },
     {
       "op": "hold",
       "codes": ["KeyW"],
-      "ms": 220,
-      "after": 300
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
     },
     {
       "op": "mouse",
       "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
       "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
-      "dx": 994,
-      "dy": 600,
+      "dx": 1239,
+      "dy": 333,
       "after": 50
     },
     {
@@ -1802,25 +2079,43 @@
     {
       "op": "key",
       "code": "KeyE",
-      "after": 600
+      "after": 500
     },
     {
       "op": "checkpoint",
       "name": "45-coin-can-held",
-      "desc": "캔 그림 동전을 든 화면",
+      "desc": "캔 동전을 든 화면",
       "expect": []
     },
     {
       "op": "mouse",
-      "dx": 768,
-      "dy": -600,
+      "dx": 318,
+      "dy": 0,
       "after": 50
     },
     {
       "op": "hold",
-      "codes": ["KeyW", "ShiftLeft"],
-      "ms": 620,
-      "after": 300
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
     },
     {
       "op": "mouse",
@@ -1831,60 +2126,61 @@
     {
       "op": "hold",
       "codes": ["KeyW"],
-      "ms": 440,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
       "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -757,
-      "dy": 287,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 1200
-    },
-    {
-      "op": "mouse",
-      "dx": -792,
-      "dy": -287,
+      "dy": 0,
       "after": 50
     },
     {
       "op": "hold",
       "codes": ["KeyW"],
-      "ms": 780,
-      "after": 300
+      "ms": 300,
+      "after": 100
     },
     {
       "op": "mouse",
       "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
       "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
-      "dx": 782,
-      "dy": 137,
+      "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -806,
+      "dy": -312,
       "after": 50
     },
     {
@@ -1894,22 +2190,12 @@
     {
       "op": "key",
       "code": "KeyE",
-      "after": 2500
+      "after": 500
     },
     {
       "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 205,
-      "dy": 188,
+      "dx": -223,
+      "dy": -183,
       "after": 50
     },
     {
@@ -1919,519 +2205,11 @@
     {
       "op": "key",
       "code": "KeyE",
-      "after": 800
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 800
+      "after": 500
     },
     {
       "op": "run",
       "ms": 1500
-    },
-    {
-      "op": "mouse",
-      "dx": -1025,
-      "dy": -325,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW"],
-      "ms": 1260,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 822,
-      "dy": 599,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 600
-    },
-    {
-      "op": "mouse",
-      "dx": 763,
-      "dy": -599,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW", "ShiftLeft"],
-      "ms": 620,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 2,
-      "dy": 0,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW"],
-      "ms": 440,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -754,
-      "dy": 287,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 1200
-    },
-    {
-      "op": "mouse",
-      "dx": -794,
-      "dy": -287,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW"],
-      "ms": 620,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 782,
-      "dy": 137,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 2500
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 128,
-      "dy": 200,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 800
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 800
-    },
-    {
-      "op": "run",
-      "ms": 1500
-    },
-    {
-      "op": "mouse",
-      "dx": -945,
-      "dy": -337,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW", "ShiftLeft"],
-      "ms": 380,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "dy": 0,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW"],
-      "ms": 420,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 805,
-      "dy": 599,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 600
-    },
-    {
-      "op": "mouse",
-      "dx": 776,
-      "dy": -599,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW", "ShiftLeft"],
-      "ms": 620,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": -2,
-      "dy": 0,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW"],
-      "ms": 440,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -759,
-      "dy": 287,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 1200
-    },
-    {
-      "op": "mouse",
-      "dx": -787,
-      "dy": -287,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW"],
-      "ms": 480,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 785,
-      "dy": 137,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 2500
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 43,
-      "dy": 207,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 800
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 800
-    },
-    {
-      "op": "run",
-      "ms": 1500
-    },
-    {
-      "op": "mouse",
-      "dx": -858,
-      "dy": -344,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW", "ShiftLeft"],
-      "ms": 440,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "dy": 0,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW"],
-      "ms": 420,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 813,
-      "dy": 599,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 600
-    },
-    {
-      "op": "mouse",
-      "dx": 766,
-      "dy": -599,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW", "ShiftLeft"],
-      "ms": 620,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "dy": 0,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW"],
-      "ms": 440,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -754,
-      "dy": 287,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 1200
-    },
-    {
-      "op": "mouse",
-      "dx": -792,
-      "dy": -287,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW"],
-      "ms": 320,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 788,
-      "dy": 137,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 2500
     },
     {
       "op": "checkpoint",
@@ -2441,17 +2219,7 @@
     },
     {
       "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -43,
+      "dx": -12,
       "dy": 207,
       "after": 50
     },
@@ -2462,7 +2230,7 @@
     {
       "op": "key",
       "code": "KeyE",
-      "after": 900
+      "after": 500
     },
     {
       "op": "checkpoint",
@@ -2472,18 +2240,8 @@
     },
     {
       "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 52,
-      "dy": 143,
+      "dx": 7,
+      "dy": 147,
       "after": 50
     },
     {
@@ -2493,7 +2251,7 @@
     {
       "op": "key",
       "code": "KeyE",
-      "after": 800
+      "after": 500
     },
     {
       "op": "checkpoint",
@@ -2509,28 +2267,18 @@
     {
       "op": "checkpoint",
       "name": "49-hint-paper-stored",
-      "desc": "H — 쪽지를 힌트함에 적어 넣고 바로 보여 줌",
-      "expect": ["밸브 쪽지"]
+      "desc": "H — 쪽지를 힌트함에 적어 넣고 바로 보여 줌(이름표는 「힌트 메모」)",
+      "expect": ["힌트 메모", "자판기 배출구에서 캔과 함께 나온"]
     },
     {
       "op": "key",
       "code": "Escape",
-      "after": 500
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
+      "after": 400
     },
     {
       "op": "mouse",
       "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -152,
-      "dy": -360,
+      "dy": -66,
       "after": 50
     },
     {
@@ -2540,7 +2288,7 @@
     {
       "op": "key",
       "code": "KeyE",
-      "after": 800
+      "after": 500
     },
     {
       "op": "checkpoint",
@@ -2551,109 +2299,92 @@
     {
       "op": "key",
       "code": "KeyE",
-      "after": 1200
+      "after": 600
     },
     {
       "op": "key",
       "code": "KeyE",
-      "after": 1200
+      "after": 600
     },
     {
       "op": "key",
       "code": "KeyE",
-      "after": 1200
+      "after": 600
     },
     {
       "op": "key",
       "code": "KeyE",
-      "after": 1200
+      "after": 600
     },
     {
       "op": "key",
       "code": "KeyE",
-      "after": 1200
+      "after": 600
     },
     {
       "op": "checkpoint",
       "name": "51-can-finished",
-      "desc": "캔을 따서 마시고 버린 뒤",
+      "desc": "캔을 다 마신 뒤",
       "expect": []
     },
     {
       "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "dy": -81,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 800
-    },
-    {
-      "op": "mouse",
-      "dx": 719,
-      "dy": -344,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW", "ShiftLeft"],
-      "ms": 1220,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": -4,
+      "dx": 910,
       "dy": 0,
       "after": 50
     },
     {
       "op": "hold",
-      "codes": ["KeyW"],
-      "ms": 420,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": -697,
-      "dy": 36,
-      "after": 50
-    },
-    {
-      "op": "checkpoint",
-      "name": "52-hydrant-front",
-      "desc": "소화전함 앞(자물쇠 걸림)",
-      "expect": []
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
       "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
-      "dx": 154,
-      "dy": 119,
+      "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "checkpoint",
+      "name": "52-hydrant-front",
+      "desc": "소화전함 앞",
+      "expect": []
+    },
+    {
+      "op": "mouse",
+      "dx": -442,
+      "dy": -344,
       "after": 50
     },
     {
@@ -2767,29 +2498,19 @@
       "ms": 2500
     },
     {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
+      "op": "waitText",
+      "text": "열렸다",
+      "absent": true,
+      "maxMs": 8000
+    },
+    {
+      "op": "run",
+      "ms": 1200
     },
     {
       "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -274,
-      "dy": 112,
+      "dx": -167,
+      "dy": -115,
       "after": 50
     },
     {
@@ -2799,7 +2520,30 @@
     {
       "op": "key",
       "code": "KeyE",
-      "after": 1200
+      "after": 800
+    },
+    {
+      "op": "run",
+      "ms": 800
+    },
+    {
+      "op": "mouse",
+      "dx": -467,
+      "dy": 344,
+      "after": 50
+    },
+    {
+      "op": "run",
+      "ms": 100
+    },
+    {
+      "op": "key",
+      "code": "KeyE",
+      "after": 800
+    },
+    {
+      "op": "run",
+      "ms": 800
     },
     {
       "op": "checkpoint",
@@ -2809,18 +2553,326 @@
     },
     {
       "op": "mouse",
+      "dx": 1484,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
       "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
       "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "checkpoint",
+      "name": "56-panel-open",
+      "desc": "배전반 문 열림 — 색 선 셋 · 차단기 여섯(관창은 아직 소화전함에)",
+      "expect": []
+    },
+    {
+      "op": "mouse",
+      "dx": 166,
+      "dy": 70,
+      "after": 50
+    },
+    {
+      "op": "run",
+      "ms": 100
+    },
+    {
+      "op": "key",
+      "code": "KeyE",
+      "after": 500
+    },
+    {
+      "op": "mouse",
+      "dx": -90,
+      "dy": -31,
+      "after": 50
+    },
+    {
+      "op": "run",
+      "ms": 100
+    },
+    {
+      "op": "key",
+      "code": "KeyE",
+      "after": 500
+    },
+    {
+      "op": "mouse",
+      "dx": -189,
+      "dy": 75,
+      "after": 50
+    },
+    {
+      "op": "run",
+      "ms": 100
+    },
+    {
+      "op": "key",
+      "code": "KeyE",
+      "after": 500
+    },
+    {
+      "op": "mouse",
+      "dx": 119,
+      "dy": -87,
+      "after": 50
+    },
+    {
+      "op": "run",
+      "ms": 100
+    },
+    {
+      "op": "key",
+      "code": "KeyE",
+      "after": 500
+    },
+    {
+      "op": "mouse",
+      "dx": -144,
+      "dy": 125,
+      "after": 50
+    },
+    {
+      "op": "run",
+      "ms": 100
+    },
+    {
+      "op": "key",
+      "code": "KeyE",
+      "after": 500
+    },
+    {
+      "op": "mouse",
+      "dx": 89,
+      "dy": -138,
+      "after": 50
+    },
+    {
+      "op": "run",
+      "ms": 100
+    },
+    {
+      "op": "key",
+      "code": "KeyE",
+      "after": 500
+    },
+    {
+      "op": "checkpoint",
+      "name": "57-panel-wired",
+      "desc": "배전반 선 셋을 제 색에 꽂음 — 이제 소화전함 관창과 배전반 구멍이 빛난다",
+      "expect": []
+    },
+    {
+      "op": "mouse",
+      "dx": 154,
+      "dy": 183,
+      "after": 50
+    },
+    {
+      "op": "run",
+      "ms": 100
+    },
+    {
+      "op": "key",
+      "code": "KeyE",
+      "after": 400
+    },
+    {
+      "op": "mouse",
+      "dx": -183,
+      "dy": -1,
+      "after": 50
+    },
+    {
+      "op": "run",
+      "ms": 100
+    },
+    {
+      "op": "key",
+      "code": "KeyE",
+      "after": 400
+    },
+    {
+      "op": "mouse",
+      "dx": 183,
+      "dy": -39,
+      "after": 50
+    },
+    {
+      "op": "run",
+      "ms": 100
+    },
+    {
+      "op": "key",
+      "code": "KeyE",
+      "after": 400
+    },
+    {
+      "op": "mouse",
+      "dx": -183,
+      "dy": -1,
+      "after": 50
+    },
+    {
+      "op": "run",
+      "ms": 100
+    },
+    {
+      "op": "key",
+      "code": "KeyE",
+      "after": 400
+    },
+    {
+      "op": "mouse",
+      "dx": 183,
+      "dy": -42,
+      "after": 50
+    },
+    {
+      "op": "run",
+      "ms": 100
+    },
+    {
+      "op": "key",
+      "code": "KeyE",
+      "after": 400
+    },
+    {
+      "op": "mouse",
+      "dx": -183,
+      "dy": -1,
+      "after": 50
+    },
+    {
+      "op": "run",
+      "ms": 100
+    },
+    {
+      "op": "key",
+      "code": "KeyE",
+      "after": 400
+    },
+    {
+      "op": "checkpoint",
+      "name": "58-panel-switches-up",
+      "desc": "차단기 여섯을 모두 올림",
+      "expect": []
+    },
+    {
+      "op": "mouse",
+      "dx": -1473,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
-      "dx": 100,
-      "dy": 59,
+      "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 130,
+      "dy": -40,
       "after": 50
     },
     {
@@ -2834,21 +2886,57 @@
     },
     {
       "op": "checkpoint",
-      "name": "56-nozzle-held",
-      "desc": "관창을 든 화면",
+      "name": "59-nozzle-held",
+      "desc": "회로가 다 살아난 뒤 소화전함에서 관창을 꺼내 든 화면(#134 — 배선 전엔 안 집힌다)",
       "expect": []
     },
     {
       "op": "mouse",
-      "dx": 1497,
-      "dy": -96,
+      "dx": 1442,
+      "dy": 0,
       "after": 50
     },
     {
       "op": "hold",
-      "codes": ["KeyW", "ShiftLeft"],
-      "ms": 540,
-      "after": 300
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
     },
     {
       "op": "mouse",
@@ -2859,365 +2947,12 @@
     {
       "op": "hold",
       "codes": ["KeyW"],
-      "ms": 440,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 8,
-      "dy": 37,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 1200
-    },
-    {
-      "op": "checkpoint",
-      "name": "57-panel-open",
-      "desc": "배전반 문 열림 — 색 선 셋 · 차단기 여섯",
-      "expect": []
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 121,
-      "dy": 51,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 500
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -72,
-      "dy": -26,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 600
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -152,
-      "dy": 63,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 500
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 97,
-      "dy": -72,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 600
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -117,
-      "dy": 106,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 500
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 73,
-      "dy": -116,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 600
-    },
-    {
-      "op": "checkpoint",
-      "name": "58-panel-wired",
-      "desc": "배전반 선 셋을 제 색에 꽂음",
-      "expect": []
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 122,
-      "dy": 149,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 400
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -144,
-      "dy": 1,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 400
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 144,
-      "dy": -35,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 400
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -144,
-      "dy": 1,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 400
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 144,
-      "dy": -37,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 400
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -144,
-      "dy": 1,
-      "after": 50
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 400
-    },
-    {
-      "op": "checkpoint",
-      "name": "59-panel-switches-up",
-      "desc": "차단기 여섯을 모두 올림",
-      "expect": []
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -12,
+      "dx": -113,
       "dy": -171,
       "after": 50
     },
@@ -3237,37 +2972,85 @@
       "expect": []
     },
     {
+      "op": "run",
+      "ms": 4000
+    },
+    {
       "op": "mouse",
-      "dx": -1525,
-      "dy": 48,
+      "dx": 23,
+      "dy": 0,
       "after": 50
     },
     {
       "op": "hold",
-      "codes": ["KeyW", "ShiftLeft"],
-      "ms": 540,
-      "after": 300
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 23,
+      "dy": 0,
+      "after": 50
     },
     {
       "op": "hold",
       "codes": ["KeyW"],
-      "ms": 440,
-      "after": 300
+      "ms": 300,
+      "after": 100
     },
     {
       "op": "mouse",
-      "dx": 1,
+      "dx": 25,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
       "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
-      "dx": -19,
-      "dy": 24,
+      "dx": -82,
+      "dy": 16,
       "after": 50
     },
     {
@@ -3316,46 +3099,32 @@
       "expect": []
     },
     {
-      "op": "mouse",
-      "dx": -780,
-      "dy": -24,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW", "ShiftLeft"],
-      "ms": 1200,
-      "after": 300
+      "op": "run",
+      "ms": 2500
     },
     {
       "op": "mouse",
-      "dx": 32,
+      "dx": -192,
       "dy": 0,
       "after": 50
     },
     {
       "op": "hold",
       "codes": ["KeyW", "ShiftLeft"],
-      "ms": 580,
-      "after": 300
+      "ms": 300,
+      "after": 100
     },
     {
       "op": "mouse",
-      "dx": 31,
+      "dx": -1,
       "dy": 0,
       "after": 50
     },
     {
       "op": "hold",
-      "codes": ["KeyW"],
-      "ms": 480,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 762,
-      "dy": 0,
-      "after": 50
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
     },
     {
       "op": "checkpoint",
@@ -3365,27 +3134,43 @@
     },
     {
       "op": "mouse",
-      "dx": -2,
-      "dy": 0,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW", "ShiftLeft"],
-      "ms": 760,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 2,
+      "dx": 71,
       "dy": 0,
       "after": 50
     },
     {
       "op": "hold",
       "codes": ["KeyW"],
-      "ms": 440,
-      "after": 300
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "run",
+      "ms": 600
     },
     {
       "op": "checkpoint",
@@ -3420,43 +3205,50 @@
       "expect": ["임무 · 나주 앙암바위 왜곡 저지"]
     },
     {
+      "op": "key",
+      "code": "KeyV",
+      "after": 1500
+    },
+    {
       "op": "mouse",
-      "dx": 130,
+      "dx": 215,
       "dy": 0,
       "after": 50
     },
     {
       "op": "hold",
       "codes": ["KeyW", "ShiftLeft"],
-      "ms": 580,
-      "after": 300
+      "ms": 300,
+      "after": 100
     },
     {
       "op": "mouse",
-      "dx": 2,
+      "dx": 1,
       "dy": 0,
       "after": 50
     },
     {
       "op": "hold",
-      "codes": ["KeyW"],
-      "ms": 440,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
       "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
-      "dx": 868,
-      "dy": 362,
+      "dx": 491,
+      "dy": 412,
       "after": 50
     },
     {
@@ -3476,37 +3268,8 @@
     },
     {
       "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 900
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -211,
-      "dy": -171,
+      "dx": -288,
+      "dy": -277,
       "after": 50
     },
     {
@@ -3526,37 +3289,8 @@
     },
     {
       "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 900
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -212,
-      "dy": 88,
+      "dx": -144,
+      "dy": 35,
       "after": 50
     },
     {
@@ -3576,55 +3310,146 @@
     },
     {
       "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "run",
-      "ms": 100
-    },
-    {
-      "op": "key",
-      "code": "KeyE",
-      "after": 900
-    },
-    {
-      "op": "mouse",
-      "dx": 1535,
-      "dy": -279,
+      "dx": -1388,
+      "dy": 0,
       "after": 50
     },
     {
       "op": "hold",
       "codes": ["KeyW", "ShiftLeft"],
-      "ms": 400,
-      "after": 300
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW"],
-      "ms": 480,
-      "after": 300
+      "ms": 300,
+      "after": 100
     },
     {
       "op": "mouse",
       "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
       "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
-      "dx": 244,
-      "dy": 286,
+      "dx": 348,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 779,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -2,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -2,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 227,
+      "dy": -47,
       "after": 50
     },
     {
@@ -3639,7 +3464,7 @@
     {
       "op": "checkpoint",
       "name": "71-mug-held-1p",
-      "desc": "머그컵을 든 1인칭",
+      "desc": "머그컵을 든 1인칭(본부실은 3인칭으로 들어오므로 67 뒤 V 로 1인칭)",
       "expect": []
     },
     {
@@ -3650,7 +3475,7 @@
     {
       "op": "checkpoint",
       "name": "72-mug-held-3p",
-      "desc": "머그컵을 든 3인칭(팔 IK)",
+      "desc": "V — 머그컵을 든 3인칭(팔 IK)",
       "expect": ["[V] 1인칭"]
     },
     {
@@ -3671,30 +3496,248 @@
     },
     {
       "op": "mouse",
-      "dx": 777,
-      "dy": -286,
+      "dx": 581,
+      "dy": 0,
       "after": 50
     },
     {
       "op": "hold",
       "codes": ["KeyW"],
-      "ms": 880,
-      "after": 300
+      "ms": 300,
+      "after": 100
     },
     {
       "op": "mouse",
-      "dx": 1,
+      "dx": -5,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -4,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
       "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
-      "dx": -773,
-      "dy": 307,
+      "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -628,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -501,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -162,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -371,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 138,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -138,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 154,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -171,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 189,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -208,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 215,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -166,
+      "dy": 111,
       "after": 50
     },
     {
@@ -3719,42 +3762,68 @@
     },
     {
       "op": "mouse",
-      "dx": 419,
-      "dy": -307,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW", "ShiftLeft"],
-      "ms": 580,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": -228,
+      "dx": -731,
       "dy": 0,
       "after": 50
     },
     {
       "op": "hold",
       "codes": ["KeyW"],
-      "ms": 920,
-      "after": 300
+      "ms": 300,
+      "after": 100
     },
     {
       "op": "mouse",
-      "dx": 1,
+      "dx": 35,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
       "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
-      "dx": -949,
-      "dy": 408,
+      "dx": 9,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 26,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 661,
+      "dy": -13,
       "after": 50
     },
     {
@@ -3785,27 +3854,33 @@
     },
     {
       "op": "mouse",
-      "dx": -1203,
-      "dy": -408,
-      "after": 50
-    },
-    {
-      "op": "hold",
-      "codes": ["KeyW", "ShiftLeft"],
-      "ms": 1400,
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 303,
+      "dx": 914,
       "dy": 0,
       "after": 50
     },
     {
       "op": "hold",
       "codes": ["KeyW", "ShiftLeft"],
-      "ms": 400,
-      "after": 300
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -6,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
     },
     {
       "op": "mouse",
@@ -3815,20 +3890,242 @@
     },
     {
       "op": "hold",
-      "codes": ["KeyW"],
-      "ms": 440,
-      "after": 300
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
     },
     {
       "op": "mouse",
-      "dx": -701,
+      "dx": -8,
       "dy": 0,
       "after": 50
     },
     {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -7,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -7,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -5,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -5,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -3,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -4,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -1,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 184,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 10,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -2,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -30,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -27,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -11,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW", "ShiftLeft"],
+      "ms": 300,
+      "after": 100
+    },
+    {
       "op": "checkpoint",
       "name": "76-train-door-approach",
-      "desc": "바닥 화살표를 따라 기차 오른쪽 문 앞",
+      "desc": "바닥 화살표를 따라 기차 오른쪽 문 앞(문 2.2m)",
       "expect": []
     },
     {
@@ -3849,61 +4146,90 @@
     },
     {
       "op": "mouse",
-      "dx": 1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": -1,
-      "after": 100
-    },
-    {
-      "op": "mouse",
-      "dx": 1093,
-      "dy": 64,
+      "dx": 1434,
+      "dy": 0,
       "after": 50
     },
     {
-      "op": "checkpoint",
-      "name": "78-hologram-view",
-      "desc": "기차 안 목적지 홀로그램(DESTINATIONS)",
-      "expect": []
-    },
-    {
-      "op": "exitPointerLock",
-      "after": 200
-    },
-    {
-      "op": "click",
-      "x": 800,
-      "y": 450,
-      "after": 500
-    },
-    {
-      "op": "checkpoint",
-      "name": "79-hologram-naju-selected",
-      "desc": "나주 행을 눌러 선택 — [E] 나주로 이동",
-      "expect": []
-    },
-    {
-      "op": "key",
-      "code": "KeyT",
-      "after": 300
-    },
-    {
-      "op": "mouse",
-      "dx": 1,
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
       "after": 100
     },
     {
       "op": "mouse",
-      "dx": -1,
+      "dx": -2,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
       "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -2,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": -2,
+      "dy": 0,
+      "after": 50
+    },
+    {
+      "op": "hold",
+      "codes": ["KeyW"],
+      "ms": 300,
+      "after": 100
+    },
+    {
+      "op": "mouse",
+      "dx": 6,
+      "dy": 60,
+      "after": 50
+    },
+    {
+      "op": "run",
+      "ms": 100
     },
     {
       "op": "key",
       "code": "KeyE",
-      "after": 300
+      "after": 1000
+    },
+    {
+      "op": "checkpoint",
+      "name": "78-hologram-view",
+      "desc": "기차 안 안내판 홀로그램을 겨눠 E — 목적지 창(지역 선택)",
+      "expect": ["지역 선택"]
+    },
+    {
+      "op": "clickText",
+      "text": "나주",
+      "exact": true,
+      "after": 1200
+    },
+    {
+      "op": "checkpoint",
+      "name": "79-hologram-naju-selected",
+      "desc": "창에서 나주를 눌러 선택 — 나주의 전설",
+      "expect": ["나주의 전설"]
+    },
+    {
+      "op": "clickText",
+      "text": "전설 속으로",
+      "exact": true,
+      "after": 1500
     },
     {
       "op": "checkpoint",
@@ -3921,7 +4247,8 @@
       "op": "checkpoint",
       "name": "81-naju-first-screen",
       "desc": "나주(naju01) 첫 화면 — 로딩 영상은 진짜 시간이라 비결정 구간",
-      "expect": []
+      "expect": [],
+      "warnOnly": true
     },
     {
       "op": "goto",

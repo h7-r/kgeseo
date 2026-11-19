@@ -21,6 +21,23 @@ const RIVER_STYLE = {
   farBank: "#59616B", // 원경 — 공기에 씻겨 파랗고 흐리다
 };
 
+/**
+ * 날이 갠 뒤의 물(굿이 풀린 뒤 focus.clear) — 흐린 청록이 맑은 바다로 바뀐다.
+ * 한 색으로 칠하면 파란 판이다: 물가는 모래가 비치는 옥빛, 가운데는 푸른빛, 먼 데는 짙은 쪽빛으로 나누고
+ * 얼룩마다 색조를 조금씩 비튼다. 마루는 햇빛을 받아 거의 희다.
+ */
+const CLEAR_WATER = {
+  shallow: "#7FE0D2", // 물가 — 모래가 비치는 옥빛
+  middle: "#2FB2D6", // 가운데 — 맑은 하늘빛 바다
+  deep: "#1C6FB8", // 먼 데 — 쪽빛
+  crest: "#F2FCFF", // 물결 꼭대기 — 햇빛
+  /** 얼룩마다 비트는 색조 폭(0~1 바퀴) · 밝기 폭 */
+  hueSwing: 0.035,
+  lightSwing: 0.06,
+  /** 마루가 희게 반짝이는 정도 — 흐린 날(0.55)보다 세다 */
+  crestMix: 0.8,
+};
+
 // 코어 앞(X 0~80 ± 60 m)은 물가를 곧게 둔다 — 걷는 판정의 물 경계가 직선이라 그림도 맞춘다.
 export const riverBendAt = (x: number) => {
   const amplitude = THREE.MathUtils.clamp((Math.abs(x - 40) - 60) / 140, 0, 1);
@@ -59,6 +76,10 @@ export function buildRiverSurface({ x: X, zStart, zEnd, cellsPerMeter = 0.6, wav
   const shallow = new THREE.Color(RIVER_STYLE.shallow);
   const deep = new THREE.Color(RIVER_STYLE.deep);
   const c = new THREE.Color();
+  const clearColors = new Float32Array(count * 3);
+  const clearShallow = new THREE.Color(CLEAR_WATER.shallow);
+  const clearMiddle = new THREE.Color(CLEAR_WATER.middle);
+  const clearDeep = new THREE.Color(CLEAR_WATER.deep);
   // 넓은 얼룩 — 한 톤이면 파란 판이 된다
   const blotch = (x: number, z: number) =>
     Math.sin(x * 0.035 + 1.7) * Math.sin(z * 0.028 + 0.4) * 0.5 + Math.sin(x * 0.011 - z * 0.017) * 0.5;
@@ -79,11 +100,23 @@ export function buildRiverSurface({ x: X, zStart, zEnd, cellsPerMeter = 0.6, wav
     colors[i * 3] = c.r;
     colors[i * 3 + 1] = c.g;
     colors[i * 3 + 2] = c.b;
+
+    // 맑은 물 — 옥빛 → 하늘빛 → 쪽빛. 결이 다른 두 얼룩으로 색조와 밝기를 따로 흔든다
+    const blot = blotch(gx[i], gz[i]);
+    const drift = Math.sin(gx[i] * 0.021 - gz[i] * 0.047 + 2.3) * Math.sin(gx[i] * 0.009 + gz[i] * 0.013);
+    if (depth < 0.35) c.copy(clearShallow).lerp(clearMiddle, depth / 0.35);
+    else c.copy(clearMiddle).lerp(clearDeep, Math.pow((depth - 0.35) / 0.65, 0.8));
+    c.offsetHSL(drift * CLEAR_WATER.hueSwing, 0, blot * CLEAR_WATER.lightSwing);
+    clearColors[i * 3] = c.r;
+    clearColors[i * 3 + 1] = c.g;
+    clearColors[i * 3 + 2] = c.b;
   }
   geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
   geo.translate(cx * UNITS_PER_METER, 0, cz * UNITS_PER_METER);
 
   const crest = new THREE.Color(RIVER_STYLE.crest);
+  const clearCrest = new THREE.Color(CLEAR_WATER.crest);
+  const crestNow = new THREE.Color();
   const baseColors = colors.slice(); // 마루를 덧칠하기 전 색
   const temp = new THREE.Color();
   const normals = new Float32Array(count * 3);
@@ -92,8 +125,8 @@ export function buildRiverSurface({ x: X, zStart, zEnd, cellsPerMeter = 0.6, wav
   // 방향·주기가 다른 잔물결 셋 — 하나면 빨래판이다.
   // 법선은 computeVertexNormals 대신 미분으로 — 꼭짓점 수만큼만 돌아 훨씬 싸다.
   const A = [0.5, 0.32, 0.18];
-  // distortion 이 null 이면 왜곡 없던 때와 한 프레임도 다르지 않다
-  const update = (time: number, distortion: WaterDistortion | null = null) => {
+  // distortion 이 null 이면 왜곡 없던 때와 한 프레임도 다르지 않다. clear 는 날이 갠 정도(0 흐림 ~ 1 맑음)
+  const update = (time: number, distortion: WaterDistortion | null = null, clear = 0) => {
     // 너울만 거꾸로 간다. 같이 뒤집으면 그냥 반대로 흐르는 강이지 어긋남이 아니다.
     const flip = distortion ? distortion.swellReversal : 0;
     const swellSpeed = -0.28 * (1 - 2 * flip);
@@ -101,6 +134,9 @@ export function buildRiverSurface({ x: X, zStart, zEnd, cellsPerMeter = 0.6, wav
     const pos = geo.attributes.position;
     const col = geo.attributes.color;
     const nor = geo.attributes.normal;
+    const sunny = THREE.MathUtils.clamp(clear, 0, 1);
+    crestNow.copy(crest).lerp(clearCrest, sunny);
+    const crestMix = 0.55 + (CLEAR_WATER.crestMix - 0.55) * sunny;
     for (let i = 0; i < count; i++) {
       const x = gx[i];
       const z = gz[i];
@@ -127,8 +163,13 @@ export function buildRiverSurface({ x: X, zStart, zEnd, cellsPerMeter = 0.6, wav
 
       // 마루는 하늘빛을 받아 밝다
       const t = THREE.MathUtils.clamp(h * 0.32 + 0.5, 0, 1);
-      temp.setRGB(baseColors[i * 3], baseColors[i * 3 + 1], baseColors[i * 3 + 2]);
-      temp.lerp(crest, Math.pow(t, 2.5) * 0.55);
+      const k = i * 3;
+      temp.setRGB(
+        baseColors[k] + (clearColors[k] - baseColors[k]) * sunny,
+        baseColors[k + 1] + (clearColors[k + 1] - baseColors[k + 1]) * sunny,
+        baseColors[k + 2] + (clearColors[k + 2] - baseColors[k + 2]) * sunny,
+      );
+      temp.lerp(crestNow, Math.pow(t, 2.5) * crestMix);
       col.setXYZ(i, temp.r, temp.g, temp.b);
     }
     pos.needsUpdate = true;

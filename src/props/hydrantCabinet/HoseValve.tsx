@@ -1,19 +1,31 @@
 import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import type * as THREE from "three";
+import * as THREE from "three";
 import type { Vector3Tuple } from "three";
 
 import { ToonOutline } from "@/engine/outline";
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
 import { AimHighlight } from "@/lobby/AimHighlight";
+import { registerValveCabinet } from "@/game/valveTurnNudge";
+import { isHingeOpen, openHinge } from "@/props/hingeState";
 import { hoseAnchors } from "@/props/nozzleState";
-import { canTurnValve, turnValve, usePanelWiring, getValveOpening } from "@/props/panelWiringState";
+import {
+  canTurnValve,
+  getHoseFlowStartedAt,
+  getValveOpening,
+  turnValve,
+  usePanelWiring,
+} from "@/props/panelWiringState";
+import GlowHalo from "@/props/shared/GlowHalo";
+import { attentionPulse } from "@/props/shared/glowPulse";
 import ToonMaterial from "@/props/shared/ToonMaterial";
 import { type AimHighlightSettings, getWorldPositionOf } from "@/props/shared/aimTarget";
 
 interface HoseValveProps {
   valveId: string;
+  /** 소화전함 문 id — 전류가 출발할 때 닫혀 있으면 연다 */
+  cabinetId: string;
   position: Vector3Tuple;
   /** 앞면이 향하는 x 방향(+1 / −1) */
   d: number;
@@ -26,11 +38,21 @@ interface HoseValveProps {
 }
 
 /**
+ * 전류가 닿아 돌릴 수 있게 되면 밸브 자체가 빛난다 — 바닥 동그라미 · 닿는 순간 글 안내는 없앴다(미르 11/10).
+ * 오래 헤매면 글 안내는 game/valveTurnNudge 가 띄운다. canTurnValve 는 시간으로 정해져 알림이 없어 매 프레임 읽는다(Codex 10)
+ */
+const readValvePulse = attentionPulse(canTurnValve);
+
+/** 빛무리를 손잡이에서 함 앞쪽으로 내미는 거리(미터) — 밸브가 함 안쪽 벽 가까이라 테두리가 빛을 가리지 않게 */
+const HALO_FORWARD = 0.12;
+
+/**
  * 개폐 밸브 — 함 아래쪽 왼편, 출구가 위를 본다. 내려온 호스 끝이 닿는 자리에 있어야 "여기 물린다"로 읽힌다.
  * 배전반 선 셋을 잇고 차단기를 올리고 관창을 꽂으면 전류가 호스를 타고 온다. 그 전류가 닿아야 돈다.
  */
 export default function HoseValve({
   valveId,
+  cabinetId,
   position,
   d,
   metalColor,
@@ -43,6 +65,16 @@ export default function HoseValve({
   const handleRef = useRef<THREE.Group>(null);
   const turned = useRef(0);
   usePanelWiring(); // 열림 상태가 바뀌면 끔 조건이 따라오게
+  const hoseStartedAt = getHoseFlowStartedAt();
+  // 전류가 출발할 때 소화전 문이 닫혀 있으면 연다 — 화면이 닫힌 문 뒤 밸브를 보고 끝나지 않게. 처음 한 번만(나중에 손으로 닫으면 그대로 둔다)
+  const hasOpenedDoor = useRef(false);
+  useEffect(() => {
+    if (hoseStartedAt < 0 || hasOpenedDoor.current) return;
+    hasOpenedDoor.current = true;
+    openHinge(cabinetId);
+  }, [hoseStartedAt, cabinetId]);
+  // 오래 헤맬 때 글 안내가 문 상태(열림 · 닫힘)로 말을 고른다
+  useEffect(() => registerValveCabinet(cabinetId), [cabinetId]);
   useEffect(() => {
     hoseAnchors.valve = handleRef.current;
     return () => {
@@ -83,6 +115,12 @@ export default function HoseValve({
       </mesh>
       {/* 핸들은 몸통 바로 앞 — 옆으로 비키면 바퀴만 떠 보인다. 도는 것은 안쪽 그룹이다
           (바깥까지 돌리면 세워 둔 방향이 같이 틀어져 바퀴가 눕는다). */}
+      {/* 빛무리는 핸들 바로 앞(함 앞쪽) — 세워 둔 핸들 그룹 밖에 둔다(스프라이트는 늘 화면을 본다).
+          함 앞쪽으로 내밀어 두어서 문이 닫혀 있으면 문 밖에 떠 보인다 — 그래서 문이 열려 있을 때만(닫힌 동안은 돌릴 수 없다, Codex 리뷰) */}
+      <GlowHalo
+        position={[d * (0.11 + HALO_FORWARD), 0.02, 0]}
+        visible={() => canTurnValve() && isHingeOpen(cabinetId)}
+      />
       <group position={[d * 0.11, 0.02, 0]} rotation={[0, Math.PI / 2, 0]}>
         <AimHighlight
           id={valveId}
@@ -90,6 +128,7 @@ export default function HoseValve({
           color={highlight?.color}
           strength={highlight?.strength}
           grow={highlight?.grow}
+          pulse={readValvePulse}
         >
           <group ref={handleRef}>
             <mesh castShadow>

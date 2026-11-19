@@ -11,9 +11,11 @@ import { playSound } from "@/audio/sound";
 import { exposeDevHook } from "@/debug/devHooks";
 import { createChangeSignal } from "@/lib/changeSignal";
 import { lobbyStore } from "@/lobby/interactions";
+import { giveVendingHint } from "@/tutorial/firstHint";
 
 import { getHeldCoin } from "../coinState";
 import { getNozzleLocation } from "../nozzleState";
+import { setVendingPowerSource } from "../vendingMachineState";
 
 /** 분기함 세 곳. 순서 = 복도 끝에서 방 쪽으로. */
 export const JUNCTION_SLOTS = ["A", "B", "C"] as const;
@@ -47,7 +49,7 @@ const isWireShape = (value: string): value is WireShape => Object.hasOwn(WIRE_SH
 
 export type TrashBin = "general" | "plastic";
 export type TrashId =
-  "petBottle" | "detergentBottle" | "yogurtBottle" | "takeoutCup" | "toothbrush" | "straw" | "receipt" | "tissue";
+  "petBottle" | "detergentBottle" | "yogurtBottle" | "takeoutCup" | "mask" | "chopsticks" | "trashBag" | "tissue";
 
 interface TrashItem {
   id: TrashId;
@@ -58,17 +60,17 @@ interface TrashItem {
 
 /**
  * 쓰레기 여덟. 자리·모양은 그림 쪽이 갖는다.
- * 일반 넷 중 셋은 플라스틱·종이처럼 보이는 것이라 줍고 넣는 게 아니라 판단이 된다
- * (환경부 「내 손안의 분리배출」 기준).
+ * 일반 넷은 한눈에 일반쓰레기로 읽히는 것만 — 플라스틱·종이처럼 보여 「판단」이 되던 칫솔·빨대·영수증은
+ * 애매해서 뺐고, 깨진 컵도 「누가 봐도」가 아니라 뺐다(해랑 11/12). 환경부 「내 손안의 분리배출」 기준으로도 넷 다 종량제 봉투다.
  */
 export const TRASH_ITEMS: readonly TrashItem[] = [
   { id: "petBottle", name: "페트병", bin: "plastic" },
   { id: "detergentBottle", name: "세제 통", bin: "plastic" },
   { id: "yogurtBottle", name: "요구르트 병", bin: "plastic" },
   { id: "takeoutCup", name: "테이크아웃 컵", bin: "plastic" },
-  { id: "toothbrush", name: "칫솔", bin: "general" }, // 여러 재질이 섞여 재활용이 안 된다
-  { id: "straw", name: "빨대", bin: "general" }, // 너무 작아 선별이 안 된다
-  { id: "receipt", name: "영수증", bin: "general" }, // 감열지 — 종이로도 안 된다
+  { id: "mask", name: "쓴 마스크", bin: "general" },
+  { id: "chopsticks", name: "나무젓가락", bin: "general" },
+  { id: "trashBag", name: "묶은 종량제 봉투", bin: "general" }, // 통 표지 그림 그대로 — 누가 봐도 일반쓰레기
   { id: "tissue", name: "쓴 휴지", bin: "general" },
 ];
 /** 화면에 보이는 통 이름 */
@@ -197,6 +199,8 @@ export const hasSeenAllMarks = () => JUNCTION_SLOTS.every((k) => state.seenMarks
 export const isCorridorPowered = () => state.power;
 /** 시험반까지 풀었나 — 복도등이 전부 들어왔나 */
 export const hasFullPower = () => state.fullPower;
+// 자판기는 완전 전원이 들어와야 동전을 받고 음료를 낸다(vendingMachineState)
+setVendingPowerSource(hasFullPower);
 export function raiseBreaker() {
   if (state.power) return false;
   // 선 셋을 다 꽂아야 올라간다. 안 막으면 함 속 퍼즐이 장식이 된다.
@@ -367,6 +371,8 @@ export function toggleWindowSwitch(index: number) {
   if (getWindowSwitchKey() === LAST_TRAIN_PASSENGERS) {
     state.fullPower = true;
     playSound("boxDown", { volume: 1 });
+    // 자판기 구역에 불이 들어온 순간 다음 쪽지(캔음료) — 첫 쪽지는 분리수거 쪽(튜토피드백 01회차)
+    giveVendingHint();
   }
   signal.notify();
   return true;

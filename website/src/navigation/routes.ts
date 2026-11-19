@@ -3,6 +3,8 @@ import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { openGameTransition } from "@/app/siteState";
+import { IS_MOBILE_PLAY_READY, openGameStartGuide, openMobilePlayNotice } from "@/mobile/gameStartStore";
+import { isMobileLayout } from "@/mobile/layoutMode";
 import { getSessionUser } from "@/services/session";
 
 export const ROUTES = {
@@ -16,6 +18,8 @@ export const ROUTES = {
   resetPassword: "/reset-password/done",
   about: "/about",
   terms: "/terms",
+  // 약관 「저작권 및 라이선스」가 www.k-escape.com/credits 로 적는다 — 바꾸면 약관 글도 같이
+  credits: "/credits",
   support: "/support",
   pricing: "/pricing",
   myPage: "/mypage",
@@ -26,11 +30,15 @@ export const ROUTES = {
   serverError: "/error/500",
   maintenance: "/maintenance",
   offline: "/offline",
+  admin: "/admin",
   // 네이버 개발자센터·백엔드에 redirect_uri 로 등록된 주소라 한글 그대로 둔다. 바꾸면 양쪽 등록도 같이 바꿔야 한다.
   socialCallback: "/로그인/콜백",
 } as const;
 
 export type RoutePath = (typeof ROUTES)[keyof typeof ROUTES];
+
+/** 관리자 주소인가 — 관리자는 사이트 장식 · 세션 복원 없이 자기 틀과 권한 검사로만 연다. */
+export const isAdminRoute = (pathname: string) => pathname === ROUTES.admin || pathname.startsWith(`${ROUTES.admin}/`);
 
 /** 서비스 이름. 회사·팀 이름(LATENT SPACE)과 구분해 탭 제목·푸터·저작권 표시에 쓴다. */
 const SERVICE_NAME = "ESCAPE THE LEGEND";
@@ -44,6 +52,7 @@ const PAGE_TITLES: Readonly<Partial<Record<string, string>>> = {
   [ROUTES.resetPassword]: "비밀번호 재설정",
   [ROUTES.about]: "게임 소개",
   [ROUTES.terms]: "약관 및 정책",
+  [ROUTES.credits]: "크레딧",
   [ROUTES.support]: "고객센터",
   [ROUTES.pricing]: "구독",
   [ROUTES.myPage]: "마이페이지",
@@ -106,6 +115,11 @@ export function safeNextPath(value: string | null): string | null {
 
 /** 게임으로 간다. 게임 주소가 없으면 게임 소개로 보낸다. */
 export function launchGame(navigate: (path: RoutePath) => void) {
+  // 모바일 버전 준비 중 — 게임 문서를 열지 않는다(로그인 뒤 /play · 마이페이지 시작 단추도 이 길을 지난다)
+  if (!IS_MOBILE_PLAY_READY && isMobileLayout()) {
+    openMobilePlayNotice();
+    return;
+  }
   if (!GAME_URL) {
     navigate(ROUTES.about);
     return;
@@ -114,6 +128,11 @@ export function launchGame(navigate: (path: RoutePath) => void) {
   const url = new URL(gameEntry(GAME_URL, GAME_ENTRY_PATH, import.meta.env.PROD));
   const nickname = getSessionUser()?.name;
   if (nickname) url.searchParams.set(GAME_NICKNAME_PARAM, nickname);
+  // 모바일이면 사전 안내(가로 · 용량 · 앱 안 브라우저)를 먼저 — 확인하면 같은 전환으로 넘어간다
+  if (isMobileLayout()) {
+    openGameStartGuide(url.href);
+    return;
+  }
   openGameTransition(url.href);
 }
 
@@ -124,6 +143,11 @@ export function useSiteNavigate() {
     (target: NavTarget) => {
       if (target !== START_GAME) {
         navigate(target);
+        return;
+      }
+      // 모바일 버전 준비 중 — 로그인하지 않았어도 로그인 화면으로 보내지 않고 안내부터(로그인시킨 뒤에 막지 않게)
+      if (!IS_MOBILE_PLAY_READY && isMobileLayout()) {
+        openMobilePlayNotice();
         return;
       }
       if (getSessionUser()) launchGame(navigate);
@@ -158,4 +182,5 @@ export const FOOTER_LINKS: readonly { label: string; target: NavTarget }[] = [
   { label: "컬렉션", target: ROUTES.media },
   { label: "구독 혜택", target: ROUTES.pricing },
   { label: "고객센터", target: ROUTES.support },
+  { label: "크레딧", target: ROUTES.credits },
 ];

@@ -105,6 +105,10 @@
   }
   button.ghost{background:transparent; color:var(--ink); border:1px solid var(--line)}
   button:disabled{opacity:.45; cursor:default}
+  /* 게임을 여는 링크 단추 — button 과 같은 모양 */
+  a.btn{display:inline-block; text-decoration:none; font-family:var(--sans); font-size:14px; font-weight:600; color:var(--ground);
+    background:var(--accent); border:0; border-radius:2px; padding:9px 18px; cursor:pointer;}
+  a.btn.ghost{background:transparent; color:var(--ink); border:1px solid var(--line)}
   button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
 
   .note{font-size:13px; color:var(--muted); padding:14px 18px; border-top:1px solid var(--line-soft)}
@@ -151,6 +155,23 @@
     <div class="rows" id="예측">
       <div class="row"><span class="k">기준 작업량</span><span class="v">드로우콜 1,824 · 삼각형 995k · 오버드로우 3배 <em>(2026-08-31 실측)</em></span><span class="chip idle">대기</span></div>
     </div>
+  </section>
+
+  <section>
+    <h3>게임을 띄운 채로 재기 — 메모리 · 로딩 · 끊김</h3>
+    <p class="note">위 측정은 그래픽 장치의 속도만 봅니다. 로딩이 길거나 다시 들어갈 때 멈추는 문제는 아래 단추로 게임을 열어 평소처럼 플레이하면서 잽니다.</p>
+    <div class="actions">
+      <a class="btn" href="/?measure=1">본편(로비)부터 측정하며 열기</a>
+      <a class="btn ghost" href="/naju01/?measure=1">나주 편만 측정하며 열기</a>
+    </div>
+    <ol class="note" style="padding-left:1.3em">
+      <li>단추로 게임을 엽니다. 화면 왼쪽 아래에 「측정 중」 단추가 생깁니다.</li>
+      <li>평소처럼 플레이합니다. 문제가 나던 길(예: 나주에 들어갔다가 로비로 나와 다시 들어가기)을 그대로 따라가 주세요. 같은 탭에서 오가면 방문마다 한 줄씩 쌓입니다.</li>
+      <li>「측정 중」 단추를 누르거나 <b>F9</b> 를 누르면 결과가 열립니다. 「결과 복사」를 눌러 그대로 보내 주세요.</li>
+      <li>탭이 죽거나 멈췄다면 같은 탭에서 이 단추로 다시 열어 주세요. 죽기 직전까지의 기록이 「끝까지 못 감」으로 남아 있습니다.</li>
+      <li>크롬 · 엣지에서는 <b>Shift + Esc</b>(브라우저 작업 관리자)의 「GPU 프로세스」와 게임 탭 메모리도 캡처해 함께 보내 주시면 가장 정확합니다.</li>
+    </ol>
+    <p class="note">끄려면 주소 끝에 <code>?measure=off</code> 를 붙여 한 번 엽니다. 탭을 닫아도 꺼집니다.</p>
   </section>
 
   <footer>측정값은 이 브라우저 안에서만 계산됩니다. 아무 데도 전송되지 않습니다.</footer>

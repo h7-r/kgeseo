@@ -15,6 +15,8 @@ import { _roots } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { prepareForBake } from "../puzzles/lightBudgetEnforce";
+
 /** 전환 영상이 있는 public 폴더. 영상 표와 감시 제외가 같은 값을 써야 한다. */
 export const TRANSITION_VIDEO_DIR = "/transitions/";
 
@@ -26,11 +28,33 @@ const RESOURCE_EXTENSIONS =
   /\.(glb|gltf|bin|png|jpe?g|webp|avif|ktx2|basis|hdr|exr|wasm|drc|fbx|obj|mtl|woff2?|ttf|otf)(\?|#|$)/i;
 const QUIET_MS = 800;
 const STALE_REQUEST_MS = 30000;
+/**
+ * 최대 시간이 지나도 파일이 계속 오고 있으면 이 시각까지 더 기다린다. 휴대폰 회선에서 나주 첫 방문(약 72 MB)이
+ * 60초를 넘겨 막이 먼저 걷히면 공개 에셋 전의 임시 모형 · 구운 땅 전의 해석 지형이 보이고, 뒤늦게 땅이 바뀌며
+ * 걷던 자리가 튄다(미르 11/9 갤럭시 S24 「PC 와 다른 맵 · NPC 없음 · 이동이 잘 안 됨」, 8 Mbps 흉내로 재현).
+ */
+const EXTENDED_MAX_SECONDS = 240;
+/** 이만큼 아무것도 안 오면 받기가 멈춘 것으로 보고 더 늘리지 않는다 */
+const STALL_MS = 10000;
+/**
+ * 받는 중인 요청을 「아직 오는 중」으로 쳐 주는 나이. 관문 1 은 30초 넘은 요청을 걸림으로 안 치지만,
+ * 느린 회선에서 큰 GLB 하나가 30초를 넘겨 받히는 중일 수 있어 늘림 판정은 더 길게 본다(Codex 23b P1).
+ * 이보다 오래 걸린 요청은 걸려 멈춘 것으로 본다.
+ */
+const LONG_REQUEST_MS = 120000;
 
 const pendingRequests = new Map<number, number>(); // 번호 → 시작 시각
 let requestSerial = 0;
 let lastReceivedAt = 0;
 let lastReceivedName = ""; // 진단용
+
+/** 아직 파일이 오고 있나 — 받는 중인 요청(LONG_REQUEST_MS 안)이 있거나 방금 받았다 */
+function isStillReceiving(): boolean {
+  const now = performance.now();
+  if (now - lastReceivedAt < STALL_MS) return true;
+  for (const startedAt of pendingRequests.values()) if (now - startedAt < LONG_REQUEST_MS) return true;
+  return false;
+}
 
 function isResource(url: unknown): boolean {
   try {
@@ -69,7 +93,15 @@ function startWatching() {
       // 머리만 오고 몸통은 아직일 수 있다 — 몸통을 다 읽을 때까지 걸린 요청으로 둔다
       return originalFetch(input, init).then(
         (response) => {
-          response.clone().arrayBuffer().then(done, done);
+          // 몸통이 다 왔는지만 본다 — 통째로 배열에 담으면 받는 동안 파일만큼 메모리가 한 벌 더 든다(11/12 저사양 보고).
+          // 조각을 읽는 대로 버린다
+          const body = response.clone().body;
+          if (!body) done();
+          else {
+            const reader = body.getReader();
+            const drain = (): Promise<void> => reader.read().then((chunk) => (chunk.done ? done() : drain()), done);
+            void drain();
+          }
           return response;
         },
         (error: unknown) => {
@@ -143,15 +175,25 @@ function getLiveCanvases(): CanvasState[] {
 /** 관문 1 — 조용하면 null, 아니면 무엇 때문인지(진단 글) */
 function findLoadingBlocker(isLoading: () => boolean): string | null {
   const now = performance.now();
-  for (const [id, startedAt] of pendingRequests) if (now - startedAt > STALE_REQUEST_MS) pendingRequests.delete(id);
+  // 30초 넘은 요청은 걸림으로 치지 않되 목록에서는 늘림 판정(LONG_REQUEST_MS)까지 남겨 둔다
+  let activeRequests = 0;
+  for (const [id, startedAt] of pendingRequests) {
+    const age = now - startedAt;
+    if (age > LONG_REQUEST_MS) pendingRequests.delete(id);
+    else if (age <= STALE_REQUEST_MS) activeRequests += 1;
+  }
   if (!document.querySelector("canvas")) return "캔버스 없음";
   if (getLiveCanvases().length === 0) return "3D 준비 전";
   if (isLoading()) return "모델 · 텍스처 받는 중";
-  if (pendingRequests.size) return `파일 ${pendingRequests.size}개 받는 중`;
+  if (activeRequests) return `파일 ${activeRequests}개 받는 중`;
   if (now - lastReceivedAt < QUIET_MS) return `파일 막 받음(${lastReceivedName})`;
   if (document.fonts && document.fonts.status !== "loaded") return "글꼴 받는 중";
   return null;
 }
+
+/** 후처리가 켜진 화면(?fx=off 가 아니면)은 장면을 선형 색 공간의 판에 그린다 — 미리 구울 때도 같은 판을 건다 */
+const USES_LINEAR_TARGET =
+  typeof location === "undefined" || new URLSearchParams(location.search).get("fx") !== "off";
 
 /** 셰이더 미리 컴파일에 주는 최대 시간(ms) — 남은 시간이 더 짧으면 그만큼만 */
 const COMPILE_LIMIT_MS = 15000;
@@ -184,14 +226,27 @@ async function warmUp(compileLimitMs: number) {
     // 숨은 것까지 전부. 병렬 컴파일 확장이 있으면 끝날 때까지 기다리되, 한도를 넘기면 그냥 간다 —
     //   compileAsync 가 안 끝나는 기계(11/4 팀원 맥, 첫 진입)에서 최대 시간까지 통째로 묶였다.
     try {
-      if (gl.compileAsync) {
+      // 굽는 순간의 조명 수 · 출력 색 공간이 실제 그릴 때와 같아야 한다. 타깃 없이 구우면 sRGB 판이 구워지는데,
+      // 후처리가 켜진 화면은 선형 판에 그리므로 통째로 헛돈다(11/16 실측: 77개가 한 번도 안 쓰였다).
+      // 판(program)은 compileAsync 가 부르는 순간 정해지므로 타깃은 부르는 동안만 건다
+      prepareForBake();
+      const compileTarget = gl.getRenderTarget();
+      if (USES_LINEAR_TARGET) gl.setRenderTarget(target);
+      let compiling: Promise<unknown> | null = null;
+      try {
+        if (gl.compileAsync) compiling = gl.compileAsync(scene, camera);
+        else gl.compile(scene, camera);
+      } finally {
+        gl.setRenderTarget(compileTarget);
+      }
+      if (compiling) {
         const compiled = await Promise.race([
-          gl.compileAsync(scene, camera).then(() => true),
+          compiling.then(() => true),
           sleep(compileLimitMs).then(() => false),
         ]);
         if (!compiled)
           console.warn(`[로딩검사] 셰이더 미리 컴파일이 ${Math.round(compileLimitMs / 1000)}초 안에 안 끝나 넘어간다`);
-      } else gl.compile(scene, camera);
+      }
     } catch (error) {
       console.warn("[로딩검사] 셰이더 미리 컴파일 실패 — 계속 간다", error);
     }
@@ -257,7 +312,12 @@ export async function waitUntilReady(
   document.addEventListener("visibilitychange", handleVisibilityChange);
   const elapsedSeconds = () =>
     (performance.now() - startedAt - hiddenTotal - (hiddenSince != null ? performance.now() - hiddenSince : 0)) / 1000;
-  const remainingSeconds = () => maxSeconds - elapsedSeconds();
+  // 최대 시간까지는 그대로. 넘긴 뒤에도 파일이 계속 오면(느린 회선) 늘린 상한까지 기다리고, 멈췄으면 걷는다
+  const remainingSeconds = () => {
+    const elapsed = elapsedSeconds();
+    if (elapsed < maxSeconds) return maxSeconds - elapsed;
+    return isStillReceiving() ? Math.max(0, Math.max(maxSeconds, EXTENDED_MAX_SECONDS) - elapsed) : 0;
+  };
   let lastReason = "";
   const report = (status: string) => {
     lastReason = status;

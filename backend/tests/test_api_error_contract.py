@@ -34,7 +34,7 @@ EXPECTED_ERRORS = {
     ("GET", "/api/v1/health/ready"): {503},
     ("POST", "/api/v1/auth/google"): {401, 403, 409, 422, 503},
     ("POST", "/api/v1/auth/naver"): {401, 403, 409, 422, 502, 503},
-    ("POST", "/api/v1/auth/register"): {403, 409, 422},
+    ("POST", "/api/v1/auth/register"): {403, 409, 422, 429},
     ("POST", "/api/v1/auth/login"): {401, 403, 422, 429},
     ("GET", "/api/v1/me"): {401},
     ("POST", "/api/v1/me/logout"): {403},
@@ -44,17 +44,59 @@ EXPECTED_ERRORS = {
     ("GET", "/api/v1/me/character"): {401},
     ("PUT", "/api/v1/me/character"): {401, 403, 413, 422},
     ("GET", "/api/v1/me/items"): {401},
+    # 11/17 회원 탈퇴 Phase 1 — 세션 · 비밀번호(401), Origin · 관리자 · 소셜 전용(403), 형식(422), 잠금(429)
+    ("POST", "/api/v1/me/withdrawal"): {401, 403, 422, 429},
+    ("POST", "/api/v1/lobby/ticket"): {401, 403, 429, 503},
     ("GET", "/api/v1/admin/users"): {401, 403, 422},
     ("GET", "/api/v1/admin/users/{user_id}"): {401, 403, 404, 422},
-    ("POST", "/api/v1/auth/email-exists"): {403, 422},
-    ("POST", "/api/v1/auth/nickname-exists"): {403, 422},
+    ("GET", "/api/v1/admin/beta-events"): {401, 403, 422},
+    ("GET", "/api/v1/admin/stats/summary"): {401, 403, 422},
+    ("GET", "/api/v1/admin/audit-logs"): {401, 403, 422},
+    # 2단계(11/12 해랑) — 조회 전용 통계 · 보안 집계
+    ("GET", "/api/v1/admin/stats/traffic"): {401, 403, 422},
+    ("GET", "/api/v1/admin/stats/active-sessions"): {401, 403},
+    ("GET", "/api/v1/admin/stats/members"): {401, 403, 422},
+    ("GET", "/api/v1/admin/stats/game"): {401, 403, 422},
+    ("GET", "/api/v1/admin/security/summary"): {401, 403},
+    # 3단계(11/13 해랑) — 1:1 문의 · 설정 · 관리자 목록 · 콘텐츠
+    # 401 은 로그인 접수 도중 그 계정이 탈퇴했을 때뿐(11/17)
+    ("POST", "/api/v1/inquiries"): {401, 403, 422, 429},
+    ("GET", "/api/v1/me/inquiries"): {401},
+    ("GET", "/api/v1/site/status"): set(),
+    ("GET", "/api/v1/admin/inquiries"): {401, 403, 422},
+    ("GET", "/api/v1/admin/inquiries/{inquiry_id}"): {401, 403, 404, 422},
+    ("POST", "/api/v1/admin/inquiries/{inquiry_id}/replies"): {401, 403, 404, 409, 422},
+    ("PATCH", "/api/v1/admin/inquiries/{inquiry_id}"): {401, 403, 404, 422},
+    ("GET", "/api/v1/admin/settings"): {401, 403},
+    ("PUT", "/api/v1/admin/settings/maintenance_mode"): {401, 403, 422},
+    ("GET", "/api/v1/admin/admins"): {401, 403},
+    ("GET", "/api/v1/admin/contents"): {401, 403},
+    ("GET", "/api/v1/admin/contents/{case_id}"): {401, 403, 404, 422},
+    # 11/16 공지사항: 공개 조회는 인증 없음(쿼리 오류 422 · 없음 404), 관리자는 기존 관리자 규칙
+    ("GET", "/api/v1/notices"): {422},
+    ("GET", "/api/v1/notices/{notice_id}"): {404, 422},
+    ("GET", "/api/v1/admin/notices"): {401, 403, 422},
+    ("POST", "/api/v1/admin/notices"): {401, 403, 422},
+    ("GET", "/api/v1/admin/notices/{notice_id}"): {401, 403, 404, 422},
+    ("PATCH", "/api/v1/admin/notices/{notice_id}"): {401, 403, 404, 422},
+    ("DELETE", "/api/v1/admin/notices/{notice_id}"): {401, 403, 404, 422},
+    # 11/11 베타 분석 기록: 쿠키 없이도 받는다(401 없음). 형식 오류 422, 64KB 초과 413.
+    ("POST", "/api/v1/beta-events"): {403, 413, 422, 429},
+    ("POST", "/api/v1/auth/email-exists"): {403, 422, 429},
+    ("POST", "/api/v1/auth/nickname-exists"): {403, 422, 429},
     ("POST", "/api/v1/auth/social-onboarding/complete"): {401, 403, 409, 422},
     # 11/6 PM: 플레이 API 는 쿠키 주체가 없으면 401, 쓰기 요청은 Origin 이 다르면 403.
-    ("POST", "/api/v1/anonymous-sessions"): {403},
+    ("POST", "/api/v1/anonymous-sessions"): {403, 429},
     ("POST", "/api/v1/play-sessions"): {401, 403, 404, 409, 410, 422, 500},
     ("GET", "/api/v1/play-sessions/{play_session_id}"): {401, 404, 422},
     ("GET", "/api/v1/play-sessions/{play_session_id}/clues"): {401, 404, 409, 422, 500},
-    ("GET", "/api/v1/play-sessions/{play_session_id}/bundle"): {401, 404, 409, 422, 500},
+    ("GET", "/api/v1/play-sessions/{play_session_id}/bundle"): {
+        401,
+        404,
+        409,
+        422,
+        500,
+    },
     ("POST", "/api/v1/play-sessions/{play_session_id}/interactions"): {
         401,
         403,
@@ -95,9 +137,14 @@ EXPECTED_ERRORS = {
 
 NO_CONTENT = {
     ("POST", "/api/v1/me/logout"),
+    ("POST", "/api/v1/me/withdrawal"),
     ("DELETE", "/api/v1/me/game-save"),
+    ("DELETE", "/api/v1/admin/notices/{notice_id}"),
 }
 CREATED = {
+    ("POST", "/api/v1/admin/notices"),
+    ("POST", "/api/v1/inquiries"),
+    ("POST", "/api/v1/admin/inquiries/{inquiry_id}/replies"),
     ("POST", "/api/v1/auth/register"),
     ("POST", "/api/v1/auth/social-onboarding/complete"),
     ("POST", "/api/v1/anonymous-sessions"),
@@ -182,7 +229,13 @@ def test_success_responses_keep_their_schemas():
             continue
         success = [code for code in operation["responses"] if int(code) < 400]
         assert len(success) == 1, (method, path)
-        expected = 201 if (method, path) in CREATED else 204 if (method, path) in NO_CONTENT else 200
+        expected = (
+            201
+            if (method, path) in CREATED
+            else 204
+            if (method, path) in NO_CONTENT
+            else 200
+        )
         assert int(success[0]) == expected, (method, path)
 
 
@@ -201,13 +254,19 @@ def _source_literals(text: str) -> set[str]:
     "source",
     [
         "auth.py",
+        "beta_events.py",
         "cases.py",
         "health.py",
         "hints.py",
         "interactions.py",
+        "inquiries.py",
+        "lobby.py",
+        "me.py",
+        "notices.py",
         "npc.py",
         "play_sessions.py",
         "../../services/social_onboarding.py",
+        "../../services/request_rate_limit.py",
         "../../main.py",
     ],
 )

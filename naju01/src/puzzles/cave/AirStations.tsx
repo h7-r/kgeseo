@@ -10,6 +10,7 @@
  * 화면 판정이라 큰 조개 · 톱니돌 연출은 서버 응답을 기다리지 않는다. 보낼 수 없으면(대응표 확정 전 · 세션 없음) 보내지 않는다.
  * 연결이 끊기면 같은 이벤트를 쥐고, 큰 조개 [E] 로 다시 보낸다(자동 재전송 없음).
  */
+import { gameSetTimeout } from "@/engine/input/gameClock";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
@@ -27,14 +28,14 @@ import {
 import { useRememberedState } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { makeGlowTexture } from "../glowTexture";
-import { registerInteractable, showNotice } from "../interaction";
+import { interactableFor, noticeFor } from "../interaction";
 import { inventory } from "../inventory";
 import { makeToonMaterial } from "../materials";
 import { setPuzzlePanel } from "../puzzlePanel";
 import { M } from "../units";
 import AirColumn from "./AirColumn";
 import BreathingHoles from "./BreathingHoles";
-import { SURFACE_Y, armInk, floorY, useCaveShown } from "./caveState";
+import { SURFACE_Y, armInk, floorY, guardBreathFor, useCaveShown } from "./caveState";
 import ClamShell from "./ClamShell";
 import CreviceVent from "./CreviceVent";
 import {
@@ -52,6 +53,10 @@ import {
 import { JAR_SPOT, buildJarGeometry, useOverturnedJarModel } from "./overturnedJar";
 import { buildShellGeometry } from "./seabed";
 
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("stations");
+const registerInteractable = interactableFor("stations");
+
 /** 빛줄기 조각 수 — 어미 → 조개 넷 → 큰 조개 */
 const BEAM_COUNT = LIGHT_CLAMS.length + 1;
 /** 조개 크기(배율) — 돌리는 조개 · 어미 · 큰 조개(눈에 띄게 크다) */
@@ -67,6 +72,12 @@ const LIGHT_CENTER = { x: 49.7, z: 64.5 };
 const AIR_RADIUS = 1.3;
 /** 안내판이 뜨는 거리(미터) */
 const PANEL_RANGE = 5;
+/**
+ * 큰 조개가 열리면 진주 곁에 보이는 톱니돌 — 큰 조개 가운데에서 떨어진 자리와 바닥에서의 높이(미터).
+ * 아래짝 자개 윗면이 이 자리(톱니돌 둘레 포함)에서 0.043~0.070 m 라 그 위에 얹는다(바깥 톱니 끝만 4 mm 닿는다).
+ * 바닥에 두면 껍데기 밑에 묻힌다(미르 11/8 「본게임은 아직 그대로」). 큰 조개가 돌지 않고(yaw 0) 입이 −z 라는 전제의 자리다
+ */
+const GEAR_IN_CLAM = { dx: 0.5, dz: -0.15, y: 0.066 };
 /** 큰 진주에 빛이 이만큼(초) 닿아 있으면 열린다 */
 const OPEN_AFTER = 0.8;
 
@@ -211,7 +222,12 @@ export default function AirStations() {
     showNotice("독에 갇혀 있던 공기가 거품 기둥으로 솟는다. 톱니돌 하나가 굴러 나왔다.", 5);
     inventory.spawn(
       "gearStone",
-      new THREE.Vector3((JAR_SPOT.x + 0.8) * M, floorY(JAR_SPOT.x + 0.8, JAR_SPOT.z + 0.4) * M, (JAR_SPOT.z + 0.4) * M),
+      // 독이 +x 쪽으로 기울어 눕는다 — 그 몸통 밑에 깔리지 않게 아가리 앞 트인 바닥으로 굴러 나온다
+      new THREE.Vector3(
+        (JAR_SPOT.x + 1.7) * M,
+        (floorY(JAR_SPOT.x + 1.7, JAR_SPOT.z + 0.7) + 0.02) * M,
+        (JAR_SPOT.z + 0.7) * M,
+      ),
     );
   };
 
@@ -250,15 +266,20 @@ export default function AirStations() {
     void reportLight();
     setIsLightSolved(true);
     audio.play("징");
+    // 조개가 입을 여는 것을 보는 동안은 숨이 줄지 않는다(미르 11/10)
+    guardBreathFor("clam-open", 3);
     showNotice("빛이 큰 진주에 닿자 큰 조개가 입을 활짝 열며 거품을 토한다 — 안에 톱니돌이 있다.", 5.5);
-    window.setTimeout(() => {
+    // 게임 시계로 — 창을 열어 멈춘 동안 톱니돌만 먼저 나오지 않게(Codex 01)
+    gameSetTimeout(() => {
+      // 큰 조개 속 진주 곁 자개 위에 — 조개 몸이 가운데 바닥 높이에 놓여 있어 그 높이를 기준으로 얹는다
       inventory.spawn(
         "gearStone",
         new THREE.Vector3(
-          (LIGHT_BIG.x + 0.6) * M,
-          (floorY(LIGHT_BIG.x, LIGHT_BIG.z) + 0.08) * M,
-          (LIGHT_BIG.z - 0.3) * M,
+          (LIGHT_BIG.x + GEAR_IN_CLAM.dx) * M,
+          (floorY(LIGHT_BIG.x, LIGHT_BIG.z) + GEAR_IN_CLAM.y) * M,
+          (LIGHT_BIG.z + GEAR_IN_CLAM.dz) * M,
         ),
+        { isPerched: true },
       );
     }, 900);
   };
@@ -266,7 +287,7 @@ export default function AirStations() {
   const takePearl = () => {
     if (!isLightSolved || isPearlTaken) return;
     if (!inventory.add("bigPearl")) {
-      showNotice("소지품이 가득 찼다.");
+      showNotice("소지품이 가득 찼다.", 3.2, { urgent: true, fleeting: true });
       return;
     }
     setIsPearlTaken(true);

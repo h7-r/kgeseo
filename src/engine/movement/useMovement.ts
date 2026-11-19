@@ -4,7 +4,9 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { startLoop, stopLoop } from "@/audio/sound";
 import { exposeDevHook } from "@/debug/devHooks";
+import { isTypingTarget } from "@/game/overlayLayer";
 import { cameraOwner, DEFAULT_FOV, FRAME_PRIORITY, MAX_FRAME_DELTA } from "@/engine/camera";
+import { getTouchMove, touchSpeedMultiplier } from "@/engine/input/touchInput";
 import { smoothstep } from "@/engine/math";
 import { playerView, takeViewHandover } from "@/engine/playerView";
 
@@ -34,6 +36,8 @@ import {
   UNITS_PER_METER,
   WALK_SPEED,
 } from "./constants";
+import { clearPush, PUSH_COMBINED_SPEED_LIMIT, stopPushAxis, takePushStep } from "./push";
+import { DEFAULT_SETTINGS, settingsStore } from "@/settings/settings";
 
 /** 아바타가 읽는 몸 상태. useMovement 가 매 프레임 적는다. */
 export interface PlayerMotionState {
@@ -49,6 +53,11 @@ export interface PlayerMotionState {
   grounded: boolean;
   jumping: boolean;
   verticalVelocity: number;
+  /**
+   * 이 시각(performance.now(), ms)까지 걷기 입력을 받지 않는다 — 주먹처럼 제자리에서 하는 동작(src/app/punchPress, 11/12).
+   * 몸 방향도 그대로 둔다. 점프 · 앉기 · 시점은 막지 않는다
+   */
+  holdStillUntil?: number;
 }
 
 export interface MovementOptions {
@@ -115,7 +124,11 @@ const HANDOVER_BLEND_SECONDS = 0.25;
  * (경계·막힘·근처)만 함수로 받는다. 돌려주는 ref 에 지금 근처 지점 이름이 들어 있다.
  */
 export function useMovement(
-  active: boolean,
+  /**
+   * 조작이 켜져 있나. 함수로 주면 매 프레임 읽는다 — 자물쇠 · 창 · 연출로 켜고 끌 때마다 씬 전체를 다시 그리지 않으려고
+   * (역 씬, 미르 11/9 「밸브 자물쇠 뒤 멈칫」 튜토피드백 10회차). 기차 씬은 값으로 준다.
+   */
+  active: boolean | (() => boolean),
   {
     eyeHeight = EYE_HEIGHT,
     crouchEyeHeight = CROUCH_EYE_HEIGHT,
@@ -133,7 +146,9 @@ export function useMovement(
     firstPersonSpeedScale = null,
   }: MovementOptions = {},
 ): RefObject<string> {
-  const { camera: sceneCamera } = useThree();
+  // 카메라만 고른다 — useThree() 통째로 받으면 R3F 상태가 바뀔 때마다(App 이 다시 그려질 때 Canvas 가 건드린다)
+  // 이 훅을 부르는 씬 전체가 다시 그려졌다(밸브 자물쇠 뒤 멈칫, 튜토피드백 10회차)
+  const sceneCamera = useThree((state) => state.camera);
   // 이동은 원근 카메라만 쓴다(시야각을 만진다).
   const camera = sceneCamera as THREE.PerspectiveCamera;
   const eyeRef = useRef(eyeHeight);
@@ -152,6 +167,8 @@ export function useMovement(
     run: false,
     crouchToggle: false,
   });
+  /** 터치 스틱을 끝까지 밀어 달리는 중 — Shift(k.run)와 같이 본다 */
+  const isTouchRunning = useRef(false);
 
   // 카메라를 실제로 세운 눈 높이. 「앉았나」 로 고르면 조작이 꺼진 동안 C 만 눌렸을 때 캐릭터가 떠오르고,
   // 선 키를 빼면 앉는 순간 바닥 아래로 꺼진다. 카메라를 움직이는 곳에서만 갱신해 둘이 어긋나지 않게 한다.
@@ -192,7 +209,8 @@ export function useMovement(
   /** 시야각을 목표로 부드럽게 옮긴다. null 이면 이 씬의 원래 값으로. */
   const easeFov = (target: number | null, dt: number, speed = 4) => {
     // camera.fov 를 읽지 않는다 — 다른 씬이 넓혀 둔 값을 원래 값으로 오해한다.
-    if (baseFov.current == null) baseFov.current = fov;
+    // 설정의 시야각(기본 60°)을 이 씬이 선언한 값에 더한다 — 씬마다 다르게 잡은 차이는 지킨다
+    baseFov.current = fov + (settingsStore.get().fov - DEFAULT_SETTINGS.fov);
     const goal = target ?? baseFov.current;
     const diff = goal - camera.fov;
     if (Math.abs(diff) < 0.02) {
@@ -273,7 +291,8 @@ export function useMovement(
 
     // ③ 굵기 있는 붐으로 벽까지 밀어 본다
     const radius = config.enabled ? config.boomRadius * UNITS_PER_METER : 0;
-    const target = computeBoomDistance(pivot, back, maxLength, bounds, isBlocked, radius);
+    const chestDrop = config.enabled && config.clearBody ? config.chestDrop * UNITS_PER_METER : 0;
+    const target = computeBoomDistance(pivot, back, maxLength, bounds, isBlocked, radius, chestDrop);
 
     // ④ 접힘은 즉시(한 프레임만 늦어도 벽이 뚫린다) · 펴짐은 천천히
     const previous = boomLength.current;
@@ -324,7 +343,8 @@ export function useMovement(
     else {
       reportBoomLength(99);
       boomLength.current = 0;
-      easeFov(null, dt);
+      // 연출이 카메라를 쥔 동안은 시야각도 연출 몫(끝자리 당겨 보기, 10회차) — 놓으면 여기서 원래 값으로 천천히 푼다
+      if (!cameraOwner.owner) easeFov(null, dt);
     }
   };
 
@@ -357,7 +377,7 @@ export function useMovement(
       // 아바타가 걷기 모션 재생 속도를 실제 이동 속도에 맞춘다.
       state.speed = Math.hypot(velocity.current.x, velocity.current.z);
       state.moving = state.speed > 0.001;
-      state.running = keys.current.run;
+      state.running = keys.current.run || isTouchRunning.current;
     }
     state.crouching = keys.current.crouchToggle;
     state.grounded = isGrounded.current;
@@ -375,6 +395,9 @@ export function useMovement(
       else if (code === "ShiftLeft" || code === "ShiftRight") k.run = pressed;
     };
     const handleKeyDown = (event: KeyboardEvent) => {
+      // 입력칸(로비 채팅 등)에 쓰는 중이면 이동·점프·앉기로 받지 않고 글자도 막지 않는다. 떼는 키(keyup)는 그대로 받아
+      // 쓰기 전에 누르고 있던 키도 풀린다(2026-11-07 로비 채팅 — 검토 14회차 3).
+      if (isTypingTarget(event.target)) return;
       if (HANDLED_KEYS.has(event.code)) event.preventDefault();
       if (event.code === "Space" && isGrounded.current) {
         verticalVelocity.current = JUMP_VELOCITY;
@@ -385,11 +408,27 @@ export function useMovement(
       setKey(event.code, true);
     };
     const handleKeyUp = (event: KeyboardEvent) => setKey(event.code, false);
+    // 창을 벗어나거나 숨기면 keyup 을 못 받아 키가 눌린 채 남는다 — 나주 이동과 같게 비운다(앉기 토글은 둔다)
+    const releaseAll = () => {
+      const k = keys.current;
+      k.forward = false;
+      k.back = false;
+      k.left = false;
+      k.right = false;
+      k.run = false;
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") releaseAll();
+    };
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", releaseAll);
+    document.addEventListener("visibilitychange", handleVisibility);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", releaseAll);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, []);
 
@@ -405,6 +444,7 @@ export function useMovement(
       velocity.current.set(0, 0, 0);
       verticalVelocity.current = 0;
       eyeAboveFeet.current = eyeRef.current;
+      clearPush();
     }
     if (facing !== undefined) {
       camera.rotation.set(0, facing, 0);
@@ -475,6 +515,7 @@ export function useMovement(
       if (target.y != null) p.y = target.y;
       velocity.current.set(0, 0, 0);
       verticalVelocity.current = 0;
+      clearPush();
       if (isThirdPerson) camera.position.copy(p);
     }
     // 연출이 끝난 화면을 이어받는다. 3인칭 붐이 지금 시선 기준으로 자리를 다시 잡을 때 튀지 않게 이어 붙인다.
@@ -485,6 +526,7 @@ export function useMovement(
         p.y = eyeHeight;
         velocity.current.set(0, 0, 0);
         verticalVelocity.current = 0;
+        clearPush();
         bodyYaw.current = camera.rotation.y + Math.PI;
       }
       if (isThirdPerson) {
@@ -497,7 +539,11 @@ export function useMovement(
     playerView.isThirdPerson = !!isThirdPerson;
     playerView.ready = true;
 
-    if (!active) {
+    // 한 프레임에 한 번만 읽어 아래 두 곳이 같은 값을 쓴다(함수 자체를 참으로 보지 않게)
+    const isActive = typeof active === "function" ? active() : active;
+    if (!isActive) {
+      // 조작이 꺼진 동안(채팅 · 메뉴 · 연출)은 밀리지 않는다 — 맞는 동작만 나오고 자리는 그대로(검토 19회차)
+      clearPush();
       stopLoop("run"); // 메뉴를 열거나 조작이 꺼지면 발소리도 멈춘다
       writePlayerState(p, true);
       placeCamera(p, dt);
@@ -518,12 +564,34 @@ export function useMovement(
     if (k.back) wish.sub(forward);
     if (k.right) wish.add(right);
     if (k.left) wish.sub(right);
+    // 키가 없으면 터치 스틱 — 방향은 정규화하되 세기는 반응 곡선으로 따로 둔다(touchInput)
+    let touchMultiplier: number | null = null;
+    /** 터치 걷기 세기(0~1) — 앉기 속도에도 곱한다. 키보드면 1 */
+    let touchWalk = 1;
+    isTouchRunning.current = false;
+    const runMultiplier = isThirdPerson ? RUN_SPEED_MULTIPLIER : firstPersonSpeed.runMultiplier;
+    if (wish.lengthSq() === 0) {
+      const touch = getTouchMove();
+      if (touch.walk > 0) {
+        wish.addScaledVector(forward, touch.y).addScaledVector(right, touch.x);
+        touchMultiplier = touchSpeedMultiplier(touch, runMultiplier);
+        touchWalk = touch.walk;
+        isTouchRunning.current = touch.isRunning;
+      }
+    }
+    // 주먹 같은 제자리 동작 중 — 그 자리에 선다. 걷던 중에 낸 주먹도 미끄러지지 않는다(키는 누른 채라 끝나면 바로 다시 걷는다)
+    if ((playerRef?.current?.holdStillUntil ?? 0) > performance.now()) wish.set(0, 0, 0);
     if (wish.lengthSq() > 0) wish.normalize();
     if (wish.lengthSq() > 0.00001) bodyYaw.current = Math.atan2(wish.x, wish.z);
     const isCrouching = k.crouchToggle;
     const speedScale = isThirdPerson ? thirdPersonSpeed.scale : (firstPersonSpeedScale ?? firstPersonSpeed.scale);
-    const runMultiplier = isThirdPerson ? RUN_SPEED_MULTIPLIER : firstPersonSpeed.runMultiplier;
-    const speed = WALK_SPEED * (isCrouching ? CROUCH_SPEED_MULTIPLIER : k.run ? runMultiplier : 1) * speedScale;
+    const isRunInput = k.run || isTouchRunning.current;
+    const speed =
+      WALK_SPEED *
+      (isCrouching
+        ? CROUCH_SPEED_MULTIPLIER * touchWalk // 앉아도 스틱 세기를 따른다
+        : (touchMultiplier ?? (k.run ? runMultiplier : 1))) *
+      speedScale;
     const target = wish.multiplyScalar(speed);
     if (movementDebug.enabled) {
       movementDebug.commandedSpeed = speed;
@@ -578,17 +646,42 @@ export function useMovement(
       const minZ = insetMin(area.minZ, area.maxZ, marginZ);
       const maxZ = insetMax(area.minZ, area.maxZ, marginZ);
 
-      const nx = THREE.MathUtils.clamp(p.x + velocity.current.x * stepDt, minX, maxX);
-      if (canMoveTo(nx, p.z)) p.x = nx;
-      else {
+      // 밖에서 미는 힘(push.ts)을 걷기에 더해 같은 막힘 · 경계 검사를 거친다. 밀림이 없으면 예전 그대로다.
+      // 몸 방향 · 걷기 동작(state.speed)은 velocity 만 보므로 밀림을 안 센다 — 맞는 동작 그대로 미끄러진다.
+      let dx = velocity.current.x * stepDt;
+      let dz = velocity.current.z * stepDt;
+      const push = takePushStep(stepDt);
+      if (push.x !== 0 || push.z !== 0) {
+        dx += push.x;
+        dz += push.z;
+        // 합친 속도 상한 — 걷기가 이미 더 빠르면 걷기 속도까지(걷기를 늦추지 않는다)
+        const limit = Math.max(Math.hypot(velocity.current.x, velocity.current.z), PUSH_COMBINED_SPEED_LIMIT) * stepDt;
+        const length = Math.hypot(dx, dz);
+        if (length > limit) {
+          dx *= limit / length;
+          dz *= limit / length;
+        }
+      }
+
+      const wantX = p.x + dx;
+      const nx = THREE.MathUtils.clamp(wantX, minX, maxX);
+      if (canMoveTo(nx, p.z)) {
+        p.x = nx;
+        if (nx !== wantX) stopPushAxis("x");
+      } else {
         velocity.current.x = 0;
+        stopPushAxis("x");
         if (movementDebug.enabled) movementDebug.blockedX = (movementDebug.blockedX ?? 0) + 1;
       }
 
-      const nz = THREE.MathUtils.clamp(p.z + velocity.current.z * stepDt, minZ, maxZ);
-      if (canMoveTo(p.x, nz)) p.z = nz;
-      else {
+      const wantZ = p.z + dz;
+      const nz = THREE.MathUtils.clamp(wantZ, minZ, maxZ);
+      if (canMoveTo(p.x, nz)) {
+        p.z = nz;
+        if (nz !== wantZ) stopPushAxis("z");
+      } else {
         velocity.current.z = 0;
+        stopPushAxis("z");
         if (movementDebug.enabled) movementDebug.blockedZ = (movementDebug.blockedZ ?? 0) + 1;
       }
 
@@ -626,8 +719,10 @@ export function useMovement(
       p.y = ny;
     }
 
-    const isRunning = active && k.run && !isCrouching && isGrounded.current && target.lengthSq() > 1e-6;
-    if (isRunning) startLoop("run", { volume: 0.55 });
+    const isRunning = isActive && isRunInput && !isCrouching && isGrounded.current && target.lengthSq() > 1e-6;
+    // 뛰기 발소리 — 0.55 → 0.85(2026-11-07 미르 「음성에 비해 발소리가 작다」). run.mp3 는 −25.8 LUFS 라 0.85배면 약 −27,
+    // 캐릭터 목소리(−20.5 로 맞춤 — src/dev/lobbyPreview/voices.ts)보다 약 7dB 아래. 검토 15회차
+    if (isRunning) startLoop("run", { volume: 0.85 });
     else stopLoop("run");
 
     writePlayerState(p, false);

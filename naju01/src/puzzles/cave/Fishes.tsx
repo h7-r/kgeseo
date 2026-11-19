@@ -18,14 +18,18 @@ import { recall, remember } from "../../save/puzzleMemory";
 import { playerPush } from "../../movement/playerPush";
 import { buildBakedRockPrototypes } from "../../models/nature";
 import { audio } from "../../scene/immersion/audio";
-import { showNotice } from "../interaction";
+import { noticeFor } from "../interaction";
 import { inventory } from "../inventory";
 import { makeToonMaterial } from "../materials";
 import { setPuzzlePanel } from "../puzzlePanel";
 import { M } from "../units";
+import { usePrewarm } from "../usePrewarm";
 import { FLOOR_Y, SURFACE_Y, floorY, getUnderwater, stirSand, useCaveShown } from "./caveState";
 import { SPECIES, buildFishGeometry } from "./fishLooks";
 import { normalizePrototype } from "./seabed";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("fishes");
 
 /** 돌 고리 — 은빛 떼를 몰아넣는 자리 */
 const RING = { x: 40.2, z: 65.4, radius: 1.3, need: 12, holdSeconds: 1.2 };
@@ -181,6 +185,8 @@ export default function Fishes() {
   }, [world]);
   useEffect(() => () => setPuzzlePanel("cave-ring", null), []);
 
+  // 물굴이 열릴 때에야 붙는다 — 그 프레임에 굽지 않게 미리 굽는다
+  usePrewarm(...world.meshes);
   const matrix = useMemo(() => new THREE.Matrix4(), []);
   const quaternion = useMemo(() => new THREE.Quaternion(), []);
   const turn = useMemo(() => new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2), []);

@@ -5,6 +5,8 @@
  */
 import { useSyncExternalStore } from "react";
 
+import { onGameFreeze } from "@/engine/input/gamePause";
+import { onInputCancel } from "@/engine/input/touchInput";
 import { createChangeSignal } from "@/lib/changeSignal";
 
 import type { DialogState, HintOffer } from "./companionDialog.ts";
@@ -81,5 +83,10 @@ export function pressCompanion(isStillAimed: () => boolean) {
 export function cancelCompanionHold() {
   if (hold) endHold();
 }
+
+// 터치 — 손가락이 취소되거나(회전 · 숨김 · pointercancel) 게임이 얼면 길게 누르던 것을 버린다.
+// 취소 뒤 오는 keyup 이 「짧게 눌렀다 = 말 걸기」로 읽히지 않게, keyup 보다 먼저 불린다(touchInput).
+onInputCancel(cancelCompanionHold);
+onGameFreeze(cancelCompanionHold);
 
 export const useCompanionHold = () => useSyncExternalStore(holdSignal.subscribe, () => hold);

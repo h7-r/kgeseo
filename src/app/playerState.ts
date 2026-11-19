@@ -1,13 +1,12 @@
 import { useEffect, type RefObject } from "react";
 import * as THREE from "three";
 
+import { isTouchMode } from "@/engine/input";
 import { EYE_HEIGHT } from "@/engine/movement/constants";
 import type { AvatarPlayerLink } from "@/naju";
 
+import { pressPunch, type PunchMotion } from "./punchPress";
 import { IS_INPUT_ALWAYS_ON } from "./runtimeFlags";
-
-/** 왼손·오른손을 번갈아 낸다. 이름은 아바타 모션 클립 이름이다. */
-type PunchMotion = "Punch_Jab" | "Punch_Cross";
 
 /** 이동·손붙이기·아바타가 함께 쓰는 플레이어 상자. App 이 하나 만들어 씬에 내려보낸다. */
 interface PlayerState extends AvatarPlayerLink {
@@ -43,16 +42,19 @@ interface PunchOptions {
   isWindowOpen: boolean;
 }
 
-/** 3인칭에서 왼쪽 클릭 → 잽·크로스를 번갈아. 아바타가 attackSerial 이 바뀐 걸 보고 모션을 튼다. */
+/**
+ * 3인칭에서 왼쪽 클릭 → 잽·크로스를 번갈아. 아바타가 attackSerial 이 바뀐 걸 보고 모션을 튼다.
+ * 걷던 중이면 그 자리에 잠깐 서서 낸다(punchPress — 미끄러지지도, 클릭이 버려지지도 않게).
+ */
 export function usePunch({ playerRef, isPointerLocked, isThirdPerson, isTrain, isWindowOpen }: PunchOptions) {
   useEffect(() => {
     let nextPunch: PunchMotion = "Punch_Jab";
     const handleMouseDown = (event: MouseEvent) => {
+      // 터치 모드에서는 손가락이 만든 호환 mouse 이벤트로 주먹이 나가지 않게 막는다(로비 주먹 단추는 따로)
+      if (isTouchMode()) return;
       if (event.button !== 0 || !(isPointerLocked || IS_INPUT_ALWAYS_ON) || !isThirdPerson || isTrain || isWindowOpen)
         return;
-      const player = playerRef.current;
-      player.attackMotion = nextPunch;
-      player.attackSerial += 1;
+      if (!pressPunch(playerRef.current, nextPunch, performance.now())) return;
       nextPunch = nextPunch === "Punch_Jab" ? "Punch_Cross" : "Punch_Jab";
     };
     window.addEventListener("mousedown", handleMouseDown);

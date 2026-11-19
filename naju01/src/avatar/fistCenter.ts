@@ -55,6 +55,15 @@ function computeFistCenter(skin: THREE.SkinnedMesh | null | undefined, boneName:
  * 든 물건이 몸을 안 뚫게 손을 밀어낼 양이다. 걷기 캡슐 반경(0.6)은 어깨 폭까지 든 값이라 과하다.
  * 어깨 높이 근처 얇은 판의 몸통 정점 중 z 최댓값을 본다 — 체형 모프로 몸이 두꺼워지면 따라간다.
  */
+/** 지금 걸린 체형 모프의 서명 — 바뀌면 가슴 두께를 다시 잰다 */
+export function morphSignature(skin: THREE.SkinnedMesh | null | undefined): string {
+  const influences = skin?.morphTargetInfluences;
+  if (!influences?.length) return "";
+  let signature = "";
+  for (const value of influences) signature += `${Math.round(value * 50)},`;
+  return signature;
+}
+
 export function measureChestHalfDepth(
   skin: THREE.SkinnedMesh | null | undefined,
   shoulderY: number,
@@ -63,19 +72,31 @@ export function measureChestHalfDepth(
   const geometry = skin?.geometry;
   const position = geometry?.attributes?.position;
   if (!geometry || !position) return null;
-  const key = geometry.uuid;
+  // 체형 모프(뚱뚱함 등)까지 넣어 잰다 — 기본 몸 정점만 재면 몸은 두꺼워졌는데 손은 옛 두께만큼만 비켜 몸속으로 들어갔다(베타 11/13)
+  const influences = skin?.morphTargetInfluences ?? [];
+  const morphs = geometry.morphAttributes?.position ?? [];
+  const key = `${geometry.uuid}|${morphSignature(skin)}`;
   if (chestCache.has(key)) return chestCache.get(key) ?? null;
   const vertex = new THREE.Vector3();
+  const moved = new THREE.Vector3();
   let maxZ = -Infinity;
   const top = shoulderY + 0.02;
   // 어깨에서 가슴까지
   const bottom = shoulderY - 0.18;
   for (let i = 0; i < position.count; i += 1) {
     vertex.fromBufferAttribute(position, i);
+    // 판 고르기는 기본 몸 기준 — 모프로 가슴이 부풀어도 같은 정점들을 본다
     if (vertex.y < bottom || vertex.y > top) continue;
     // 팔은 빼고 몸통만
     if (Math.abs(vertex.x) > 0.16) continue;
-    if (vertex.z > maxZ) maxZ = vertex.z;
+    let z = vertex.z;
+    for (let m = 0; m < morphs.length; m += 1) {
+      const influence = influences[m] ?? 0;
+      if (!influence) continue;
+      moved.fromBufferAttribute(morphs[m], i);
+      z += (geometry.morphTargetsRelative ? moved.z : moved.z - vertex.z) * influence;
+    }
+    if (z > maxZ) maxZ = z;
   }
   const value = Number.isFinite(maxZ) ? maxZ - shoulderZ : null;
   chestCache.set(key, value);

@@ -1,3 +1,5 @@
+import { useIsMobileLayout } from "@/mobile/layoutMode";
+import { MobileSearchPage } from "@/mobile/MobilePages";
 import { useMemo, useState, type CSSProperties } from "react";
 import { useSearchParams } from "react-router-dom";
 
@@ -15,7 +17,7 @@ const POPULAR_QUERIES = ["앙암바위", "나주", "구독", "환불", "비밀�
  * 찾기 결과. 검색어를 주소(?q=)에 담아 결과를 공유하고 뒤로 가기로 이전 검색에 돌아올 수 있게 한다.
  * 결과가 없어도 막다른 길이 되지 않게 다시 찾기와 자주 찾는 말을 함께 준다.
  */
-export default function SearchPage() {
+function DesktopSearchPage() {
   const [params, setParams] = useSearchParams();
   const navigate = useSiteNavigate();
   const query = params.get(QUERY.search) ?? "";
@@ -226,3 +228,8 @@ const popularButtonStyle: CSSProperties = {
   color: COLOR.textMuted,
   cursor: "pointer",
 };
+
+/** 모바일은 따로 그린다 — 데스크톱판의 무대 배율 훅이 모바일에서 돌지 않게 진입에서만 가른다(src/mobile/MobilePages) */
+export default function SearchPage() {
+  return useIsMobileLayout() ? <MobileSearchPage /> : <DesktopSearchPage />;
+}

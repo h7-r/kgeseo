@@ -8,6 +8,7 @@ import { useSyncExternalStore } from "react";
 import { playSound } from "@/audio/sound";
 import { playCupSip } from "@/audio/synthSounds";
 import { exposeDevHook } from "@/debug/devHooks";
+import { showToast } from "@/game/toast";
 import { createChangeSignal } from "@/lib/changeSignal";
 
 type HeldDrinkKind = "cup" | "can" | "paper";
@@ -102,6 +103,11 @@ export function pickUpPaper() {
   return true;
 }
 
+const DRINK_DONE_MESSAGE = {
+  cup: "커피를 다 마셨다. …아무 일도 일어나지 않았다.",
+  can: "음료를 다 마셨다.",
+} as const;
+
 function startDrinkAction(action: DrinkAction) {
   state.action = action;
   state.actionStartedAt = performance.now();
@@ -131,6 +137,9 @@ export function interactWithHeldDrink(): DrinkUseResult | null {
     startDrinkAction("sip");
     if (state.kind === "can") playSound("canDrink", { volume: 0.9 });
     else if (state.kind === "cup") playCupSip();
+    // 마지막 모금에서 한 번 — 커피는 퍼즐과 상관없다는 것을 알린다(미르 플레이 시험 11/8 「아무 쓸모없는 커피자판기」).
+    // 캔은 같이 나온 힌트 쪽지까지 쓸모없다고 읽지 않게 담담하게만(튜토피드백 01회차)
+    if (state.remaining <= 0.001) showToast(state.kind === "cup" ? DRINK_DONE_MESSAGE.cup : DRINK_DONE_MESSAGE.can);
     signal.notify();
     return "sip";
   }

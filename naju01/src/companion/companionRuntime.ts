@@ -10,9 +10,12 @@
  */
 import { useSyncExternalStore } from "react";
 
+import { gameClearTimeout, gameNow, gameSetTimeout } from "@/engine/input/gameClock";
+
 import { ASSET_BASE, setAssetVersionPath } from "../../../shared/env.ts";
 import { createCompanionDialog } from "./companionDialog.ts";
 import { createCompanionSession, type CompanionSessionConfig, type KeyValueStore } from "./companionSession.ts";
+import { pausedMsSinceInteraction } from "../progress/pausedSinceInteraction";
 
 const QUERY = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
 
@@ -79,7 +82,16 @@ export const companionSession = createCompanionSession({
   onAssetBasePath: applyAssetBasePath,
 });
 
-export const companionDialog = createCompanionDialog({ session: companionSession, log });
+// 자막이 사라지는 시간은 게임 시계로 — 터치 모드에서 멈춘 동안 자막이 지워지지 않게
+export const companionDialog = createCompanionDialog({
+  session: companionSession,
+  log,
+  timers: { set: gameSetTimeout, clear: gameClearTimeout },
+  // 구역 진입 턴 간격(180초)도 게임 시계로 — 멈춘 시간은 세지 않는다(미르 11/11)
+  now: gameNow,
+  // auto 턴에 「마지막 상호작용 뒤 멈춘 시간」을 실어 서버 무입력 판정에서 빼게 한다
+  pausedMs: pausedMsSinceInteraction,
+});
 
 let started: Promise<unknown> | null = null;
 

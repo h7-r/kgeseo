@@ -127,7 +127,7 @@ const TREE_NAME = /나무/;
 const isLeafMaterial = (m: THREE.Material) => m.alphaTest > 0 || m.transparent;
 
 /** 씬을 훑어 식물 재질에 흔들림을 붙인다. 새로 붙인 재질 수를 돌려준다. */
-export function findPlants(scene: THREE.Scene) {
+export function findPlants(scene: THREE.Object3D) {
   let n = 0;
   scene.traverse((o) => {
     if (!(o as THREE.Mesh).isMesh) return;

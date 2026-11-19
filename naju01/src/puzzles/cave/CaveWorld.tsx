@@ -21,8 +21,11 @@ import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { mangaInk } from "../../world/mangaStyle";
 import { makeGlowPoints, pointScaleFor } from "../glowPoints";
-import { showNotice } from "../interaction";
+import { noticeFor } from "../interaction";
+import { sceneChangeListeners } from "../lightBudgetEnforce";
 import { makeToonMaterial } from "../materials";
+import { usePrewarm } from "../usePrewarm";
+import { IS_CAVE_JUMP } from "../cliff/stageJump";
 import { ritual, useRitualStage } from "../ritual/ritualState";
 import { M } from "../units";
 import { DEEP_DROP, buildDoorWall, planDecor, seabedY } from "./caveDecor";
@@ -39,9 +42,11 @@ import {
   getBreath,
   getLastAirSpot,
   getUnderwater,
+  isBreathGuarded,
   isCaveShown,
   resetCaveState,
   setBreath,
+  guardBreathFor,
   setCavePlayerFoot,
   setPartOpenness,
   setUnderwater,
@@ -62,6 +67,9 @@ import {
   makeShaftTexture,
   normalizePrototype,
 } from "./seabed";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("cave");
 
 /** 물이 갈라지는 데 걸리는 시간(초) */
 const PART_SECONDS = 7;
@@ -98,6 +106,9 @@ function createParticleState(count: number) {
     carry: 0,
   };
 }
+
+/** 자르는 면을 밀어 두는 값 — 이 면 안쪽에 드는 것이 없어 아무것도 안 잘린다 */
+const CLIP_OFF = 1e9;
 
 function createCaveAssets() {
   const random = createRandom(991);
@@ -287,7 +298,8 @@ export default function CaveWorld() {
   const underwaterMix = useRef(0);
   const murk = useRef(0);
   const wasUnderwater = useRef(false);
-  const clipPlanes = useRef<THREE.Plane[] | null>(null);
+  /** ?stage=cave 로 들어왔으면 시작 자리 옮기기가 끝난 뒤 강 밑 길 끝으로 데려간다(초) */
+  const jumpAt = useRef(IS_CAVE_JUMP ? 1.5 : -1);
   const curtains = useRef<THREE.Mesh[]>([]);
   const horizonWall = useRef<THREE.Mesh>(null);
 
@@ -311,50 +323,80 @@ export default function CaveWorld() {
   };
 
   // 물이 갈라지면 강 수면과 강바닥 메시를 길 폭만큼 잘라 낸다 — 재질은 안 바꾸고 자르는 면만 건다.
-  // 강바닥 지형이 길보다 높아서 안 자르면 길 위에 검은 판처럼 덮인다. 길 구간(z 44.5~58)에서만 자른다
+  // 강바닥 지형이 길보다 높아서 안 자르면 길 위에 검은 판처럼 덮인다. 길 구간(z 44.5~58)에서만 자른다.
+  // 자르는 면은 처음부터 걸어 둔다 — 면의 수가 셰이더 판을 가르므로 갈라지는 순간에 걸면 땅 · 강 재질 넷을 그 프레임에
+  // 새로 굽는다(11/16 실측 358ms). 안 갈라진 동안은 면을 멀리 밀어 두어 아무것도 안 잘린다(네 면 안쪽이 다 겹쳐야 잘린다)
+  const clip = useMemo(
+    () => ({
+      planes: [
+        new THREE.Plane(new THREE.Vector3(-1, 0, 0), CORRIDOR.x * M),
+        new THREE.Plane(new THREE.Vector3(1, 0, 0), -CORRIDOR.x * M),
+        new THREE.Plane(new THREE.Vector3(0, 0, -1), CLIP_OFF),
+        new THREE.Plane(new THREE.Vector3(0, 0, 1), -CORRIDOR.zEnd * M),
+      ],
+      materials: new Set<THREE.Material>(),
+    }),
+    [],
+  );
   useEffect(() => {
-    if (!isShown) return undefined;
     const names = new Set<string>([
       MESH_NAMES.riverSurface,
       MESH_NAMES.ground,
       MESH_NAMES.riverStones,
       MESH_NAMES.groundPebbles,
     ]);
-    const materials = new Set<THREE.Material>();
-    scene.traverse((node) => {
-      const mesh = node as THREE.Mesh;
-      if (!mesh.isMesh) return;
-      const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      // 이름 없는 땅 밑받침(NajuScene 의 어두운 상자)도 — 길이 그 밑으로 내려가서 안 자르면 검은 판으로 길을 덮는다
-      const isBaseSlab =
-        mesh.geometry.type === "BoxGeometry" && (list[0] as THREE.MeshToonMaterial)?.color?.getHexString() === "2e323a";
-      if (names.has(mesh.name) || isBaseSlab) for (const material of list) if (material) materials.add(material);
-    });
-    if (!materials.size) return undefined;
-    const planes = [
-      new THREE.Plane(new THREE.Vector3(-1, 0, 0), CORRIDOR.x * M),
-      new THREE.Plane(new THREE.Vector3(1, 0, 0), -CORRIDOR.x * M),
-      new THREE.Plane(new THREE.Vector3(0, 0, -1), CORRIDOR.zStart * M),
-      new THREE.Plane(new THREE.Vector3(0, 0, 1), -CORRIDOR.zEnd * M),
-    ];
-    const previous = gl.localClippingEnabled;
+    // 땅 · 강 메시는 늦게 붙기도 한다 — 장면이 바뀔 때마다(그리기 직전) 새로 온 재질에 건다
+    const attach = () => {
+      scene.traverse((node) => {
+        const mesh = node as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        // 이름 없는 땅 밑받침(NajuScene 의 어두운 상자)도 — 길이 그 밑으로 내려가서 안 자르면 검은 판으로 길을 덮는다
+        const isBaseSlab =
+          mesh.geometry.type === "BoxGeometry" &&
+          (list[0] as THREE.MeshToonMaterial)?.color?.getHexString() === "2e323a";
+        if (!names.has(mesh.name) && !isBaseSlab) return;
+        for (const material of list) {
+          if (!material || clip.materials.has(material)) continue;
+          clip.materials.add(material);
+          material.clippingPlanes = clip.planes;
+          material.clipIntersection = true;
+          material.needsUpdate = true;
+        }
+      });
+    };
     gl.localClippingEnabled = true;
-    materials.forEach((material) => {
-      material.clippingPlanes = planes;
-      material.clipIntersection = true;
-      material.needsUpdate = true;
-    });
-    clipPlanes.current = planes;
+    attach();
+    sceneChangeListeners.add(attach);
     return () => {
-      materials.forEach((material) => {
+      sceneChangeListeners.delete(attach);
+      clip.materials.forEach((material) => {
         material.clippingPlanes = null;
         material.clipIntersection = false;
         material.needsUpdate = true;
       });
-      gl.localClippingEnabled = previous;
-      clipPlanes.current = null;
+      clip.materials.clear();
     };
-  }, [isShown, scene, gl]);
+  }, [scene, gl, clip]);
+  useEffect(() => {
+    clip.planes[2].constant = isShown ? CORRIDOR.zStart * M : CLIP_OFF;
+  }, [isShown, clip]);
+
+  // 물굴 부품은 갈라질 때에야 장면에 붙는다 — 그 프레임에 굽지 않게 붙기 전에 미리 굽는다(붙은 뒤와 같은 재질 · 모양으로)
+  const warmProps = useMemo(() => {
+    const plane = new THREE.PlaneGeometry(1, 1);
+    const { materials } = assets;
+    const meshes = [
+      new THREE.Mesh(assets.seabed, materials.sand),
+      new THREE.Mesh(assets.doorWall, materials.wall),
+      ...[materials.floor, materials.ceiling, materials.curtain, materials.horizon, materials.shaft].map(
+        (material) => new THREE.Mesh(plane, material),
+      ),
+    ];
+    return { plane, meshes };
+  }, [assets]);
+  useEffect(() => () => warmProps.plane.dispose(), [warmProps]);
+  usePrewarm(...warmProps.meshes, ...assets.instances, assets.bubbles.points, assets.silt.points);
 
   // 물에서 나오면(강가로 돌아오면) 소리·안개를 되돌린다
   useEffect(() => {
@@ -376,6 +418,17 @@ export default function CaveWorld() {
 
   useFrame((_, dt) => {
     const time = performance.now() / 1000;
+    if (jumpAt.current >= 0) {
+      jumpAt.current -= dt;
+      if (jumpAt.current < 0) {
+        // 물에 처음 들어올 때 숨을 채우는 길을 건너뛰었으니 여기서 가득 채우고, 물굴을 처음 그리느라 길게 멈춘 프레임이
+        // 숨을 다 깎지 않게 잠깐 지킨다(정식으로는 걸어 들어오며 미리 그려 둔다)
+        setBreath(BREATH_SECONDS);
+        guardBreathFor("cave-jump", 6);
+        teleportPlayer(CORRIDOR.x, MERGE_Z + 1.5, "+Z");
+        showNotice(`물굴 — 갈라진 강 밑. 숨은 ${BREATH_SECONDS}초, 거품이 솟는 곳에 서면 다시 찬다.`, 5);
+      }
+    }
     // 물속에서는 만화 선을 먹빛으로 — 둘레 등빛을 타 갈색으로 물들지 않게
     mangaInk.black = isShown && getUnderwater() ? 1 : 0;
     hideSurfaceProps(isShown && getUnderwater());
@@ -394,7 +447,7 @@ export default function CaveWorld() {
       partedAt.current = time;
       if (!isPartRestored.current) {
         audio.play("우르릉");
-        showNotice("강물이 양쪽으로 갈라진다. 강바닥에 길이 드러났다.", 5);
+        showNotice("강물이 갈라지고 아래에 길이 드러났다. 저 아래에도 아랑사의 흔적이 있을까.", 5);
       }
     }
     const openness = isPartRestored.current
@@ -408,10 +461,8 @@ export default function CaveWorld() {
         audio.play("우르릉");
     }
     const gap = CORRIDOR.halfWidth * openness;
-    if (clipPlanes.current) {
-      clipPlanes.current[0].constant = (CORRIDOR.x - gap) * M;
-      clipPlanes.current[1].constant = -(CORRIDOR.x + gap) * M;
-    }
+    clip.planes[0].constant = (CORRIDOR.x - gap) * M;
+    clip.planes[1].constant = -(CORRIDOR.x + gap) * M;
     curtains.current[0]?.position.setX(CORRIDOR.x - gap);
     curtains.current[1]?.position.setX(CORRIDOR.x + gap);
     assets.time.value = time;
@@ -469,14 +520,16 @@ export default function CaveWorld() {
       scene.fog.color.lerp(SAND_MURK, murk.current * 0.45);
       if ((scene.background as THREE.Color | null)?.isColor) (scene.background as THREE.Color).copy(scene.fog.color);
     }
-    // 숨이 얼마 안 남으면 화면이 떨린다
-    if (isUnderwater && getBreath() < BREATH_WARNING)
+    // 숨이 얼마 안 남으면 화면이 떨린다(장면을 보여 주는 동안은 숨이 멈춰 떨지 않는다)
+    if (isUnderwater && getBreath() < BREATH_WARNING && !isBreathGuarded())
       director.cue({ 카메라: "흔들림", 세기: dt * (1.2 + (BREATH_WARNING - getBreath()) * 0.4) });
+    // 화면이 한곳을 바라보는 동안 · 장면을 보여 주는 동안은 숨이 줄지 않는다(tickBreath 가 isBreathGuarded 로 본다) — 몸이 묶인 채
+    // 숨이 다하지 않게(박람회 출품판 26회차). 그래도 매 프레임 부른다 — 공기 기둥 회복 · 까매짐 걷힘은 장면 중에도 이어지게(Codex 01)
     if (tickBreath(dt, x, z)) {
       const spot = getLastAirSpot();
       teleportPlayer(spot.x, spot.z);
       audio.play("전환");
-      showNotice("숨이 다했다. 마지막으로 숨 쉰 자리로 돌아왔다.", 4);
+      showNotice("숨이 다했다. 마지막으로 숨 쉰 자리로 돌아왔다.", 4, { urgent: true });
     }
 
     const { bubbles } = assets;

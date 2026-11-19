@@ -388,6 +388,7 @@ export default function ElectricPanelInterior({
       {geometries.socket && (
         <NozzleSocket
           panelId={panelId}
+          d={d}
           geometry={geometries.socket}
           mouth={socketMouth}
           pluggedPosition={pluggedPosition}

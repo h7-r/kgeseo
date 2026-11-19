@@ -158,6 +158,21 @@ test("input · select: payload 는 answer / choice 하나뿐", async () => {
   });
 });
 
+test("inspect: 물건 대상 · 빈 payload(조사 ID 는 서버가 물건에서 찾는다)", async () => {
+  serve(() => ({ status: 200, body: okResponse() }));
+  const outcome = await sync().submit({ action: "inspect", zone: "TA", object: "test-lever" });
+  assert.equal(outcome.kind, "sent");
+  assert.deepEqual(calls[0].body, {
+    client_event_id: "00000000-0000-4000-8000-000000000001",
+    client_timestamp: NOW,
+    zone_id: "ZONE_TEST_A",
+    action: "inspect",
+    target_type: "object",
+    target_id: "OBJ_TEST_LEVER",
+    payload: {},
+  });
+});
+
 // ── 재시도 ──
 
 test("연결 실패 · 502~504 는 같은 client_event_id · 같은 본문 문자열로 다시 보낸다", async () => {
@@ -191,6 +206,39 @@ test("prepared 본문은 얼려 있어 바꿀 수 없다", () => {
   assert.throws(() => {
     (result.prepared.body as { zone_id: string }).zone_id = "ZONE_OTHER";
   }, TypeError);
+});
+
+test("onSent 는 서버가 상호작용을 받았을 때만 — 동행의 「마지막 상호작용 뒤 멈춘 시간」 기준점(미르 11/11)", async () => {
+  let sent = 0;
+  const onSent = () => {
+    sent += 1;
+  };
+  serve(() => ({ status: 200, body: okResponse() }));
+  await sync({ onSent }).submit({ action: "complete", zone: "TA", object: "test-lever" });
+  assert.equal(sent, 1);
+  serve(() => ({ status: 409, body: { detail: "Zone is not current." } }));
+  await sync({ onSent }).submit({ action: "complete", zone: "TA", object: "test-lever" });
+  serve(() => ({ status: 200, body: { nope: true } }));
+  await sync({ onSent }).submit({ action: "complete", zone: "TA", object: "test-lever" });
+  assert.equal(sent, 1, "거절 · 이상한 응답은 받은 것이 아니다");
+});
+
+test("멈춘 시간 기준점은 prepared 를 처음 보낼 때 찍은 표시 — 응답을 잃고 다시 보내 성공해도 처음 표시로 onSent", async () => {
+  let n = 0;
+  const marks: unknown[] = [];
+  const s = sync({ markSend: () => ++n, onSent: (mark) => marks.push(mark) });
+  const result = s.prepare({ action: "complete", zone: "TA", object: "test-lever" });
+  assert.ok(result.ok);
+  serveSequence(["network", "network", "network"]);
+  assert.equal((await s.send(result.prepared)).kind, "unreachable");
+  serveSequence([{ status: 200, body: okResponse() }]);
+  assert.equal((await s.send(result.prepared)).kind, "sent");
+  assert.deepEqual(marks, [1], "다시 보낸 때(2)가 아니라 처음 보낸 때(1)");
+  const other = s.prepare({ action: "complete", zone: "TA", object: "test-lever" });
+  assert.ok(other.ok);
+  serveSequence([{ status: 200, body: okResponse() }]);
+  await s.send(other.prepared);
+  assert.deepEqual(marks, [1, 2]);
 });
 
 // ── 오류 구분 ──

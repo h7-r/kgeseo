@@ -33,6 +33,7 @@ import {
   type ImmersionTerrain,
 } from "./state";
 import { isPuddleAt, rainUniforms } from "./wetMaterials";
+import { isMotionReduced } from "@/settings/settings";
 
 const U = UNITS_PER_METER;
 
@@ -49,6 +50,16 @@ export function setZoneRainGate(code: string, gate: (() => boolean) | null) {
   else zoneRainGates.delete(code);
 }
 const isRainZoneOpen = (code: string) => zoneRainGates.get(code)?.() ?? true;
+
+/**
+ * 구역 시간대 바꿔 걸기 — 퍼즐이 그 구역의 시간대를 큐 시트와 다르게 건다(이름을 주면 그 시간대, null 이면 큐 시트대로).
+ * 나주 2구역은 바위 위에서 벼랑 끝 틈을 지나 내려서면 굿판의 밤이 된다
+ */
+const zoneTimes = new Map<string, () => string | null>();
+export function setZoneTime(code: string, pick: (() => string | null) | null) {
+  if (pick) zoneTimes.set(code, pick);
+  else zoneTimes.delete(code);
+}
 
 export const director = {
   settings,
@@ -108,17 +119,19 @@ export function beforeRender(_r: THREE.WebGLRenderer, _s: THREE.Scene, camera: T
       cam.quaternion.slerp(_q, fx.gazeWeight);
       saved.changed = true;
     }
-    if (fx.forward) {
+    // 「화면 흔들림 줄이기」 — 돌리줌은 앞으로 당기기와 시야각 보정이 한 짝이라 둘 다 건너뛴다(Codex 리뷰)
+    if (fx.forward && !isMotionReduced()) {
       cam.translateZ(-fx.forward);
       saved.changed = true;
     }
-    if (fx.yaw || fx.pitch || fx.roll) {
+    // 「화면 흔들림 줄이기」 — 흔들림 · 당김은 건너뛴다(컷 자리 옮기기는 그대로)
+    if (!isMotionReduced() && (fx.yaw || fx.pitch || fx.roll)) {
       _e.set(fx.pitch, fx.yaw, fx.roll);
       cam.quaternion.multiply(_q.setFromEuler(_e));
       saved.changed = true;
     }
   }
-  if (fx.fov) {
+  if (fx.fov && !isMotionReduced()) {
     cam.fov = saved.fov + fx.fov;
     cam.updateProjectionMatrix();
     saved.changed = true;
@@ -249,7 +262,7 @@ export function tick({ scene, camera, terrain, position, dt, active }: TickArgs)
   const paused = focus.paused;
   const code = currentZone() ?? stage.zone ?? cueTable.기본구역;
   const zq = cueTable.구역?.[code] ?? {};
-  const tod = cueTable.시간대[zq.시간대 ?? "한낮"] ?? cueTable.시간대.한낮;
+  const tod = cueTable.시간대[zoneTimes.get(code)?.() ?? zq.시간대 ?? "한낮"] ?? cueTable.시간대.한낮;
 
   // ── 구역 바뀜 → 전환 박자 · 소리 섞기 ──
   if (code !== stage.zone) {

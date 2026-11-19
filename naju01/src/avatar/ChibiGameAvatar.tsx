@@ -11,8 +11,11 @@ import type { AvatarLink } from "@/engine/avatarLink";
 import { UNITS_PER_METER } from "../plan/sitePlan";
 import { alignWrists, solveArms } from "./armIk";
 import { registerDiagnostics } from "./avatarDiagnostics";
+import { QUATERNIUS_PREFIX } from "./chibiClipLibrary";
 import { attachClipPlanes, CLIPPING, updateClipPlane } from "./firstPersonClipping";
 import { applyFootContact, createFootContactState, lowestSoleY } from "./footContactIk";
+import { applyGesture, createGestureState } from "./gestures";
+import { createHairSway, resetHairSway, stepHairSway } from "./hairSway";
 import { DEFAULT_MESH_CONFIG, type MeshAppearanceConfig, getMeshBodyUrl, getMeshShoesUrl } from "./meshAppearance";
 import {
   type CorrectionOverrides,
@@ -37,9 +40,11 @@ import {
   STATIONARY_CLIPS,
   TRIPO_MOTION_URLS,
 } from "./preparedBody";
+import TeamOutfitLayer from "./TeamOutfitLayer";
+import { splitTeamOutfit } from "./teamOutfit";
 import { DEFAULT_TOON, type ToonConfig } from "./toonMaterial";
 import { DEFAULT_OUTLINE, type OutlineConfig } from "./toonOutline";
-import { chooseMotion, type MotionTimers, useMotionPlayer } from "./useMotionPlayer";
+import { chooseMotion, type MotionTimers, noteHiddenActions, useMotionPlayer } from "./useMotionPlayer";
 import { useAppearancePaint, useDeferredDisposal, useToonAndOutline } from "./useChibiMaterials";
 
 export type { ChibiAvatarConfig, ChibiBody } from "./preparedBody";
@@ -68,6 +73,36 @@ function applyGrip(
     if (mesh.morphTargetInfluences) mesh.morphTargetInfluences[index] = fist;
   });
 }
+
+const NO_SOLE_INDICES: number[] = [];
+/**
+ * 신발을 신었을 때 맨발 밑창을 안 세도 되는 동작 — 게임이 실제로 트는 동작만(useMotionPlayer 고르기 · 인사 · 맞기 · 주먹 ·
+ * 생성 화면). 발 크기 보기(foot-check.html, 2026-11-07)에서 남녀 · 다리 0.8/1.2 · 발 0.7~1.3 으로 재서 맨발 최저점이
+ * 신발 최저점보다 늘 위였던 것. 여기에 없는 동작(구르기처럼 발이 뒤집히는 것)은 맨발까지 다 센다 — 새 동작을 게임에
+ * 쓰게 되면 그 화면으로 재고 넣는다(Codex 12회차 지적: Roll 은 맨발이 12mm 더 낮다).
+ */
+const SHOE_ONLY_SOLE_CLIPS: ReadonlySet<string> = new Set([
+  "Idle_Loop",
+  `${QUATERNIUS_PREFIX}Idle_Loop`,
+  "Idle_Talking_Loop",
+  "Walk_Loop",
+  "Jog_Fwd_Loop",
+  "Sprint_Loop",
+  "Crouch_Idle_Loop",
+  "Crouch_Fwd_Loop",
+  "Jump_Start",
+  "Jump_Loop",
+  "Jump_Land",
+  "Punch_Jab",
+  "Punch_Cross",
+  "Interact",
+  "Dance_Loop",
+  "PickUp_Table",
+  "Hit_Chest",
+  "A_TPose",
+]);
+/** 확인 안 된 동작이 끝난 뒤에도 섞이는 동안(크로스페이드 0.2초)은 맨발까지 센다 */
+const SOLE_FADE_SECONDS = 0.2;
 
 // 팔·다리 길이, 어깨 폭, 발 크기는 뼈 배율로 덮는다. 믹서가 쓴 뒤에 불러야 한다(클립에 위치·배율 트랙이 있을 수 있다).
 
@@ -122,7 +157,7 @@ function ChibiGameAvatar({
   visible,
   firstPersonBody = false,
   playerRef,
-  config = DEFAULT_CHIBI_CONFIG,
+  config: rawConfig = DEFAULT_CHIBI_CONFIG,
   scale = UNITS_PER_METER,
   fixedTime = null,
   body = "chibi",
@@ -132,6 +167,8 @@ function ChibiGameAvatar({
   framePriority = -20,
 }: ChibiGameAvatarProps) {
   const root = useRef<THREE.Group>(null);
+  // 팀 캐릭터 전용 옷 번호(캡 · 해병대 반팔 · 바지)를 풀어 아래는 기존 번호로 그린다 — teamOutfit.ts, 검토 22회차
+  const { config, outfit: teamOutfit } = useMemo(() => splitTeamOutfit(rawConfig), [rawConfig]);
   // 1인칭 잘림면은 세계 좌표라 카메라가 필요하고, localClippingEnabled 를 켜야 clippingPlanes 를 본다.
   const { gl, camera } = useThree();
   const isMeshy = body === "meshy";
@@ -226,12 +263,19 @@ function ChibiGameAvatar({
   const inverseModel = useMemo(() => new THREE.Matrix4(), []);
   const point = useMemo(() => new THREE.Vector3(), []);
   const footContact = useMemo(() => createFootContactState(), []);
+  // 절차 손짓(인사 단계의 gesture) — 덮어쓴 뼈의 클립 자세·무게
+  const gesture = useMemo(() => createGestureState(), []);
   // 발바닥 최저점 캐시 — 정점 7731 개를 매 프레임 훑는 값이 아바타당 3.0ms 다.
   const soleHeightCache = useRef<number | null>(null);
   const soleFingerprint = useRef("");
   const fadeEnd = useRef(0);
+  // 이 시각까지는 맨발 밑창도 센다(확인 안 된 동작이 섞여 있을 수 있다)
+  const bodySoleUntil = useRef(0);
   // 주먹 쥠의 지난 프레임 값(applyGrip 참고).
   const gripAmount = useRef(0);
+  // 긴 머리 찰랑임 — 아바타마다 용수철 하나(hairSway.ts). 머리 뼈 세계 위치를 담을 자리.
+  const hairSway = useMemo(() => createHairSway(), []);
+  const swayHead = useMemo(() => new THREE.Vector3(), []);
 
   // playerRef.current 는 일부러 양방향으로 쓰는 상자다(avatarLink.ts). 프레임마다 바뀌는 런타임 상태라
   // state 로 올리면 매 프레임 리렌더가 난다.
@@ -249,6 +293,11 @@ function ChibiGameAvatar({
     const bodyOnly = firstPersonBody || (CLIPPING.showBody && !visible && !!state.firstPersonHands);
     // 몸만 켜지는 순간 한 번 더 붙인다 — 첫 프레임 뒤에 생긴 외곽선 껍데기가 안 잘린 채 목 단면을 비췄다.
     if (bodyOnly && !wasBodyOnly.current) attachClipPlanes(group);
+    // 「몸만」이면 머리카락을 숨긴다. 긴 머리 아래쪽은 목·몸통 뼈를 따라가서(fit-long-hair.mjs) 머리째 접어도 안 접힌다.
+    if (isMeshy && (bodyOnly || wasBodyOnly.current))
+      prepared.parts.forEach(({ object, slot, variant }) => {
+        if (slot === "hair") object.visible = !bodyOnly && variant === appearance.hair;
+      });
     wasBodyOnly.current = bodyOnly;
     const shouldDraw = visible || bodyOnly;
     group.visible = shouldDraw;
@@ -262,7 +311,10 @@ function ChibiGameAvatar({
     state.leftPalm = exportHands ? (prepared.palms.hand_l ?? null) : null;
     state.rightGripSocket = exportHands ? (prepared.gripSockets.hand_r ?? null) : null;
     state.leftGripSocket = exportHands ? (prepared.gripSockets.hand_l ?? null) : null;
-    if (!shouldDraw) return;
+    if (!shouldDraw) {
+      noteHiddenActions(state, timers.current);
+      return;
+    }
     const avatarScale = scale * (config.heightScale ?? 1);
 
     const now = clock.elapsedTime;
@@ -270,12 +322,17 @@ function ChibiGameAvatar({
     // 대기는 남녀 같은 클립(Tripo Idle_Loop — 허리에 손). 팔짱 클립(Idle_Fold_Loop)은 어깨가 넓은 Tripo 리그로
     // 만든 자세라 손이 반대팔을 뚫거나 떠서 쓰지 않는다. 남성은 대기 덧값으로 다리를 벌린다.
     const previousMotion = currentMotion.current;
-    play(next);
+    play(next, timers.current.restartKey ?? null);
     // 크로스페이드(0.16초) 중에는 두 클립이 섞여 발이 옮겨 간다 — 그동안은 캐시를 안 쓴다.
     if (currentMotion.current !== previousMotion) fadeEnd.current = now + 0.2;
+    if (!SHOE_ONLY_SOLE_CLIPS.has(next) || !SHOE_ONLY_SOLE_CLIPS.has(currentMotion.current ?? ""))
+      bodySoleUntil.current = now + SOLE_FADE_SECONDS;
     const action = currentMotion.current ? actions.current.get(currentMotion.current) : undefined;
-    // 발이 안 미끄러지게 걷기·달리기 재생 속도를 실제 이동 속도에 맞춘다.
-    if (action && fixedTime === null && LOCOMOTION_CLIPS.has(next)) {
+    // 인사·맞기 단계가 정한 재생 속도(짧은 클립 늘이기)
+    if (action && timers.current.actionSpeed) action.setEffectiveTimeScale(timers.current.actionSpeed);
+    // 발이 안 미끄러지게 걷기·달리기 재생 속도를 실제 이동 속도에 맞춘다. 인사 · 대사 단계가 속도를 정했으면(제자리에서 트는
+    // 걷기 클립 — 팀 NPC 대사 동작, 검토 27회차) 그 속도를 그대로 둔다.
+    if (action && fixedTime === null && LOCOMOTION_CLIPS.has(next) && !timers.current.actionSpeed) {
       const own = prepared.strideFor(next) * avatarScale;
       const groundSpeed = state.speed ?? 0;
       action.setEffectiveTimeScale(own > 1e-4 ? THREE.MathUtils.clamp(groundSpeed / own, 0.45, 2.2) : 1);
@@ -295,7 +352,8 @@ function ChibiGameAvatar({
     if (prepared.neckBone) prepared.neckBone.scale.setScalar(bodyOnly ? 1e-4 : 1);
     updateClipPlane(camera, bodyOnly, state.crouching, scale);
     const legLength = applyLimbLengths(prepared, config);
-    applyGrip(prepared.fistMorphs, state, appearance.fistHands ?? 0, gripAmount, delta);
+    // 손짓 중에는 손을 편다(손바닥이 보이게 — 손가락 뼈가 없어 주먹 모프가 유일한 손잡이). 지난 프레임 무게로
+    applyGrip(prepared.fistMorphs, state, (appearance.fistHands ?? 0) * (1 - gesture.weight), gripAmount, delta);
     applyShoulderAndFeet(prepared, config, isMeshy, legLength);
 
     group.position.set(state.position.x, state.footY, state.position.z);
@@ -308,6 +366,19 @@ function ChibiGameAvatar({
     }
     group.scale.setScalar(avatarScale);
     group.updateMatrixWorld(true);
+
+    // 손짓 → 팔 IK(물건 들기가 이긴다) → 손목 맞춤 → 접지 차례(검토 16회차)
+    applyGesture(gesture, prepared, group, timers.current.gesture ?? null, delta);
+    // 긴 머리 찰랑임 — 머리 뼈가 움직인 만큼 용수철을 굴려 머리 재질에 넣는다. 시각을 고정한 화면(QA·생성)·1인칭은 멈춘다.
+    const toonNow = toonHandle.current;
+    if (toonNow?.hasSwayingHair && prepared.headBone && fixedTime === null && !bodyOnly) {
+      swayHead.setFromMatrixPosition(prepared.headBone.matrixWorld);
+      stepHairSway(hairSway, swayHead, state.facing, avatarScale, delta);
+      toonNow.sway(hairSway.offset, hairSway.twist);
+    } else if (hairSway.started) {
+      resetHairSway(hairSway);
+      toonNow?.sway(hairSway.offset, 0);
+    }
 
     const armRequests = solveArms(prepared, state, group);
     alignWrists(prepared.arms, state, armRequests);
@@ -332,10 +403,24 @@ function ChibiGameAvatar({
     soleFingerprint.current = fingerprint;
     if (!canUseCache) {
       // 전부 본다 — 넷 중 하나만 보면 최저점을 놓쳐 몇 mm 씩 묻히고 깜빡인다.
-      const soleY = lowestSoleY(prepared.soles, (sole) => sole.indices, 1, inverseModel, point);
+      // 보이는 신발이 있고 확인된 동작이면 맨발 정점은 세지 않는다 — 신발 안의 맨발(모프 −1.5)은 신발 바닥보다 위라
+      //   결과가 같다(SHOE_ONLY_SOLE_CLIPS). 로비 버벅임(검토 12회차): 아바타당 4,481 → 1,122.
+      const shoeOnly =
+        usesTripo &&
+        now >= bodySoleUntil.current &&
+        prepared.soles.some((sole) => sole.kind === "shoe" && sole.object.visible);
+      const soleY = lowestSoleY(
+        prepared.soles,
+        (sole) => (shoeOnly && sole.kind === "body" ? NO_SOLE_INDICES : sole.indices),
+        1,
+        inverseModel,
+        point,
+      );
       soleHeightCache.current = Number.isFinite(soleY) ? soleY : null;
     }
     if (soleHeightCache.current !== null) group.position.y = state.footY - soleHeightCache.current * avatarScale;
+    // 제자리 점프 같은 인사 동작은 몸이 뜨지 않는다 — 단계가 정한 만큼 들어 올린다(발바닥 맞춤 뒤에)
+    group.position.y += timers.current.actionLift ?? 0;
 
     if (import.meta.env.DEV) {
       chibiDebugByGender[gender] = { motion: next, current: currentMotion.current };
@@ -358,6 +443,15 @@ function ChibiGameAvatar({
   return (
     <group name="NAJU-chibi-avatar" ref={root} visible={visible || firstPersonBody}>
       <primitive object={prepared.model} />
+      {(teamOutfit.cap || teamOutfit.marine || teamOutfit.pants) && (
+        <TeamOutfitLayer
+          prepared={prepared}
+          outfit={teamOutfit}
+          config={config}
+          outline={outline}
+          framePriority={framePriority + 1}
+        />
+      )}
     </group>
   );
 }

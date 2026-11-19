@@ -1,7 +1,7 @@
 /** 본편(튜토리얼·본부실·기차)의 저장 칸. */
 import type * as THREE from "three";
 
-import { inventory } from "@/game/inventory";
+import { DEV_ITEM_PREFIX, inventory } from "@/game/inventory";
 import { hasEnteredHeadquarters } from "@/props/vendingPushState";
 import { restoreTutorial, tutorialStore } from "@/tutorial/tutorialState";
 
@@ -30,7 +30,12 @@ export function registerMainGameSave(): void {
   });
   registerSaveSection("main.inventory", {
     read: () => inventory.list(),
-    apply: (value) => inventory.addMany(value as Parameters<typeof inventory.addMany>[0], { silent: true }),
+    // 예전 운영 저장본에는 개발용 표본 물건이 같이 저장돼 있다 — 되살리지 않는다.
+    apply: (value) =>
+      inventory.addMany(
+        (value as Parameters<typeof inventory.addMany>[0]).filter((item) => !item.id.startsWith(DEV_ITEM_PREFIX)),
+        { silent: true },
+      ),
   });
   tutorialStore.subscribe(scheduleGameSave);
   inventory.subscribe(scheduleGameSave);

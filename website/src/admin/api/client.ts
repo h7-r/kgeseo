@@ -1,0 +1,81 @@
+import { apiUrl } from "@/config/env";
+
+/** 관리자 요청이 실패한 까닭. 화면은 이것만 보고 무엇을 보여 줄지 고른다. */
+/** invalidQuery = 서버가 질의 값(검색어 · 날짜 등)을 받지 않음(422 invalid_query). */
+export type AdminErrorKind =
+  "unauthenticated" | "forbidden" | "notFound" | "invalidQuery" | "conflict" | "server" | "offline";
+
+export class AdminApiError extends Error {
+  readonly kind: AdminErrorKind;
+  readonly status: number;
+
+  constructor(kind: AdminErrorKind, status: number) {
+    super(`관리자 요청 실패: ${kind} (${status})`);
+    this.kind = kind;
+    this.status = status;
+  }
+}
+
+// 502~504 는 프록시 · 호스팅이 서버를 못 찾은 경우라 연결 실패로 본다.
+function kindOf(status: number): AdminErrorKind {
+  if (status === 401) return "unauthenticated";
+  if (status === 403) return "forbidden";
+  if (status === 404) return "notFound";
+  if (status === 422) return "invalidQuery";
+  if (status >= 502 && status <= 504) return "offline";
+  return "server";
+}
+
+/** 쿠키 세션으로 GET 한다. 실패는 AdminApiError 하나로 모아 던진다. */
+export async function adminGet<T>(path: string, signal?: AbortSignal): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(apiUrl(path), { credentials: "include", headers: { Accept: "application/json" }, signal });
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    throw new AdminApiError("offline", 0);
+  }
+  if (!response.ok) throw new AdminApiError(kindOf(response.status), response.status);
+  try {
+    return (await response.json()) as T;
+  } catch {
+    throw new AdminApiError("server", response.status);
+  }
+}
+
+/**
+ * 관리자 쓰기(답변 · 상태 · 설정 · 공지) — JSON 본문으로 보낸다. 브라우저가 Origin 을 붙이고 서버가 같은 출처인지 본다.
+ * DELETE 처럼 본문이 없으면 body 를 비우고, 서버가 204 로 답하면 빈 값을 돌려준다.
+ */
+export async function adminSend<T>(
+  method: "POST" | "PATCH" | "PUT" | "DELETE",
+  path: string,
+  body?: unknown,
+): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(apiUrl(path), {
+      method,
+      credentials: "include",
+      headers:
+        body === undefined
+          ? { Accept: "application/json" }
+          : { Accept: "application/json", "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch {
+    throw new AdminApiError("offline", 0);
+  }
+  if (!response.ok)
+    throw new AdminApiError(response.status === 409 ? "conflict" : kindOf(response.status), response.status);
+  if (response.status === 204) return undefined as T;
+  try {
+    return (await response.json()) as T;
+  } catch {
+    throw new AdminApiError("server", response.status);
+  }
+}
+
+export function toAdminError(error: unknown): AdminApiError {
+  return error instanceof AdminApiError ? error : new AdminApiError("server", 0);
+}

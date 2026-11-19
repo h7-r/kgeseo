@@ -99,12 +99,22 @@ function backend(routes: { turn?: Handler; hint?: Handler } = {}): Handler {
 const FAST = { retryDelayMs: 1 };
 const TIMING = { noticeMs: 5, lineMinMs: 5, lineMaxMs: 5, hintMinMs: 5, autoMinIntervalMs: 1000 };
 
-async function readyDialog(routes: Parameters<typeof backend>[0] = {}, now = () => Date.now()) {
+async function readyDialog(
+  routes: Parameters<typeof backend>[0] = {},
+  now = () => Date.now(),
+  pausedMs?: () => number | null,
+) {
   serve(backend(routes));
   const session = createCompanionSession({ config: CONFIG, storage: memoryStore() });
   await session.start();
   const logs: string[] = [];
-  const dialog = createCompanionDialog({ session, timing: TIMING, now, log: (level, message) => logs.push(`${level}:${message}`) });
+  const dialog = createCompanionDialog({
+    session,
+    timing: TIMING,
+    now,
+    pausedMs,
+    log: (level, message) => logs.push(`${level}:${message}`),
+  });
   calls = [];
   return { session, dialog, logs };
 }
@@ -347,18 +357,71 @@ test("힌트 오류는 코드별 한국어 문구만 — 잔액 없음 · 참조
   }
 });
 
-test("NPC 409 CASE_VERSION_UNAVAILABLE · 500 은 동행 대화를 끈다(게임은 계속)", async () => {
+test("NPC 409 CASE_VERSION_UNAVAILABLE 은 세션 자체를 못 쓰니 지금처럼 세션을 끈다(게임은 계속)", async () => {
+  const { dialog, session } = await readyDialog({
+    turn: () => ({ status: 409, body: { detail: "CASE_VERSION_UNAVAILABLE" } }),
+  });
+  await dialog.talk();
+  assert.equal(session.getStatus().phase, "unavailable");
+  assert.equal(dialog.getState().isEnabled, false);
+  assert.equal(dialog.getState().isNpcEnabled, false);
+  assert.deepEqual(dialog.getState().line, { kind: "notice", text: DIALOG_TEXT.unavailable });
+  assert.equal(await dialog.talk(), false, "꺼진 뒤에는 보내지 않는다");
+});
+
+test("NPC 500 은 동행만 끈다 — 공용 세션은 ready 그대로, 정식 힌트는 계속 열린다(11/12 베타 전 수정)", async () => {
+  const { dialog, session } = await readyDialog({
+    turn: () => ({ status: 500, body: { detail: "NPC content is unavailable." } }),
+  });
+  await dialog.talk();
+  assert.equal(session.getStatus().phase, "ready", "공용 세션은 건드리지 않는다");
+  assert.equal(dialog.getState().isEnabled, true);
+  assert.equal(dialog.getState().isNpcEnabled, false);
+  assert.equal(dialog.getState().waiting, null);
+  assert.deepEqual(dialog.getState().line, { kind: "notice", text: DIALOG_TEXT.unavailable });
+  calls = [];
+  assert.equal(await dialog.talk(), false, "꺼진 뒤에는 말을 보내지 않는다");
+  assert.equal(await dialog.autoTurn(), false, "자동 턴도 보내지 않는다");
+  assert.equal(calls.length, 0);
+  // 정식 힌트는 공용 세션의 Hint API — 그대로 간다
+  assert.equal(await dialog.requestPuzzleHint("PUZZLE_A"), true);
+  assert.ok(calls.some((c) => c.path.endsWith("/hints")));
+});
+
+test("NPC 쪽 서버 오류(500 · 501 · 코드 있는 503)는 동행만 끄고, 연결 오류(코드 없는 502~504)는 끄지 않는다", async () => {
   for (const [status, detail] of [
-    [409, "CASE_VERSION_UNAVAILABLE"],
-    [500, "NPC content is unavailable."],
+    [500, undefined],
+    [501, "Not implemented"],
+    [503, "NPC provider is down"],
   ] as const) {
-    const { dialog, session } = await readyDialog({ turn: () => ({ status, body: { detail } }) });
+    const { dialog, session } = await readyDialog({ turn: () => ({ status, body: detail ? { detail } : undefined }) });
     await dialog.talk();
-    assert.equal(session.getStatus().phase, "unavailable");
-    assert.equal(dialog.getState().isEnabled, false);
-    assert.deepEqual(dialog.getState().line, { kind: "notice", text: DIALOG_TEXT.unavailable });
-    assert.equal(await dialog.talk(), false, "꺼진 뒤에는 보내지 않는다");
+    assert.equal(session.getStatus().phase, "ready", `${status} 세션 그대로`);
+    assert.equal(dialog.getState().isNpcEnabled, false, `${status} 동행만 꺼짐`);
   }
+  const { dialog, session } = await readyDialog({ turn: () => ({ status: 503 }) });
+  await dialog.talk();
+  assert.equal(session.getStatus().phase, "ready");
+  assert.equal(dialog.getState().isNpcEnabled, true, "연결 오류는 다시 말을 걸 수 있다");
+  assert.deepEqual(dialog.getState().line, { kind: "notice", text: DIALOG_TEXT.connection });
+});
+
+test("동행이 꺼졌다는 안내는 딱 한 번 — 플레이어가 하지 않은 자동 턴(폴링, quiet)에서 꺼져도 띄운다", async () => {
+  const { dialog } = await readyDialog({ turn: () => ({ status: 500, body: { detail: "NPC content is unavailable." } }) });
+  const notices: string[] = [];
+  let last = dialog.getState().line;
+  dialog.subscribe(() => {
+    const line = dialog.getState().line;
+    if (line && line !== last && line.kind === "notice") notices.push(line.text);
+    last = line;
+  });
+  assert.equal(await dialog.autoTurn(undefined, "OBJ_S1_JAR_SLOTS", { quiet: true }), true);
+  assert.deepEqual(notices, [DIALOG_TEXT.unavailable], "quiet 폴링에서 꺼져도 한 번은 알린다");
+  await dialog.autoTurn(undefined, "OBJ_S1_JAR_SLOTS", { quiet: true });
+  await dialog.talk();
+  await dialog.talk("안녕");
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.deepEqual(notices, [DIALOG_TEXT.unavailable], "그 뒤로는 다시 띄우지 않는다");
 });
 
 test("client_event_id 충돌(409)은 새 id 로 다시 보내지 않고 버그로만 기록한다", async () => {
@@ -396,6 +459,58 @@ test("auto 턴은 message 없이 보내고, 간격 안에서는 다시 보내지
   assert.equal(await dialog.autoTurn(), false);
   clock = 6100;
   assert.equal(await dialog.autoTurn(), true);
+});
+
+test("auto 턴에만 멈춘 시간을 싣는다 — 정수로 · 0~하루로 깎고, 없으면 싣지 않는다(미르 11/11)", async () => {
+  let paused: number | null = 1234.4;
+  const { dialog } = await readyDialog({}, () => Date.now(), () => paused);
+  const sentBody = () => calls.at(-1)!.body as Record<string, unknown>;
+  assert.equal(await dialog.autoTurn(undefined, "OBJ_X"), true);
+  assert.equal(sentBody().paused_ms_since_interaction, 1234);
+  paused = -5;
+  await dialog.autoTurn(undefined, "OBJ_X");
+  assert.equal(sentBody().paused_ms_since_interaction, 0);
+  paused = 1e12;
+  await dialog.autoTurn(undefined, "OBJ_X");
+  assert.equal(sentBody().paused_ms_since_interaction, 86_400_000);
+  paused = null;
+  await dialog.autoTurn(undefined, "OBJ_X");
+  assert.equal("paused_ms_since_interaction" in sentBody(), false);
+  paused = 500;
+  await dialog.talk("안녕");
+  assert.equal(sentBody().trigger, "player_message");
+  assert.equal("paused_ms_since_interaction" in sentBody(), false, "말 걸기에는 싣지 않는다 — 서버가 422");
+});
+
+test("서버가 멈춘 시간 칸을 422 로 막으면(배포 순서) 빼고 같은 턴을 다시 보내고, 그 뒤로는 싣지 않는다", async () => {
+  const bodies: Record<string, unknown>[] = [];
+  const { dialog, logs } = await readyDialog(
+    {
+      turn: (call) => {
+        const body = call.body as Record<string, unknown>;
+        bodies.push(body);
+        return "paused_ms_since_interaction" in body
+          ? {
+              status: 422,
+              body: { detail: [{ type: "extra_forbidden", loc: ["body", "paused_ms_since_interaction"] }] },
+            }
+          : { status: 200, body: turn({ reply: { source: "approved_line", text: "넛지", line_id: "N1" } }) };
+      },
+    },
+    () => Date.now(),
+    () => 3000,
+  );
+  assert.equal(await dialog.autoTurn(undefined, "OBJ_X", { quiet: true }), true);
+  assert.equal(bodies.length, 2);
+  assert.equal(bodies[0].paused_ms_since_interaction, 3000);
+  assert.equal("paused_ms_since_interaction" in bodies[1], false);
+  assert.notEqual(bodies[0].client_event_id, bodies[1].client_event_id);
+  assert.deepEqual(dialog.getState().line, { kind: "npc", text: "넛지", lineId: "N1" });
+  assert.ok(logs.some((line) => line.startsWith("warn:")));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  await dialog.autoTurn(undefined, "OBJ_X", { quiet: true });
+  assert.equal(bodies.length, 3);
+  assert.equal("paused_ms_since_interaction" in bodies[2], false, "이 탭에서는 그만 싣는다");
 });
 
 test("빈 말 · 대기 중 중복은 보내지 않는다", async () => {

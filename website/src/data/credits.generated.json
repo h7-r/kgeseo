@@ -1,0 +1,602 @@
+{
+  "heritage": [
+    {
+      "name": "가래",
+      "title": "Spade",
+      "url": "https://sketchfab.com/3d-models/0f5d2931d82e4e5b88dedef64bcd5fd3"
+    },
+    {
+      "name": "가마솥",
+      "title": "Cauldron",
+      "url": "https://sketchfab.com/3d-models/1577767c5eae4848ab0c2f6888d1cd89"
+    },
+    {
+      "name": "가마솥",
+      "title": "Cauldron",
+      "url": "https://sketchfab.com/3d-models/8f0c77caef7f4e1997f4829eea85ba6c"
+    },
+    {
+      "name": "거문고",
+      "title": "Geomungo",
+      "url": "https://sketchfab.com/3d-models/db346b08a7d64795877f74929afb5530"
+    },
+    {
+      "name": "고리",
+      "title": "Wicker_Basket",
+      "url": "https://sketchfab.com/3d-models/c8e8dc18b73946daaa4d51f81783ceab"
+    },
+    {
+      "name": "곡물 궤",
+      "title": "Unhyun_ Grain Chest",
+      "url": "https://sketchfab.com/3d-models/b45c1e72638741f9be0b52b323c69986"
+    },
+    {
+      "name": "광주리",
+      "title": "Basket",
+      "url": "https://sketchfab.com/3d-models/f097383b0dc949759f7a544b49a4729b"
+    },
+    {
+      "name": "교동 금관",
+      "title": "Gold Crown from Gyo-dong",
+      "url": "https://sketchfab.com/3d-models/f788dc730c624c82aff4e035bdeb57cd"
+    },
+    {
+      "name": "국자",
+      "title": "Scoop",
+      "url": "https://sketchfab.com/3d-models/e777b82d85fc466dbe767d82f3b1206f"
+    },
+    {
+      "name": "굽다리 긴목항아리",
+      "title": "Long-necked Jar with Curved Pedestal",
+      "url": "https://sketchfab.com/3d-models/ae6ef6df57cd4471aafa74f1ff06b4dd"
+    },
+    {
+      "name": "궤",
+      "title": "Unhyun_ Chest",
+      "url": "https://sketchfab.com/3d-models/848acdd9fc6748febfa93fd1d4043c88"
+    },
+    {
+      "name": "금관총 금제 관꾸미개",
+      "title": "Geumgwanchong Tomb Pure Gold Crown Ornaments",
+      "url": "https://sketchfab.com/3d-models/aa58228923cf49d3898e97c56a279d8e"
+    },
+    {
+      "name": "금동 굴레",
+      "title": "Gilt-bronze Bridle 1",
+      "url": "https://sketchfab.com/3d-models/1f333b0f8a964dc1a664d33474cff654"
+    },
+    {
+      "name": "금동관",
+      "title": "Gilt-bronze Crown",
+      "url": "https://sketchfab.com/3d-models/6517860483814b7abc277e6693dbb3d4"
+    },
+    {
+      "name": "금령총 금허리띠",
+      "title": "Gold Belt from the Geumryeong Tomb",
+      "url": "https://sketchfab.com/3d-models/05fca4174c9c45c88ccd5a66dc2105a6"
+    },
+    {
+      "name": "금령총 등잔",
+      "title": "Oil Lamp of the Geumryeong Tomb",
+      "url": "https://sketchfab.com/3d-models/38e65d0ced734f2a92310700083e1a06"
+    },
+    {
+      "name": "금목걸이",
+      "title": "Gold Necklace",
+      "url": "https://sketchfab.com/3d-models/58b4a16f49ba49e898fa836f0e55256f"
+    },
+    {
+      "name": "금방울",
+      "title": "Gold Bell",
+      "url": "https://sketchfab.com/3d-models/1fe88e94496f4d94b0dfed2ab7e3a0e8"
+    },
+    {
+      "name": "금은장 장도",
+      "title": "Gold and Silver Decorated Hand Knife",
+      "url": "https://sketchfab.com/3d-models/adf6072961814b3c9aeaaf6274c05c31"
+    },
+    {
+      "name": "금장식 큰칼",
+      "title": "Gold-decorated sword",
+      "url": "https://sketchfab.com/3d-models/ef6631dc3c5a45a19d74f49d75492c54"
+    },
+    {
+      "name": "긴목항아리",
+      "title": "Long-necked Jar",
+      "url": "https://sketchfab.com/3d-models/641e45abc4774d72b4e1124381a49e43"
+    },
+    {
+      "name": "나무 홈통",
+      "title": "Gutter_Wood",
+      "url": "https://sketchfab.com/3d-models/b931d4f978ae45a283736e71ede453e9"
+    },
+    {
+      "name": "나무망치",
+      "title": "Wooden Hammer",
+      "url": "https://sketchfab.com/3d-models/59965195988942abac42447f1f05edd1"
+    },
+    {
+      "name": "나전 불자",
+      "title": "Duster with Inlaid MOP Chrysanthemun Scroll",
+      "url": "https://sketchfab.com/3d-models/7eb60368fe4c480da9c24a74f614ea89"
+    },
+    {
+      "name": "납석 인장",
+      "title": "Agalmatolite Seal",
+      "url": "https://sketchfab.com/3d-models/0b0240b8fb344f779415ef3b3a63777f"
+    },
+    {
+      "name": "낫",
+      "title": "Sickle",
+      "url": "https://sketchfab.com/3d-models/63340bb822d3423097afb481e5fe6b28"
+    },
+    {
+      "name": "다듬잇돌",
+      "title": "Fulling_Block",
+      "url": "https://sketchfab.com/3d-models/17ae63f568134e47b5929811ae169c90"
+    },
+    {
+      "name": "도마",
+      "title": "Kitchen_Board",
+      "url": "https://sketchfab.com/3d-models/6e929316e3164c8197c89b66208674de"
+    },
+    {
+      "name": "도마",
+      "title": "Unhyun_ Chopping Board",
+      "url": "https://sketchfab.com/3d-models/1672445e46ed41b79fcc5f5abf8d3dc8"
+    },
+    {
+      "name": "돌 인장",
+      "title": "Stone Seal",
+      "url": "https://sketchfab.com/3d-models/efc1a94d51454c30aeed94e0d965ff50"
+    },
+    {
+      "name": "돌무더기",
+      "title": "Mado_Stones",
+      "url": "https://sketchfab.com/3d-models/f4280acfefdb49eaa51721d8ca188e3f"
+    },
+    {
+      "name": "뒤주",
+      "title": "Rice_Chest",
+      "url": "https://sketchfab.com/3d-models/0f57b1cc694243af95d39da7ff7011ac"
+    },
+    {
+      "name": "등잔",
+      "title": "Lamp",
+      "url": "https://sketchfab.com/3d-models/630389233e0b4e1bba3ba92a662d592b"
+    },
+    {
+      "name": "등잔대",
+      "title": "Lampstand",
+      "url": "https://sketchfab.com/3d-models/6d970c76887f478a83de7769e7382eda"
+    },
+    {
+      "name": "따비",
+      "title": "Small_Plow",
+      "url": "https://sketchfab.com/3d-models/3056ff4a0eff4df887b507d425e94af8"
+    },
+    {
+      "name": "마도선 항아리",
+      "title": "Mado_Jar",
+      "url": "https://sketchfab.com/3d-models/00ee5454d9104b9d90869943fd2af171"
+    },
+    {
+      "name": "말띠꾸미개(운주)",
+      "title": "Horse Harness Ornament",
+      "url": "https://sketchfab.com/3d-models/0435af9800244d69b34e69d145f96a11"
+    },
+    {
+      "name": "말띠드리개(행엽)",
+      "title": "Horse Strap Pendant",
+      "url": "https://sketchfab.com/3d-models/032893b9d4d44d2f872e65d1109217f4"
+    },
+    {
+      "name": "맷돌",
+      "title": "Hand_Mill",
+      "url": "https://sketchfab.com/3d-models/c3dbc11b869043819c032777c3c9ddac"
+    },
+    {
+      "name": "모루",
+      "title": "Anvil",
+      "url": "https://sketchfab.com/3d-models/5faf0f2b2fcf40e1b85410747dbf8140"
+    },
+    {
+      "name": "문갑",
+      "title": "Mungap",
+      "url": "https://sketchfab.com/3d-models/5e8a0e410f6f491b9e9f6819c0d91bbe"
+    },
+    {
+      "name": "문진",
+      "title": "Gyeongbokgung_Cheonchujeon_Paperweight",
+      "url": "https://sketchfab.com/3d-models/042844e6183248dfb3898dcb1ec68f44"
+    },
+    {
+      "name": "방석",
+      "title": "Unhyun_ Floor Cushion",
+      "url": "https://sketchfab.com/3d-models/6b0209cc65db435e921d0c10db469d52"
+    },
+    {
+      "name": "방향(타악기)",
+      "title": "Banghyang",
+      "url": "https://sketchfab.com/3d-models/398d57ec90424c0fbd0711f3941938f9"
+    },
+    {
+      "name": "배모양 토기(작은)",
+      "title": "Small Boat-Shaped Pottery",
+      "url": "https://sketchfab.com/3d-models/34027070d129451380ac7f454482ae75"
+    },
+    {
+      "name": "배모양 토기(큰)",
+      "title": "Large Boat-Shaped Pottery",
+      "url": "https://sketchfab.com/3d-models/153e491f19b0412b9a0f6ca8c0e38b20"
+    },
+    {
+      "name": "벼루",
+      "title": "Gyeongbokgung_Manchunjeon_InkStone",
+      "url": "https://sketchfab.com/3d-models/82dd756031d240a2b398d5749f5c6d4e"
+    },
+    {
+      "name": "병",
+      "title": "Bottle",
+      "url": "https://sketchfab.com/3d-models/9e9963470c8a4e81ba5f91fffb80ed3d"
+    },
+    {
+      "name": "보료 방석",
+      "title": "Gyeongbokgung_Gyotaejeon_Sittingmat",
+      "url": "https://sketchfab.com/3d-models/a99d69389ffc4b01b363adcb6f69c67a"
+    },
+    {
+      "name": "봉수형 유리병",
+      "title": "Phoenix-headed Glass Bottle",
+      "url": "https://sketchfab.com/3d-models/edef50abfa1d465a94fd6faa88958c7c"
+    },
+    {
+      "name": "부삽",
+      "title": "Fire_Shovel",
+      "url": "https://sketchfab.com/3d-models/5d6d209d5dfe40f1b1be3ea53f7e3456"
+    },
+    {
+      "name": "붓걸이",
+      "title": "Gyeongbokgung_Manchunjeon_BrushHolder",
+      "url": "https://sketchfab.com/3d-models/7f4f5a8e6347428197c5c8e61ac7c7b1"
+    },
+    {
+      "name": "붓꽂이",
+      "title": "Gyeongbokgung_Cheonchujeon_BrushHolder",
+      "url": "https://sketchfab.com/3d-models/0abd2e46cfa94e508c9459e1084b1387"
+    },
+    {
+      "name": "비단벌레 장식 말다래",
+      "title": "Bamboo Fabric Mudguard with Jewel Beetles",
+      "url": "https://sketchfab.com/3d-models/b7757b349c864e91aae5043f6c350a55"
+    },
+    {
+      "name": "비단벌레 장식 안장",
+      "title": "Saddle with Jewel Beetle Ornamentation",
+      "url": "https://sketchfab.com/3d-models/2c99a3722d3f4981b81af584fe5f82bf"
+    },
+    {
+      "name": "비단벌레 장식 화살통",
+      "title": "Gilt-bronze Quiver with Jewel Beetles, Houchong",
+      "url": "https://sketchfab.com/3d-models/6236b722475641c2a19873d2a25bb3f5"
+    },
+    {
+      "name": "비파",
+      "title": "Bipa",
+      "url": "https://sketchfab.com/3d-models/233ee93c5cd14182b67d825b20ce1973"
+    },
+    {
+      "name": "빗자루",
+      "title": "Broom",
+      "url": "https://sketchfab.com/3d-models/4f3606be8d504f0e8e22601fb4cc6bee"
+    },
+    {
+      "name": "사방탁자",
+      "title": "Unhyun_ Cabinet_B",
+      "url": "https://sketchfab.com/3d-models/305efa4f6a954daea8bc457a62c38f8d"
+    },
+    {
+      "name": "서수형 토기 주전자",
+      "title": "Ewer in the Shape of a Mythical Animal",
+      "url": "https://sketchfab.com/3d-models/4b1daa311a924407b4911e935705c6a5"
+    },
+    {
+      "name": "서책",
+      "title": "Gyeongbokgung_Cheonchujeon_Book",
+      "url": "https://sketchfab.com/3d-models/be19cb79e1894f69b6680bea71ebbdb8"
+    },
+    {
+      "name": "소쿠리",
+      "title": "Bamboo_Basket",
+      "url": "https://sketchfab.com/3d-models/6c7e1244d46c457fb6f3d6194663073b"
+    },
+    {
+      "name": "수납장",
+      "title": "Cabinet",
+      "url": "https://sketchfab.com/3d-models/f3c4b7b0f29e48dfa8b361668b6938d7"
+    },
+    {
+      "name": "수납장",
+      "title": "Cabinet",
+      "url": "https://sketchfab.com/3d-models/faf4980ad7734748a400d43c9b87db64"
+    },
+    {
+      "name": "숫돌",
+      "title": "Whetstone",
+      "url": "https://sketchfab.com/3d-models/5c7ebf919097415db9839a4a2ed43471"
+    },
+    {
+      "name": "식리총 금동신발",
+      "title": "Gilt-Bronze Shoes of the Sikrichong Tomb",
+      "url": "https://sketchfab.com/3d-models/b1f6f2cad60a4f14bb9c3ff019f4f248"
+    },
+    {
+      "name": "약저울",
+      "title": "Pharmacyscale",
+      "url": "https://sketchfab.com/3d-models/1352878865444adfb44a4876e5313c7d"
+    },
+    {
+      "name": "약탕관",
+      "title": "Unhyun_ Pot For Medicines",
+      "url": "https://sketchfab.com/3d-models/a4fe6dbb055f4bf1bd52b8c614c0c5a5"
+    },
+    {
+      "name": "어보함",
+      "title": "Gyeongbokgung_Geunjeongjeon_RoyalsealBox",
+      "url": "https://sketchfab.com/3d-models/969ac244686b43e885bbcca197a682e1"
+    },
+    {
+      "name": "옹기병",
+      "title": "Unhyun_ Dark Brown Bottle",
+      "url": "https://sketchfab.com/3d-models/55a721df69ef409f9b007c854b35017c"
+    },
+    {
+      "name": "은제 새날개 관꾸미개",
+      "title": "Silver Bird Wing-Shaped Diadem Ornament",
+      "url": "https://sketchfab.com/3d-models/7593c85e81224aefa0f9c35523f9d2b7"
+    },
+    {
+      "name": "은제 팔뚝가리개",
+      "title": "Arm Guard",
+      "url": "https://sketchfab.com/3d-models/1d664c106a284de7a5cb6286ab21725e"
+    },
+    {
+      "name": "의걸이장",
+      "title": "Unhyun_ Wardrobe",
+      "url": "https://sketchfab.com/3d-models/f66d816fc2664bfc90b96c63536013f3"
+    },
+    {
+      "name": "장군",
+      "title": "Manure_Container",
+      "url": "https://sketchfab.com/3d-models/2daa8ef4f23a4c439399cbbe4318a88e"
+    },
+    {
+      "name": "장작",
+      "title": "Firewood",
+      "url": "https://sketchfab.com/3d-models/5b9973cdcb7046d186e2d9cd0ff286c8"
+    },
+    {
+      "name": "절구",
+      "title": "Mortar",
+      "url": "https://sketchfab.com/3d-models/c1b42be1370e49458973015674f74364"
+    },
+    {
+      "name": "절굿공이",
+      "title": "Pestle",
+      "url": "https://sketchfab.com/3d-models/e5b92f468b59475390e570926ca44053"
+    },
+    {
+      "name": "점판암 벼루",
+      "title": "Lead Stone Inkstone",
+      "url": "https://sketchfab.com/3d-models/db671d35db5b4b8db46d2d9203591177"
+    },
+    {
+      "name": "지게",
+      "title": "A_frame_Carrier",
+      "url": "https://sketchfab.com/3d-models/bc43790f77f34e71ad9b2901ca81b593"
+    },
+    {
+      "name": "집게",
+      "title": "Pincers",
+      "url": "https://sketchfab.com/3d-models/4557685605e144a5a5e46cadffe9d068"
+    },
+    {
+      "name": "집게",
+      "title": "Pincers",
+      "url": "https://sketchfab.com/3d-models/f118c8b707fb48389a85d757f89c717c"
+    },
+    {
+      "name": "찬장",
+      "title": "Pantry_Chest",
+      "url": "https://sketchfab.com/3d-models/d6ad993be8c34b2eb59709c1b6efdfc9"
+    },
+    {
+      "name": "찬장",
+      "title": "Unhyun_ Cupboard_B",
+      "url": "https://sketchfab.com/3d-models/4431ceaa9d214c58bb6e6caf02c57fe9"
+    },
+    {
+      "name": "찬탁",
+      "title": "Pantry_Shelf",
+      "url": "https://sketchfab.com/3d-models/1a8f4af2daf84d42bc2ccb65a9d90eec"
+    },
+    {
+      "name": "채독",
+      "title": "Straw_Jar",
+      "url": "https://sketchfab.com/3d-models/bf766922034b436cb15f5f7e517ea2ea"
+    },
+    {
+      "name": "천마도 말다래",
+      "title": "Heavenly Horse Painting on Saddle Flap",
+      "url": "https://sketchfab.com/3d-models/f8ddf1d1b5c34f408c07874b57941e37"
+    },
+    {
+      "name": "청동 금강령",
+      "title": "Bronze Handbell with Bodhisattva & Guardian",
+      "url": "https://sketchfab.com/3d-models/07d36209485341b6836cacb2b3c54076"
+    },
+    {
+      "name": "청동 재갈",
+      "title": "Bronze Bit",
+      "url": "https://sketchfab.com/3d-models/4e6b72a258eb410a85c23db5a1842ef8"
+    },
+    {
+      "name": "청자 그릇",
+      "title": "Celadon_PorcelainA",
+      "url": "https://sketchfab.com/3d-models/4f5df4feebe24faea9450ee140947925"
+    },
+    {
+      "name": "청자 그릇",
+      "title": "Celadon_PorcelainB",
+      "url": "https://sketchfab.com/3d-models/4ace759ac4a14e5cb63334a663772652"
+    },
+    {
+      "name": "청자 두꺼비 벼루",
+      "title": "ToadInkStone",
+      "url": "https://sketchfab.com/3d-models/8b99ce68979241af801a05da9b5aff79"
+    },
+    {
+      "name": "청자 사자 향로",
+      "title": "LionIncenseBurner",
+      "url": "https://sketchfab.com/3d-models/1c784316545d46949fb66220a23ab605"
+    },
+    {
+      "name": "청자 주자",
+      "title": "Celadon_Kettle",
+      "url": "https://sketchfab.com/3d-models/e3e6139ac56b49f08e06274bd922690d"
+    },
+    {
+      "name": "체",
+      "title": "Sieve",
+      "url": "https://sketchfab.com/3d-models/4630710ed6784d0fb2591c78395443a0"
+    },
+    {
+      "name": "촛대",
+      "title": "Gyeongbokgung_Gangnyeongjeon_Candlestick",
+      "url": "https://sketchfab.com/3d-models/8c33f757ecba4b01b0d68bc8b5b98267"
+    },
+    {
+      "name": "촛대",
+      "title": "Unhyun_ Candlestick_01",
+      "url": "https://sketchfab.com/3d-models/a725920044c748af81abab735f8e8cf1"
+    },
+    {
+      "name": "키",
+      "title": "Winnow",
+      "url": "https://sketchfab.com/3d-models/e29fd48add3d471ab0bf25e9ae1213d5"
+    },
+    {
+      "name": "토제 벼루",
+      "title": "Inkstone",
+      "url": "https://sketchfab.com/3d-models/98988ef166984194b2a8a982c41aa7ff"
+    },
+    {
+      "name": "평상",
+      "title": "Low_Wooden_Bench",
+      "url": "https://sketchfab.com/3d-models/38ca1b292f454d6285fe4b024fa06469"
+    },
+    {
+      "name": "풍경(작은 종)",
+      "title": "Small Bell(Wind Bell)",
+      "url": "https://sketchfab.com/3d-models/2c93e5a1a2be4795b7e273a9058396bf"
+    },
+    {
+      "name": "함지박",
+      "title": "Large_Scooped_Wooden_Bowl",
+      "url": "https://sketchfab.com/3d-models/b0d8a6a2d3c9455b9640b75796d6e295"
+    },
+    {
+      "name": "항아리",
+      "title": "Jar",
+      "url": "https://sketchfab.com/3d-models/41af1b457d1047c993e3c96622896b88"
+    },
+    {
+      "name": "항아리",
+      "title": "Jar",
+      "url": "https://sketchfab.com/3d-models/9908305b49f74af2a32bad7240fe1021"
+    },
+    {
+      "name": "호족반",
+      "title": "Unhyun_ Table Tigers Legs",
+      "url": "https://sketchfab.com/3d-models/ad7fa3c4c32642c19e351d21490be9ab"
+    },
+    {
+      "name": "횃대",
+      "title": "Clothes_Rack",
+      "url": "https://sketchfab.com/3d-models/1c8de013d6aa4aadb165582f21482b4c"
+    }
+  ],
+  "openSource": [
+    {
+      "name": "@colyseus/sdk",
+      "version": "0.18.9",
+      "license": "MIT",
+      "url": "https://www.npmjs.com/package/@colyseus/sdk"
+    },
+    {
+      "name": "@react-three/drei",
+      "version": "10.7.8",
+      "license": "MIT",
+      "url": "https://www.npmjs.com/package/@react-three/drei"
+    },
+    {
+      "name": "@react-three/fiber",
+      "version": "9.7.0",
+      "license": "MIT",
+      "url": "https://www.npmjs.com/package/@react-three/fiber"
+    },
+    {
+      "name": "@react-three/postprocessing",
+      "version": "3.0.5",
+      "license": "MIT",
+      "url": "https://www.npmjs.com/package/@react-three/postprocessing"
+    },
+    {
+      "name": "leva",
+      "version": "0.10.1",
+      "license": "MIT",
+      "url": "https://www.npmjs.com/package/leva"
+    },
+    {
+      "name": "react",
+      "version": "19.2.8",
+      "license": "MIT",
+      "url": "https://www.npmjs.com/package/react"
+    },
+    {
+      "name": "react-dom",
+      "version": "19.2.8",
+      "license": "MIT",
+      "url": "https://www.npmjs.com/package/react-dom"
+    },
+    {
+      "name": "react-router-dom",
+      "version": "7.18.3",
+      "license": "MIT",
+      "url": "https://www.npmjs.com/package/react-router-dom"
+    },
+    {
+      "name": "three",
+      "version": "0.185.1",
+      "license": "MIT",
+      "url": "https://www.npmjs.com/package/three"
+    }
+  ],
+  "fonts": [
+    {
+      "name": "Bebas Neue",
+      "license": "OFL-1.1",
+      "url": "https://fonts.google.com/specimen/Bebas+Neue"
+    },
+    {
+      "name": "IBM Plex Mono",
+      "license": "OFL-1.1",
+      "url": "https://fonts.google.com/specimen/IBM+Plex+Mono"
+    },
+    {
+      "name": "IBM Plex Sans KR",
+      "license": "OFL-1.1",
+      "url": "https://fonts.google.com/specimen/IBM+Plex+Sans+KR"
+    }
+  ]
+}

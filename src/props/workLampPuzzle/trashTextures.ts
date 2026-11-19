@@ -151,7 +151,7 @@ export function makeBinSignTexture(bin: TrashBin) {
       g.fillText(isPlastic ? "비우고 · 헹구고 · 뚜껑 닫아서" : "재활용 안 되는 것만", W / 2, 510);
       g.font = `24px ${SIGN_FONT}`;
       g.fillStyle = "#3a3d42";
-      g.fillText(isPlastic ? "PET · PP · PE 용기류" : "여러 재질 · 이물질 · 감열지", W / 2, 556);
+      g.fillText(isPlastic ? "PET · PP · PE 용기류" : "휴지 · 마스크 · 나무젓가락 · 종량제 봉투", W / 2, 556);
       const rnd = createRandom(isPlastic ? 91 : 93);
       g.globalAlpha = 0.18;
       for (let i = 0; i < 60; i++) {
@@ -188,24 +188,17 @@ export function makeFloorStainTexture() {
   );
 }
 
-type PrintKind = "water" | "receipt" | "detergent" | "straw" | "yogurt";
+type PrintKind = "water" | "detergent" | "yogurt" | "bag" | "sleeve";
 
 const PRINT_SIZE: Record<PrintKind, [number, number]> = {
   water: [256, 64],
-  receipt: [128, 360],
   detergent: [256, 256],
-  straw: [64, 256],
   yogurt: [256, 64],
+  bag: [512, 256],
+  sleeve: [128, 64],
 };
 
-const RECEIPT_LINES: [string, string][] = [
-  ["삼각김밥", "700"],
-  ["바나나우유", "500"],
-  ["건전지 AA", "1,200"],
-  ["껌", "200"],
-];
-
-/** 쓰레기에 붙은 작은 인쇄물 — 상표 띠 · 영수증 · 세제 라벨 · 빨대 줄무늬 */
+/** 쓰레기에 붙은 작은 인쇄물 — 상표 띠 · 세제 라벨 · 종량제 봉투 인쇄 · 젓가락 봉지 */
 export function makePrintTexture(kind: PrintKind) {
   const [width, height] = PRINT_SIZE[kind];
   return makeCachedCanvasTexture(
@@ -226,35 +219,6 @@ export function makePrintTexture(kind: PrintKind) {
         g.fillText("맑은샘물", 196, 24);
         g.font = `12px ${SIGN_FONT}`;
         g.fillText("500mL · 먹는샘물", 128, 56);
-      } else if (kind === "receipt") {
-        g.fillStyle = "#f4f2ea";
-        g.fillRect(0, 0, 128, 360);
-        g.fillStyle = "#4b4f55";
-        g.textAlign = "center";
-        g.font = `bold 13px ${SIGN_FONT}`;
-        g.fillText("왜곡역 매점", 64, 22);
-        g.font = `9px ${SIGN_FONT}`;
-        g.fillText("1987-11-21  23:52", 64, 38);
-        g.textAlign = "left";
-        RECEIPT_LINES.forEach(([item, price], i) => {
-          g.fillText(item, 10, 66 + i * 18);
-          g.textAlign = "right";
-          g.fillText(price, 118, 66 + i * 18);
-          g.textAlign = "left";
-        });
-        g.fillRect(10, 144, 108, 1);
-        g.font = `bold 11px ${SIGN_FONT}`;
-        g.fillText("합계", 10, 162);
-        g.textAlign = "right";
-        g.fillText("2,600", 118, 162);
-        g.textAlign = "center";
-        g.font = `9px ${SIGN_FONT}`;
-        g.fillText("막차 이용 감사합니다", 64, 196);
-        for (let i = 0; i < 30; i++) g.fillRect(24 + i * 2.7, 214, (i * 7) % 3 === 0 ? 2 : 1, 26);
-        // 감열지가 바래 글자가 군데군데 날아갔다
-        const rnd = createRandom(55);
-        g.fillStyle = "rgba(244,242,234,0.7)";
-        for (let i = 0; i < 26; i++) g.fillRect(rnd() * 128, rnd() * 260, 10 + rnd() * 30, 4 + rnd() * 8);
       } else if (kind === "detergent") {
         g.fillStyle = "#f6f7f9";
         g.beginPath();
@@ -270,18 +234,41 @@ export function makePrintTexture(kind: PrintKind) {
         g.fillText("액체세제", 128, 152);
         g.font = `16px ${SIGN_FONT}`;
         g.fillText("2.5L · 드럼 겸용", 128, 186);
-      } else if (kind === "straw") {
-        g.fillStyle = "#f4f4f2";
-        g.fillRect(0, 0, 64, 256);
-        g.fillStyle = "#d8363a";
-        for (let y = -64; y < 256; y += 32) {
-          g.beginPath();
-          g.moveTo(0, y);
-          g.lineTo(64, y + 24);
-          g.lineTo(64, y + 36);
-          g.lineTo(0, y + 12);
-          g.fill();
+      } else if (kind === "bag") {
+        // 묶은 종량제 봉투 — 흰 비닐에 파란 테 인쇄 한 칸(구면 UV 라 앞쪽 한 번만), 아랫단은 때가 탔다
+        g.fillStyle = "#f3f4f1";
+        g.fillRect(0, 0, 512, 256);
+        const grime = g.createLinearGradient(0, 170, 0, 256);
+        grime.addColorStop(0, "rgba(70,62,48,0)");
+        grime.addColorStop(1, "rgba(70,62,48,0.35)");
+        g.fillStyle = grime;
+        g.fillRect(0, 170, 512, 86);
+        // 인쇄는 앞뒤 두 번 — 어느 쪽에서 봐도 한 칸은 읽힌다
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        for (const cx of [128, 384]) {
+          g.strokeStyle = "#1f5fae";
+          g.lineWidth = 6;
+          g.strokeRect(cx - 100, 60, 200, 130);
+          g.fillStyle = "#1f5fae";
+          g.font = `900 40px ${SIGN_FONT}`;
+          g.fillText("일반쓰레기", cx, 98);
+          g.font = `bold 28px ${SIGN_FONT}`;
+          g.fillText("종량제 봉투", cx, 138);
+          g.font = `18px ${SIGN_FONT}`;
+          g.fillText("왜곡구 · 5L", cx, 170);
         }
+      } else if (kind === "sleeve") {
+        // 찢긴 나무젓가락 종이 봉지
+        g.fillStyle = "#f4efe3";
+        g.fillRect(0, 0, 128, 64);
+        g.fillStyle = "#c9372c";
+        g.fillRect(0, 0, 128, 10);
+        g.fillRect(0, 54, 128, 10);
+        g.font = `bold 15px ${SIGN_FONT}`;
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.fillText("왜곡역 식당", 64, 32);
       } else {
         g.fillStyle = "#f3efe6";
         g.fillRect(0, 0, 256, 64);

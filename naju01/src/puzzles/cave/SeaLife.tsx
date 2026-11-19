@@ -9,6 +9,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { pointScaleFor } from "../glowPoints";
 import { M } from "../units";
+import { usePrewarm } from "../usePrewarm";
 import { floorY, getUnderwater, useCaveShown } from "./caveState";
 import { SPECIES } from "./fishLooks";
 import {
@@ -71,6 +72,8 @@ export default function SeaLife() {
 
   const assets = useMemo(() => createSeaLifeAssets(), []);
   useEffect(() => () => disposeSeaLifeAssets(assets), [assets]);
+  // 물굴이 열릴 때에야 붙는다 — 그 프레임에 굽지 않게 미리 굽는다
+  usePrewarm(...assets.anchovies.map((school) => school.mesh), assets.minnows.mesh, assets.ink.points.points);
 
   const squidGroups = useRef<(THREE.Group | null)[]>([]);
   const squidArms = useRef<(THREE.Group | null)[]>([]);

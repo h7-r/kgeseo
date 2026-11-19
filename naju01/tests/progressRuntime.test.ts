@@ -343,3 +343,24 @@ test("런타임 12: 모르는 state_changes 는 해석하지 않고 결과로만
   assert.deepEqual(seen, [DONE]);
   assert.deepEqual(session.notes, []);
 });
+
+test("런타임 13: 베타 기록 — prepare → send(퍼즐 판정 경로)와 submit 모두 판정 결과를 남긴다(Codex 리뷰 2)", async () => {
+  const { betaSignals } = await import("../src/beta/betaSignals.ts");
+  const seen: Array<{ objective: string; result: string; data?: Record<string, unknown> }> = [];
+  const original = betaSignals.attempt;
+  betaSignals.attempt = (objective, result, _source, data) => void seen.push({ objective, result, data });
+  try {
+    serve(() => ({ status: 200, body: { ...response("int-9", []), result_type: "incorrect" } }));
+    const r = runtime(fakeSession(ready(PLAY_A)));
+    const prepared = r.prepare(LEVER);
+    assert.equal(prepared.ok, true);
+    if (!prepared.ok) return;
+    await r.send(prepared.prepared);
+    await r.submit(LEVER);
+    assert.equal(seen.length, 2);
+    assert.equal(seen[0].result, "incorrect");
+    assert.equal(seen[0].data?.client_event_id, prepared.prepared.body.client_event_id);
+  } finally {
+    betaSignals.attempt = original;
+  }
+});

@@ -8,6 +8,21 @@ import { makeGlowPoints, pointScaleFor } from "../glowPoints";
 import { M } from "../units";
 import { registerAirColumn, SURFACE_Y } from "./caveState";
 
+/**
+ * 숨이 차는 자리는 거품을 더 크고 많이 — 작은 방울이 드문드문 올라 숨 자리인 줄 몰랐다(미르 11/12 「물방울이 좀 더 크고 많이 나오게 해서
+ * 숨쉬는 지점이라는 걸 직관적으로」). 숨을 못 채우는 장식 거품(바닥 숨구멍)은 그대로 둬 둘이 갈린다
+ */
+const BREATH_BOOST = {
+  /** 방울 수 배율 */
+  count: 2,
+  /** 크기 배율 */
+  size: 1.6,
+  /** 큰 방울이 나오는 정도 — 작을수록 큰 방울이 잦다(장식 거품은 2.4) */
+  bigness: 1.6,
+  /** 진하기 */
+  alpha: 0.92,
+};
+
 interface Props {
   x: number;
   z: number;
@@ -41,22 +56,24 @@ export default function AirColumn({
     onRef.current = on;
   }, [on]);
 
+  const total = breathable ? Math.round(count * BREATH_BOOST.count) : count;
   const bubbles = useMemo(() => {
     const random = createRandom(Math.round(x * 131 + z * 17));
-    const glow = makeGlowPoints(count, { additive: false, softness: 1.2 });
-    const seeds = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
+    const glow = makeGlowPoints(total, { additive: false, softness: 1.2 });
+    const seeds = new Float32Array(total * 3);
+    const sizeScale = bubbleScale * (breathable ? BREATH_BOOST.size : 1);
+    for (let i = 0; i < total; i++) {
       seeds[i * 3] = random();
       seeds[i * 3 + 1] = random();
       seeds[i * 3 + 2] = random();
-      // 잔 방울이 많고 큰 방울은 드물게
-      const pick = Math.pow(random(), 2.4);
-      glow.size.setX(i, (count < 60 ? 0.016 + pick * 0.07 : 0.018 + pick * 0.152) * bubbleScale);
+      // 잔 방울이 많고 큰 방울은 드물게 — 숨 자리는 큰 방울이 더 잦다
+      const pick = Math.pow(random(), breathable ? BREATH_BOOST.bigness : 2.4);
+      glow.size.setX(i, (count < 60 ? 0.016 + pick * 0.07 : 0.018 + pick * 0.152) * sizeScale);
       glow.color.setXYZ(i, 0.86, 0.96, 0.98);
     }
     glow.points.visible = false;
     return { glow, seeds };
-  }, [count, x, z, bubbleScale]);
+  }, [total, count, x, z, bubbleScale, breathable]);
   useEffect(
     () => () => {
       bubbles.glow.points.geometry.dispose();
@@ -77,7 +94,8 @@ export default function AirColumn({
     const time = performance.now() / 1000;
     glow.material.uniforms.uPointScale.value = pointScaleFor(gl, camera);
     const height = SURFACE_Y - floor;
-    for (let i = 0; i < count; i++) {
+    const alpha = breathable ? BREATH_BOOST.alpha : count < 60 ? 0.55 : 0.8;
+    for (let i = 0; i < total; i++) {
       const seedX = seeds[i * 3];
       const seedY = seeds[i * 3 + 1];
       const seedZ = seeds[i * 3 + 2];
@@ -85,7 +103,7 @@ export default function AirColumn({
       const r = radius * 0.75 * Math.sqrt(seedZ);
       const y = floor + ((seedY * height + time * speed * (1.1 + seedZ * 0.8)) % height);
       glow.position.setXYZ(i, (x + Math.cos(angle) * r) * M, y * M, (z + Math.sin(angle) * r) * M);
-      glow.alpha.setX(i, (count < 60 ? 0.55 : 0.8) * (1 - Math.pow((y - floor) / height, 3)));
+      glow.alpha.setX(i, alpha * (1 - Math.pow((y - floor) / height, 3)));
     }
     glow.commit();
   });

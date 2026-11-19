@@ -290,12 +290,16 @@ async def _process_npc_turn_once(
                 target_puzzle_id=target,
                 past_interventions=[AutoIntervention(at, pid) for at, pid in shown],
                 past_declines=declined,
+                paused_sec=(request.paused_ms_since_interaction or 0) / 1000,
             )
             config = rule_config_for(
                 content.npc_pack.auto_nudge if content.npc_pack else None, rule_config
             )
             puzzle_result = run_auto_turn(
-                decide(signals, config), state=state, content=content
+                decide(signals, config),
+                state=state,
+                content=content,
+                used_nudges=used_auto_nudges(events),
             )
             if request.situation is None:
                 return puzzle_result
@@ -339,14 +343,38 @@ async def _process_npc_turn_once(
             await db.rollback()
             return response
 
-        # 2. 계산(잠금 없음)
-        result = await compute(access, pack_access)
+        # 2. 계산(잠금 없음). auto 턴은 3에서 승인 · 게시와 세션을 잠근 뒤에만 계산한다.
+        auto = request.trigger == "auto"
+        result = None if auto else await compute(access, pack_access)
+
+        if auto:
+            # 지금 트랜잭션을 끝낸다 — 아래 이벤트 조회가 세션 잠금 뒤에 새 읽기 시점을 잡도록.
+            await db.rollback()
 
         # 3. 확정 트랜잭션에서 공유 잠금으로 다시 읽는다. 그 사이 철회 · 차단(케이스) 또는 팩 승인 변경이 commit됐으면
         #    다시 계산한다. 대역(승인 출처를 직접 넘긴 경우)은 근거가 늘 같다.
         final = await read_access(lock=True)
         final_pack = await read_pack(lock=True)
-        if (final.basis, final_pack.basis) != (access.basis, pack_access.basis):
+        if auto:
+            # 같은 세션의 auto 턴을 세션 행 잠금으로 직렬화한다 — 동시 요청이 같은 nudge 를 고르지 않도록,
+            # 앞선 턴이 commit 한 반환 기록(npc_turn)을 보고 고른다. 잠근 뒤 상태 · 이벤트를 다시 읽는다.
+            # 잠금 순서: 승인 · 게시(공유) → 세션. 플레이어 메시지 턴(승인 · 게시 공유 → 이벤트 INSERT 의 세션 FK
+            # 공유 잠금)과 같고, 세션만 잠그는 Interaction · Hint · 표시 보고, 세션을 잠그지 않는 승인 · 게시 쓰기와
+            # 순서가 엇갈리지 않는다. 위 공유 잠금 읽기는 모두 잠금 읽기라 읽기 시점(read view)을 만들지 않는다 —
+            # 그래서 이벤트 조회(일반 SELECT)는 세션 잠금 뒤의 commit 을 본다.
+            locked = await db.get(
+                PlaySession,
+                play_session_id,
+                with_for_update=True,
+                populate_existing=True,
+            )
+            if locked is None:
+                raise PlaySessionNotFoundError()
+            state = dict(locked.state_json)
+        if result is None or (final.basis, final_pack.basis) != (
+            access.basis,
+            pack_access.basis,
+        ):
             access, pack_access = final, final_pack
             result = await compute(access, pack_access)
 
@@ -411,7 +439,37 @@ def _payload(request: NpcTurnRequest) -> dict[str, Any]:
     # situation이 없으면 키를 넣지 않는다 — 이미 저장된 이벤트의 payload_json과 그대로 일치하게.
     if request.situation is not None:
         payload["situation"] = request.situation.model_dump(mode="json")
+    # 실었을 때만 넣는다 — 안 실은 요청의 재전송 비교 값(예전 기록)이 바뀌지 않게
+    if request.paused_ms_since_interaction is not None:
+        payload["paused_ms_since_interaction"] = request.paused_ms_since_interaction
     return payload
+
+
+def used_auto_nudges(events: Sequence[Any]) -> frozenset[tuple[str | None, str]]:
+    """이 회차(play session)에서 자동 개입으로 이미 반환한 승인 nudge (puzzle_id, line_id).
+
+    새 테이블 없이 기존 `npc_turn` 기록(response_json = NpcTurnEventRecord)을 쓴다. 1단계 nudge 만 센다
+    (2단계 힌트 안내 · 플레이어 메시지 응답은 넣지 않는다). 퍼즐 ID 를 함께 보아 다른 퍼즐의 같은 line_id 와
+    섞지 않는다. **응답으로 반환한 기록**이지 화면 표시 기록이 아니다 — FE 가 표시하지 못한 줄도 쓴 것으로 본다.
+    """
+
+    used: set[tuple[str | None, str]] = set()
+    for event in events:
+        if event.interaction_type != NPC_TURN_EVENT_TYPE:
+            continue
+        record = event.response_json if isinstance(event.response_json, dict) else {}
+        auto = record.get("auto_intervene")
+        line_id = record.get("line_id")
+        if (
+            record.get("trigger") == "auto"
+            and record.get("auto_intervened") is True
+            and record.get("reply_source") == "approved_line"
+            and isinstance(line_id, str)
+            and isinstance(auto, dict)
+            and auto.get("level") == 1
+        ):
+            used.add((auto.get("puzzle_ref"), line_id))
+    return frozenset(used)
 
 
 def _focus_puzzle(

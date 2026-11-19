@@ -4,10 +4,15 @@
 // 있어 바깥으로 나가는 데이터에는 변하지 않는 아이디를 쓰고, 번호와의 대응은 여기 한 곳에만 둔다.
 // 목록에 한 줄 더 적으면 카드가 늘어나지만 모델·리깅은 따라오지 않는다 — 새 옷은 그 옷을 입은 전신 GLB 와
 // 짝이 되는 신발 GLB 가 있어야 하고, 지원하지 않는 조합은 여기서 빼 둔다.
-import { DEFAULT_MESH_CONFIG, MESH_PART_OPTIONS } from "../avatar/meshAppearance";
+import { BUZZ_HAIR_VARIANT, DEFAULT_MESH_CONFIG, MESH_PART_OPTIONS } from "../avatar/meshAppearance";
 import type { AvatarGender, Option } from "../avatar/sidekickOptions";
 
+import { parseStartLookFile, toCatalogStartLooks, type StartLookAppearance } from "./startLookFile";
+import START_LOOKS_JSON from "./startLooks.json";
+
 // 목록이 바뀌면 올린다. 저장된 캐릭터가 어느 목록으로 만든 것인지 안다.
+//   2026-11-06 반삭(hair.buzz)을 더했지만 판은 그대로 둔다 — 로비 서버가 판이 다른 외형을 통째로 버리고
+//   로비 시험 고정값(lobby/test/helpers.ts)도 이 판을 쓴다. 올릴지는 로비 쪽과 같이 정한다.
 const CATALOG_VERSION = "2026-09-24";
 
 /** 생성 화면 썸네일·배경 그림 폴더 */
@@ -39,6 +44,11 @@ export interface CharacterCatalog {
   items: readonly CatalogItem[];
   /** 처음 들어왔을 때의 착장(아이템 id) */
   newDefaults?: Partial<Record<AvatarGender, Partial<Record<CatalogSlot, string>>>>;
+  /**
+   * 성별을 처음 골랐을 때 보여 줄 모습 통째(몸 · 머리 · 옷 · 색) — 미르가 시작 모습 창(start-look.html)에서 정한 startLooks.json.
+   * 없는 성별은 newDefaults · 몸 시작 칸 · 원본 색(코드 기본값). 화면이 믿지 않고 보정한다(appearanceData getStartAppearance)
+   */
+  startLooks?: Partial<Record<AvatarGender, StartLookAppearance>> | null;
   palettes: Record<ColorSlot, readonly Option<string>[]>;
 }
 
@@ -108,14 +118,20 @@ const PALETTES: CharacterCatalog["palettes"] = {
     ["#5a5f6b", "차콜"],
     ["#2d3036", "블랙"],
   ],
-  // 검은 반바지라 밝은 색은 거의 안 먹는다 — 짙은 계열 위주
+  // 검은 반바지 — 고른 색이 반바지 색이 된다(주름 · 그늘만 원본에서, toonMaterial bottomPaint). 원본은 검정 그대로.
+  // 예전엔 검정에 색을 곱해 무슨 색이든 거의 검게 남아 짙은 「빛」 몇 개만 두었다(미르 11/11 「상의처럼 색 변경」)
   bottom: [
     ["#ffffff", "원본"],
-    ["#c9ccd2", "회색 빛"],
-    ["#8fa6c4", "청 빛"],
-    ["#7d8c6f", "올리브 빛"],
-    ["#a08070", "갈색 빛"],
-    ["#5a5f6b", "더 짙게"],
+    ["#4a4e57", "차콜"],
+    ["#34466b", "네이비"],
+    ["#5b7aa6", "청색"],
+    ["#8fa6c4", "청회색"],
+    ["#6f7a55", "카키"],
+    ["#b8a07a", "베이지"],
+    ["#7a5a44", "갈색"],
+    ["#9aa0a8", "회색"],
+    ["#e2dccb", "아이보리"],
+    ["#7a3b40", "버건디"],
   ],
   // 흰 운동화를 물들인다
   shoes: [
@@ -138,6 +154,9 @@ export const DEFAULT_CATALOG: CharacterCatalog = {
     defineCatalogItem("hair.m.long", "hair", "긴 머리", ["masculine"], 1, { thumbnail: thumbnailUrl("hair.m.long") }),
     defineCatalogItem("hair.f.bob", "hair", "단발", ["feminine"], 0, { thumbnail: thumbnailUrl("hair.f.bob") }),
     defineCatalogItem("hair.f.long", "hair", "긴 머리", ["feminine"], 1, { thumbnail: thumbnailUrl("hair.f.long") }),
+    defineCatalogItem("hair.buzz", "hair", "반삭", BOTH, BUZZ_HAIR_VARIANT, {
+      thumbnail: genderThumbnailUrls("hair.buzz"),
+    }),
 
     defineCatalogItem("top.none", "top", "입지 않음", BOTH, -1, {
       description: "기본 속옷",
@@ -171,6 +190,8 @@ export const DEFAULT_CATALOG: CharacterCatalog = {
     // 여성 긴 머리는 귀 문제가 있어 처음 값으로 쓰지 않는다(고르면 된다)
     feminine: { hair: "hair.f.bob", top: "top.tee.white", bottom: "bottom.shorts.black", shoes: "shoes.sneaker.white" },
   },
+  // 파일이 깨졌으면 비운다(코드 기본값으로 연다)
+  startLooks: toCatalogStartLooks(parseStartLookFile(START_LOOKS_JSON as unknown)),
   palettes: PALETTES,
 };
 
@@ -203,5 +224,5 @@ export function isKnownVariant(slot: CatalogSlot, gender: AvatarGender, variant:
   return MESH_PART_OPTIONS[slot][gender].some(([value]) => value === variant);
 }
 
-/** 화면이 손대지 않는 렌더러 기본값(어깨 1.2, 팔 길이 0.88 처럼 보정된 값) */
+/** 화면이 손대지 않는 렌더러 기본값(팔 길이 0.7 처럼 Meshy 몸에 맞춰 보정된 값) */
 export const RENDERER_DEFAULTS = DEFAULT_MESH_CONFIG;

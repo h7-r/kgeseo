@@ -308,6 +308,11 @@ button:hover > .dest-key {
   transform-box: fill-box;
   transform-origin: center;
 }
+/* 누르는 자리(보이지 않음) — 이름표 위아래로 넓혀 손가락 44px 를 맞춘다 */
+.dest-map-tag__hit {
+  fill: transparent;
+  stroke: none;
+}
 .dest-map-tag__box {
   fill: rgba(5, 11, 26, 0.88);
   stroke: #3a4258;
@@ -513,6 +518,24 @@ button:hover > .dest-key {
   color: #e1ebf8;
 }
 
+/* 하던 케이스의 진행(지역 줄) — 「진행 중 32%」 · 「완료」 */
+.dest-row__progress {
+  flex-shrink: 0;
+  padding: calc(var(--u) * 3) calc(var(--u) * 10);
+  border: 1px solid rgba(134, 166, 240, 0.55);
+  border-radius: 999px;
+  background: rgba(46, 72, 137, 0.35);
+  font-size: max(13px, calc(var(--u) * 13));
+  font-weight: 500;
+  color: #cfdcf8;
+  white-space: nowrap;
+}
+.dest-row__progress.is-cleared {
+  border-color: rgba(242, 200, 154, 0.6);
+  background: rgba(120, 90, 40, 0.3);
+  color: #f2d9b6;
+}
+
 .dest-chip {
   flex-shrink: 0;
   padding: calc(var(--u) * 3) calc(var(--u) * 10);
@@ -671,14 +694,36 @@ button:hover > .dest-key {
   top: calc(var(--u) * 20);
   text-align: center;
 }
-.dest-stars {
+/* 난이도 글자(쉬움 · 보통 · 어려움, 미르 11/11) — 예전 별은 케이스 평가 별과 헷갈렸다 */
+.dest-difficulty {
+  display: inline-flex;
+  align-items: baseline;
+  gap: calc(var(--u) * 7);
+  padding: calc(var(--u) * 5) calc(var(--u) * 12);
+  border-radius: 999px;
+  border: 1px solid rgba(241, 241, 252, 0.32);
+  background: rgba(5, 11, 26, 0.62);
   color: #f1f1fc;
-  font-size: calc(var(--u) * 21);
-  letter-spacing: 0.14em;
-  text-shadow: 0 1px 10px rgba(1, 4, 10, 0.85);
+  font-size: calc(var(--u) * 15);
+  line-height: 1.2;
+  text-shadow: 0 1px 8px rgba(1, 4, 10, 0.85);
 }
-.dest-stars__empty {
-  color: rgba(241, 241, 252, 0.26);
+.dest-difficulty__label {
+  color: rgba(241, 241, 252, 0.68);
+  font-size: 0.86em;
+}
+.dest-difficulty b {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.dest-difficulty[data-level="쉬움"] b {
+  color: #9be3b4;
+}
+.dest-difficulty[data-level="보통"] b {
+  color: #f3d77e;
+}
+.dest-difficulty[data-level="어려움"] b {
+  color: #f6a0a0;
 }
 .dest-card__lock {
   position: absolute;
@@ -735,6 +780,42 @@ button:hover > .dest-key {
   font-size: calc(var(--u) * 13);
   color: #8b93a3;
 }
+/* 하던 케이스의 진행(전설 카드) — 어디까지 했는지 한 줄 + 막대 */
+.dest-card__progress {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 6);
+  width: min(100%, calc(var(--u) * 320));
+}
+.dest-card__progress-label {
+  display: flex;
+  justify-content: space-between;
+  gap: calc(var(--u) * 10);
+  font-size: max(13px, calc(var(--u) * 14));
+  color: #cfdcf8;
+}
+.dest-card__progress-label b {
+  font-family: "IBM Plex Mono", "IBM Plex Sans KR", monospace;
+  font-weight: 600;
+  color: #f1f1fc;
+}
+.dest-card__progress-bar {
+  position: relative;
+  height: calc(var(--u) * 5);
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(241, 241, 252, 0.16);
+}
+.dest-card__progress-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6f86bf, #9db6f2);
+}
+.dest-card__progress.is-cleared .dest-card__progress-bar i {
+  background: linear-gradient(90deg, #c9a46a, #f2d9b6);
+}
+
 .dest-card__description {
   font-weight: 300;
   font-size: calc(var(--u) * 15);
@@ -801,6 +882,75 @@ button:hover > .dest-key {
 }
 .dest-arrow--next:hover {
   translate: calc(var(--u) * 5) 0;
+}
+
+/* 처음부터 다시(하던 · 끝낸 케이스) — 입장 단추 오른쪽의 낮은 알약. 누르면 아래 확인 창 */
+.dest-restart {
+  position: absolute;
+  left: calc(var(--u) * 800);
+  top: calc(var(--u) * 638);
+  min-height: max(44px, calc(var(--u) * 44));
+  padding: 0 calc(var(--u) * 18);
+  border: 1px solid rgba(111, 134, 191, 0.55);
+  border-radius: 999px;
+  background: rgba(9, 15, 32, 0.6);
+  font-size: max(13px, calc(var(--u) * 15)) !important;
+  color: #cfdcf8 !important;
+  animation: dest-fade 0.5s ease-out 0.35s both;
+}
+.dest-restart:hover {
+  border-color: #6f86bf;
+  background: rgba(46, 72, 137, 0.35);
+}
+/* 한 번 더 묻기 — 지우면 되돌릴 수 없다 */
+.dest-restart-ask {
+  position: absolute;
+  left: calc(var(--u) * 380);
+  bottom: calc(var(--u) * 24);
+  z-index: 5;
+  width: calc(var(--u) * 520);
+  box-sizing: border-box;
+  padding: calc(var(--u) * 16) calc(var(--u) * 20);
+  border: 1px solid #3a5794;
+  border-radius: calc(var(--u) * 16);
+  background: rgba(5, 11, 26, 0.97);
+  box-shadow: 0 18px 48px rgba(1, 4, 10, 0.62);
+}
+.dest-restart-ask__title {
+  margin: 0;
+  font-size: max(15px, calc(var(--u) * 17));
+  font-weight: 600;
+  color: #f1f1fc;
+}
+.dest-restart-ask__note {
+  margin: calc(var(--u) * 6) 0 0;
+  font-size: max(13px, calc(var(--u) * 14));
+  line-height: 1.5;
+  color: #c6cfdd;
+}
+.dest-restart-ask__row {
+  display: flex;
+  gap: calc(var(--u) * 10);
+  margin-top: calc(var(--u) * 14);
+}
+.dest-restart-ask__confirm,
+.dest-restart-ask__cancel {
+  position: relative;
+  flex: 1 1 0;
+  min-height: max(44px, calc(var(--u) * 48));
+  border-radius: 999px;
+  font-size: max(14px, calc(var(--u) * 16)) !important;
+  font-weight: 600;
+}
+.dest-restart-ask__confirm {
+  border: 1px solid #c97a7a;
+  background: rgba(120, 40, 40, 0.55);
+  color: #ffe1e1 !important;
+}
+.dest-restart-ask__cancel {
+  border: 1px solid #3a4258;
+  background: transparent;
+  color: #c6cfdd !important;
 }
 
 /* 사이트 주 단추와 같은 남색 알약. 빛이 한 번씩 스쳐 지나간다. */
@@ -982,5 +1132,225 @@ button:hover > .dest-key {
   .dest-card--center::before,
   .is-shaking {
     animation: none !important;
+  }
+}
+
+/* ── 휴대폰 가로(14회차) ──
+   1280×720 도면을 통째로 줄이면 852×393 에서 배율 0.52 — 설명 8px · 닫기 26px 로 읽히지도 눌리지도 않았다.
+   휴대폰에서는 창을 화면(노치 안쪽) 전체로 넓히고, 핵심만 실제 px 로 다시 놓는다.
+   · 지역: 장식 지도는 빼고 지역 줄을 2열 × 3줄로 크게(줄 높이 약 90px)
+   · 전설: 열린 전설 카드 하나를 왼쪽에 크게, 「전설 속으로」는 오른쪽 아래 52px. 잠긴 전설 · 좌우 화살표는 뺀다
+   · 닫기 · 뒤로 44px, 글자 13px 이상, [E] 표시는 없앤다(터치에는 커서가 없다) */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+  .dest-window {
+    width: calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 16px);
+    height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px);
+    aspect-ratio: auto;
+    border-radius: 12px;
+  }
+  .dest-key {
+    display: none !important;
+  }
+  .dest-header {
+    top: 10px;
+    left: 16px;
+    gap: 12px;
+  }
+  .dest-badge {
+    display: none;
+  }
+  .dest-heading {
+    gap: 2px;
+  }
+  .dest-title {
+    font-size: 20px;
+  }
+  .dest-subtitle {
+    font-size: 13px;
+  }
+  .dest-progress {
+    top: 22px;
+    right: 68px;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .dest-progress i {
+    width: 20px;
+  }
+  .dest-round {
+    width: 44px;
+    height: 44px;
+    font-size: 24px;
+  }
+  .dest-close {
+    top: 10px;
+    right: 10px;
+  }
+
+  /* 지역 */
+  .dest-map {
+    display: none;
+  }
+  .dest-list {
+    left: 16px;
+    right: 16px;
+    top: 72px;
+    bottom: 12px;
+    grid-template-rows: repeat(3, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .dest-row {
+    gap: 10px;
+    padding: 0 12px 0 6px;
+    border-radius: 10px;
+  }
+  .dest-row__thumb {
+    width: 64px;
+    height: calc(100% - 12px);
+    border-radius: 7px;
+  }
+  .dest-row__lock {
+    width: 20px;
+    height: 20px;
+  }
+  .dest-row__name {
+    gap: 8px;
+    font-size: 18px;
+  }
+  .dest-row__roman {
+    display: none;
+  }
+  .dest-row__go {
+    font-size: 14px;
+  }
+  .dest-row__progress {
+    padding: 3px 8px;
+    font-size: 13px;
+  }
+  .dest-card__progress-label {
+    font-size: 13px;
+  }
+  .dest-card__progress-bar {
+    height: 4px;
+  }
+  .dest-chip {
+    padding: 3px 8px;
+    font-size: 12px;
+  }
+
+  /* 전설 */
+  .dest-slot--left,
+  .dest-slot--right,
+  .dest-arrow {
+    display: none;
+  }
+  .dest-slot--center {
+    left: 16px;
+    top: 72px;
+    height: calc(100% - 84px);
+    width: auto;
+    aspect-ratio: 356 / 462;
+  }
+  .dest-card {
+    border-radius: 12px;
+  }
+  .dest-difficulty {
+    gap: 6px;
+    padding: 4px 10px;
+    font-size: 13px;
+  }
+  .dest-card__label,
+  .dest-region-tag {
+    font-size: 12px;
+  }
+  .dest-card--center .dest-card__title {
+    font-size: 22px;
+  }
+  .dest-card__kind {
+    font-size: 13px;
+  }
+  .dest-card__description {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .dest-enter {
+    left: auto;
+    top: auto;
+    right: 16px;
+    bottom: 16px;
+    width: min(320px, calc(100% - 300px));
+    height: 52px;
+    border-radius: 26px;
+  }
+  .dest-enter span {
+    font-size: 17px !important;
+  }
+  .dest-restart {
+    left: auto;
+    top: auto;
+    right: 16px;
+    bottom: 76px;
+    width: min(320px, calc(100% - 300px));
+    min-height: 44px;
+    font-size: 15px !important;
+  }
+  .dest-restart-ask {
+    left: auto;
+    right: 16px;
+    bottom: 16px;
+    width: min(380px, calc(100% - 290px));
+    padding: 12px 14px;
+    border-radius: 12px;
+  }
+  .dest-restart-ask__title {
+    font-size: 15px;
+  }
+  .dest-restart-ask__note {
+    margin-top: 4px;
+    font-size: 13px;
+  }
+  .dest-restart-ask__row {
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .dest-restart-ask__confirm,
+  .dest-restart-ask__cancel {
+    min-height: 44px;
+    font-size: 15px !important;
+  }
+}
+
+/* ── 태블릿(손가락, 높이 520 초과) — 도면 배율은 그대로, 작은 글자만 13px · 둥근 단추만 44px 아래로 내려가지 않게(코덱스 14c)
+   1180×820 에서 배율 0.885 → 12px 글자 10.6px, 1024×768 에서 닫기 38px 이었다 */
+@media (pointer: coarse) and (min-height: 521px) {
+  .dest-key {
+    display: none !important;
+  }
+  .dest-badge,
+  .dest-row__roman,
+  .dest-chip,
+  .dest-card__label,
+  .dest-region-tag,
+  .dest-card__kind {
+    font-size: max(13px, calc(var(--u) * 12));
+  }
+  .dest-progress {
+    font-size: max(13px, calc(var(--u) * 14));
+  }
+  .dest-subtitle,
+  .dest-card__description {
+    font-size: max(14px, calc(var(--u) * 15));
+  }
+  .dest-round {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .dest-arrow {
+    min-width: 48px;
+    min-height: 48px;
+  }
+  .dest-enter {
+    min-height: 48px;
   }
 }

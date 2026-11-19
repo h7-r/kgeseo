@@ -11,6 +11,7 @@ import type { TerrainTeleport } from "../movement/useTerrainMovement";
 import { computeEditAnchors, type Edits, type InstanceGroup } from "../placement/instanceGroups";
 import { collectLocalIds } from "../placement/localIds";
 import { BLOCKERS, METERS_PER_UNIT, PATHS, SCENE_TITLES, ZONES } from "../plan/sitePlan";
+import { NAJU_ID_TABLE_V1 } from "../progress/najuIdTable";
 import { listInteractableIds } from "../puzzles/interaction";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import type { CollapseSequence } from "../story/blockerCollapse";
@@ -101,6 +102,7 @@ export function useNajuDevHook({
           blockers: BLOCKERS,
           sceneNumbers: Object.keys(SCENE_TITLES),
           groups: instanceGroups,
+          progress: { zones: Object.keys(NAJU_ID_TABLE_V1.zones), objects: Object.keys(NAJU_ID_TABLE_V1.objects) },
         }),
       // 지금 등록된 상호작용 id(참고 — idmap 형식이 받지 않는다)
       interactableIds: listInteractableIds,
@@ -168,9 +170,13 @@ export function useNajuDevHook({
   ]);
 }
 
-/** 개발용 — Shift+숫자 = 그 씬이 끝났다. 숫자만 누르는 텔레포트는 뺐다(플레이 중 잘못 눌러 스테이지가 건너뛰었다). IME 때문에 e.code 를 쓴다. */
+/**
+ * 개발용 — Shift+숫자 = 그 씬이 끝났다. 숫자만 누르는 텔레포트는 뺐다(플레이 중 잘못 눌러 스테이지가 건너뛰었다). IME 때문에 e.code 를 쓴다.
+ * 개발 빌드에서만 — 배포 판에서도 켜져 있어 Shift+1~5 를 누르면 스테이지가 끝났다(박람회 출품판 01회차에서 짚음 · 11/10).
+ */
 export function useSceneEndKeys(endScene: (sceneNumber: number) => string) {
   useEffect(() => {
+    if (!import.meta.env.DEV) return undefined;
     const handleKeyDown = (e: KeyboardEvent) => {
       const i = DIGIT_INDEX[e.code];
       if (i === undefined || !e.shiftKey) return;
