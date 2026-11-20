@@ -73,6 +73,7 @@ def test_inquiry_flow_submit_list_reply_and_my_inquiries():
             assert first.status_code == 201, first.text
             guest_inquiry = first.json()
             assert guest_inquiry["number"].startswith("INQ-")
+            assert guest_inquiry["is_member"] is False
 
             # ② 회원 접수 — app_user_id 가 붙어 「내 문의」에 나온다
             sign_in_optional(member)
@@ -88,6 +89,7 @@ def test_inquiry_flow_submit_list_reply_and_my_inquiries():
             assert second.status_code == 201, second.text
             member_inquiry = second.json()
             assert member_inquiry["number"] != guest_inquiry["number"]
+            assert member_inquiry["is_member"] is True
 
             # 검증 실패 — 분류 밖 · 빈 제목 · 이메일 아님 → 422, 저장 안 됨
             bad = await post_json(

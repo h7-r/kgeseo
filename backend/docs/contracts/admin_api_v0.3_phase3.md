@@ -63,8 +63,13 @@
 `POST /api/v1/inquiries` — 요청 빈도 제한(`rate_limit_inquiry_create`, 기본 **IP 당 10분에 5건**, 설정값은 config). 로그인 쿠키가 있으면 `app_user_id` 를 채운다(없어도 접수된다).
 ```json
 요청 { "category": "gameplay", "title": "…", "body": "…", "email": "me@example.com" }
-응답 201 { "id": "…", "number": "INQ-20261113-0007", "created_at": "2026-11-13T05:10:00" }
+응답 201 { "id": "…", "number": "INQ-20261113-0007", "created_at": "2026-11-13T05:10:00", "is_member": true }
 ```
+- **`is_member`(11/20 추가, 필수 boolean):** 저장된 문의가 회원 계정에 연결됐는지(`inquiries.app_user_id` 가 채워졌는지)다. 화면의 로그인 표시 · 요청 본문(이메일 등)으로 정하지 않는다.
+  - `true` — 유효한 로그인 세션 쿠키로 접수됐다. 답변이 마이페이지 「내 문의」에 보인다.
+  - `false` — 비회원 문의로 저장됐다. 쿠키가 없을 때뿐 아니라 **세션이 만료 · 폐기됐거나 모르는 토큰일 때도** 401 없이 비회원으로 접수된다(인증 정책은 그대로). 답변은 운영팀이 입력한 이메일로 따로 보낸다.
+  - 회원 id · 이메일 · 닉네임 · 세션 값은 응답에 넣지 않는다. 기존 `id` · `number` · `created_at` 은 그대로 — 필드 추가라 이 필드를 읽지 않는 기존 웹 폼은 그대로 동작한다.
+  - 웹 폼은 접수 완료 안내(「내 문의」 안내 · 버튼)를 이 값으로 정한다. `false` 인데 화면이 로그인 상태면 로그인이 끝난 것이므로 화면 로그인 표시도 정리한다(인수인계 `docs/handoffs/SJ_inquiry_is_member_fe_handoff_20261120.md`).
 - 검증: category 는 다섯 값 중 하나 · title 1~100자 · body 1~4000자(공백만은 안 됨) → FastAPI 422. email 은 가입과 같은 EMAIL_PATTERN(254자) → 422 `{code: "invalid_email", message}`(구현: 400 은 쓰지 않는다). 제한 초과 429 `rate_limited` + `Retry-After`. 본문은 글자 그대로 저장(HTML 해석 없음).
 - 접수 번호는 `seq`(AUTO_INCREMENT) 로 만든다 — 날짜별로 1부터 시작하지 않고 전체 순번이 이어진다(예: `INQ-20261113-00042`, 다음 날 `INQ-20261114-00043`). 날짜는 보기용, 유일성은 `seq` 가 보장. 재시도 · 잠금 없음(세진 ① 확정).
 
