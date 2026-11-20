@@ -32,7 +32,7 @@ interface IndexEntry {
 }
 
 // 글이 아닌 칸. kind 는 약관 조각의 종류 표시, icon 은 그림 주소, action 은 마이페이지 동작 이름, video 는 영상 주소 묶음이라 검색 본문에 넣지 않는다.
-const NON_TEXT_KEYS = new Set(["kind", "icon", "action", "video"]);
+const NON_TEXT_KEYS = new Set(["id", "kind", "icon", "action", "video"]);
 
 /** 글 묶음을 한 줄 문자열로 편다. */
 function flatten(value: unknown): string {
@@ -115,6 +115,7 @@ function buildIndex(): IndexEntry[] {
   );
 
   entries.push(
+    entry("구독 · 시험운영 안내", "구독", ROUTES.pricing, PRICING.trialNotice),
     entry("구독 · 플랜 비교", "구독", ROUTES.pricing, PRICING.plans),
     entry("구독 · 결제 정보", "구독", ROUTES.pricing, PRICING.paymentBoxes),
     entry("구독 · 혜택 안내", "구독", ROUTES.pricing, [

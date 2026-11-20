@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import { FONT } from "@/lib/style";
 import { COLOR } from "@/styles/tokens";
@@ -7,15 +7,17 @@ interface BlockHeaderProps {
   eyebrow: string;
   title: string;
   description: string;
+  /** 머리 오른쪽 아래에 붙는 안내. 자리를 차지하지 않아 아래 내용이 밀리지 않는다. */
+  aside?: ReactNode;
 }
 
 /**
  * 덩이 머리 — 영문 꼬리표 · 큰 제목 · 설명이 왼쪽에 쌓인다.
  * 꼬리표를 영문으로 두어 큰 제목과 같은 말이 두 번 읽히지 않게 한다.
  */
-export default function BlockHeader({ eyebrow, title, description }: BlockHeaderProps) {
+export default function BlockHeader({ eyebrow, title, description, aside }: BlockHeaderProps) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "14px", width: "100%" }}>
+    <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: "14px", width: "100%" }}>
       <span style={eyebrowStyle}>{eyebrow}</span>
       <span style={{ fontFamily: FONT.display, fontSize: "42px", lineHeight: 1.18, color: COLOR.textBright }}>
         {title}
@@ -23,9 +25,17 @@ export default function BlockHeader({ eyebrow, title, description }: BlockHeader
       <span style={{ fontFamily: FONT.mono, fontSize: "16px", lineHeight: 1.6, color: COLOR.textMuted }}>
         {description}
       </span>
+      {aside && <div style={asideStyle}>{aside}</div>}
     </div>
   );
 }
+
+const asideStyle: CSSProperties = {
+  position: "absolute",
+  right: 0,
+  bottom: 0,
+  maxWidth: "760px",
+};
 
 const eyebrowStyle: CSSProperties = {
   fontFamily: FONT.mono,
