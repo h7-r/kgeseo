@@ -38,7 +38,7 @@ const SINGLE_DEVICE =
 
 export const PAYMENT_DETAILS: Readonly<Record<PaymentTopic, PaymentDetail>> = {
   method: {
-    lead: "카드 · 계좌이체 · 간편결제 가운데 하나를 등록해 두면 매달 결제일에 그 수단으로 청구됩니다.",
+    lead: "정식 오픈 뒤에는 카드 · 계좌이체 · 간편결제 가운데 하나를 등록해 두면 매달 결제일에 그 수단으로 청구됩니다.",
     blocks: [
       {
         kind: "chips",
@@ -83,7 +83,7 @@ export const PAYMENT_DETAILS: Readonly<Record<PaymentTopic, PaymentDetail>> = {
     ],
   },
   autopay: {
-    lead: "처음 결제한 날이 매달의 결제일이 되고, 해지하기 전까지 같은 날 같은 금액이 자동으로 청구됩니다.",
+    lead: "정식 오픈 뒤에는 처음 결제한 날이 매달의 결제일이 되고, 해지하기 전까지 같은 날 같은 금액이 자동으로 청구됩니다.",
     blocks: [
       {
         kind: "list",
@@ -124,7 +124,7 @@ export const PAYMENT_DETAILS: Readonly<Record<PaymentTopic, PaymentDetail>> = {
     ],
   },
   refund: {
-    lead: "해지할 때 환불을 함께 신청하면 남은 날짜만큼 계산해 결제한 수단으로 돌려드립니다.",
+    lead: "정식 오픈 뒤에는 해지할 때 환불을 함께 신청하면 남은 날짜만큼 계산해 결제한 수단으로 돌려드립니다.",
     blocks: [
       {
         kind: "list",

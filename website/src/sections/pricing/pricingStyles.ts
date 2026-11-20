@@ -22,3 +22,6 @@ export const bulletStyle: CSSProperties = {
   background: COLOR.navy,
   flexShrink: 0,
 };
+
+/** 데스크톱 덩이 머리의 시험운영 안내. 무대가 1920 을 창 폭으로 줄이므로 설명 줄(16px)과 같은 크기로 둔다. */
+export const desktopNoticeStyle: CSSProperties = { fontSize: "16px" };
