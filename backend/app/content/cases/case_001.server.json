@@ -5,7 +5,8 @@
     {
       "puzzle_id": "PUZZLE_FIRE_CABINET_LOCK",
       "accepted_answers": [
-        "DRINK"
+        "DRINK",
+        "VALVE"
       ],
       "on_correct": {
         "grant_clue_ids": [],

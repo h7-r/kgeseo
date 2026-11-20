@@ -5,6 +5,7 @@
 `incorrect` 를 받았다(본편은 `content_version` 없이 레거시 세션을 만들어 이 파일로 판정한다 — `src/server/api.ts` createPlaySession).
 
 - 프론트 상수와 서버 정답이 다시 갈라지면 여기서 먼저 실패한다(파일을 직접 읽는다).
+- 옛 답 VALVE 도 계속 받는다(해랑 11/20 결정) — #178 이전 번들을 연 채인 탭(옛 쪽지 · 옛 답)도 막히지 않게.
 - 실제 콘텐츠 파일 + 실제 `/interactions` 판정 경로(DB 만 가짜)로 정답 · 오답 · 이미 완료를 본다.
 """
 
@@ -12,6 +13,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.models.interaction_event import InteractionEvent
@@ -48,8 +50,19 @@ def server_answers() -> set[str]:
 # --- 프론트 · 서버 정답 일치 ---
 
 
+# 해랑 11/20: 새 답(프론트 상수) + 옛 답(#178 이전 번들 호환)
+LEGACY_ANSWER = "VALVE"
+
+
 def test_frontend_answer_is_accepted_by_the_server_runtime():
     assert normalize_answer(frontend_answer()) in server_answers()
+
+
+def test_server_accepts_exactly_the_new_and_the_legacy_answer():
+    assert server_answers() == {
+        normalize_answer(frontend_answer()),
+        normalize_answer(LEGACY_ANSWER),
+    }
 
 
 def test_frontend_lock_reads_the_single_answer_constant():
@@ -130,11 +143,26 @@ def test_new_player_opens_the_lock_with_the_frontend_answer(
     assert event.target_id == PUZZLE and event.interaction_type == "submit_answer"
 
 
-def test_spacing_and_case_are_normalized_like_before(
+def test_legacy_answer_still_opens_the_lock_for_old_tabs(
     client: TestClient, db_session: FakeAsyncSession
 ):
+    session = legacy_session()
+    db_session.get_result = session
+
+    response = submit(client, LEGACY_ANSWER, "44444444-4444-4444-8444-444444444440")
+
+    assert response.json()["result_type"] == "correct"
+    assert session.state_json["completed_puzzle_ids"] == [PUZZLE]
+    assert session.state_json["flags"] == {"fire_cabinet_unlocked": True}
+
+
+@pytest.mark.parametrize("answer", ["frontend", LEGACY_ANSWER])
+def test_spacing_and_case_are_normalized_like_before(
+    client: TestClient, db_session: FakeAsyncSession, answer
+):
     db_session.get_result = legacy_session()
-    spaced = " " + " ".join(frontend_answer().lower()) + " "
+    word = frontend_answer() if answer == "frontend" else answer
+    spaced = " " + " ".join(word.lower()) + " "
 
     response = submit(client, spaced, "44444444-4444-4444-8444-444444444442")
 
@@ -145,8 +173,8 @@ def test_other_inputs_are_incorrect(client: TestClient, db_session: FakeAsyncSes
     session = legacy_session()
     db_session.get_result = session
     answer = frontend_answer()
-    # 옛 답(VALVE)은 이 PR 에서 더는 받지 않는다 — 계속 받을지는 PM 결정 대기(받기로 하면 이 목록에서 빼고 서버 정답에 더한다)
-    wrong_inputs = ["VALVE", answer[:-1], answer + "S", "WRONG"]
+    # 옛 답 VALVE 는 정답(위). 두 답을 섞거나 한 글자씩 바꾼 값 · 무관한 값은 오답
+    wrong_inputs = [answer[:-1], answer + "S", "VALV", "VALVES", "DRINKVALVE", "WRONG"]
     for index, wrong in enumerate(wrong_inputs, start=3):
         response = submit(client, wrong, f"44444444-4444-4444-8444-44444444444{index}")
         assert response.json()["result_type"] == "incorrect", wrong
