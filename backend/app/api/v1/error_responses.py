@@ -446,8 +446,10 @@ GAME_SAVE_WRITE = {
     **FOREIGN_ORIGIN,
     409: error(
         CodedError,
-        "다른 창이 먼저 저장했다. `revision` 이 최신 값이다.",
+        "다른 창이 먼저 저장했다(`save_conflict` — `revision` 이 최신 값이다) · 본문 `account_id` 가 지금 로그인한 회원과 "
+        "다르다(`account_changed` — 아무것도 쓰지 않았다, 11/20)(code 구분).",
         "save_conflict",
+        "account_changed",
     ),
     **_TOO_LARGE,
     422: error(
