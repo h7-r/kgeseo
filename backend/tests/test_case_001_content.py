@@ -22,7 +22,8 @@ def test_case_001_fire_cabinet_lock_runtime() -> None:
 
     assert client_content.entry_zone_id == "ZONE_SECRET_CORRIDOR"
     assert resolved.target_id == "PUZZLE_FIRE_CABINET_LOCK"
-    assert normalize_answer(" V A L V E ") in {
+    # 11/20: 프론트 #178 의 캔 라벨 퀴즈 답과 맞춤(프론트 상수와의 대조는 test_case_001_lock_answer.py)
+    assert normalize_answer(" D R I N K ") in {
         normalize_answer(answer) for answer in puzzle.accepted_answers
     }
     assert puzzle.on_correct.set_flags == {"fire_cabinet_unlocked": True}
