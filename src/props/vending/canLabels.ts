@@ -43,6 +43,12 @@ export const COFFEE_LIQUID_COLORS: Readonly<Record<string, string>> = {
  * 캔 라벨을 주어진 칸에 그린다. 텍스처 한 장을 통째로 쓰지 않고 칸을 받는 이유 —
  * 바닥 잡동사니가 6종을 아틀라스 한 장에 모아 굴러다니는 캔 전부를 메시 하나로 그린다.
  */
+/**
+ * 이름 한 번이 차지하는 너비(둘레 대비). 0.44 였을 때는 긴 이름(ORANGE)의 첫 · 끝 글자가 원통 옆으로 돌아가 정면에서 안 읽혔다 —
+ * 소화전 자물쇠가 「이 이름의 몇 번째 글자」를 묻는 퀴즈라 글자가 전부 앞에서 읽혀야 한다(11/23). 0.3 = 둘레의 108°.
+ */
+const LABEL_MAX_WIDTH_RATIO = 0.3;
+
 export function drawCanLabel(
   g: CanvasRenderingContext2D,
   x: number,
@@ -50,6 +56,8 @@ export function drawCanLabel(
   width: number,
   height: number,
   { background, label, labelColor, swoosh, bubble }: CanFlavor,
+  /** 이름을 찍는 높이(위에서부터 비율). 손에 든 캔은 윗부분만 화면에 들어와 이름을 위로 올린다 */
+  wordmarkY = 0.54,
 ) {
   g.save();
   g.translate(x, y);
@@ -94,10 +102,10 @@ export function drawCanLabel(
     let fontSize = 60;
     do {
       g.font = `800 ${fontSize}px ${VENDING_FONT_STACK}`;
-      if (g.measureText(label).width <= width * 0.44) break;
+      if (g.measureText(label).width <= width * LABEL_MAX_WIDTH_RATIO) break;
       fontSize -= 2;
     } while (fontSize > 18);
-    g.fillText(label, cx, height * 0.54);
+    g.fillText(label, cx, height * wordmarkY);
   }
   g.restore();
 }

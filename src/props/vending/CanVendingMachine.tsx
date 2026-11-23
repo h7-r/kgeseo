@@ -56,6 +56,12 @@ const BUTTON_TO_CAN = BUTTON_COLORS.map((buttonColor) => {
   });
   return best;
 });
+/**
+ * 진열 캔을 돌려 세우는 각 — 라벨의 이름(워드마크)은 둘레 1/4 · 3/4 자리에 찍히는데, 원통은 이음매(0)가 앞을 봐서
+ * 그대로 세우면 유리 너머로 사선 띠만 보였다. 소화전 자물쇠가 이 이름의 글자를 읽어 푸는 퀴즈라 이름이 앞을 봐야 한다(11/23).
+ */
+const CAN_LABEL_FRONT_YAW = -Math.PI / 2;
+
 const getCanForButton = (button: number) => BUTTON_TO_CAN[button % BUTTON_TO_CAN.length] ?? button % CAN_FLAVORS.length;
 
 // 파란 캔(SODA)이 나오면 자물쇠 힌트 종이가 같이 나온다.
@@ -296,7 +302,7 @@ export default function CanVendingMachine({
         <ToonMaterial color={lit(shelfColor)} />
       </mesh>
       {cans.map((can, i) => (
-        <mesh key={`can${i}`} position={[can.x, can.y, -0.15]} castShadow>
+        <mesh key={`can${i}`} position={[can.x, can.y, -0.15]} rotation={[0, CAN_LABEL_FRONT_YAW, 0]} castShadow>
           <cylinderGeometry args={[canRadius, canRadius, canHeight, 16]} />
           <CanMaterials labelTexture={labelTextures[can.flavor]} tone={canTone} />
           <ToonOutline outline={inner} />
