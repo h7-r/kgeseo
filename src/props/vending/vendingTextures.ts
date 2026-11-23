@@ -281,10 +281,11 @@ export function makeDrainTexture() {
   return makeTextureFromCanvas(canvas);
 }
 
-function makeCanLabelTexture(flavor: CanFlavor) {
+export function makeCanLabelTexture(flavor: CanFlavor, wordmarkY?: number) {
   return makeLetteredTexture(512, 220, (g, canvas) => {
-    drawCanLabel(g, 0, 0, canvas.width, canvas.height, flavor);
+    drawCanLabel(g, 0, 0, canvas.width, canvas.height, flavor, wordmarkY);
   });
 }
 
-export const makeCanLabelTextures = () => CAN_FLAVORS.map(makeCanLabelTexture);
+// map 에 그대로 넘기면 순번이 이름 높이로 들어간다
+export const makeCanLabelTextures = () => CAN_FLAVORS.map((flavor) => makeCanLabelTexture(flavor));

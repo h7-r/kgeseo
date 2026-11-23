@@ -7,6 +7,8 @@ import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { HeldItem } from "@/lobby/HeldItem";
 import { getDrinkAction, getHeldDrink, useDrink } from "@/props/drinkState";
+import { CAN_FLAVORS } from "@/props/vending/canLabels";
+import { makeCanLabelTexture } from "@/props/vending/vendingTextures";
 
 import { makeHintPaperTexture } from "./hintPaperTexture";
 
@@ -18,6 +20,26 @@ interface HeldCanModelProps {
   outline?: OutlineValues | null;
 }
 
+/** 손에 든 캔을 돌려 쥐는 각 — 라벨의 이름이 눈 쪽을 본다(화면으로 맞춘 값) */
+const HELD_CAN_LABEL_YAW = Math.PI / 2 - 0.35;
+/** 1인칭에서는 캔 윗부분만 화면에 들어온다 — 이름을 라벨 위쪽에 찍어야 읽힌다 */
+const HELD_CAN_WORDMARK_Y = 0.27;
+
+/**
+ * 손에 든 캔의 라벨 — 종류마다 한 장을 만들어 계속 쓴다(많아야 6장). 집을 때마다 새로 만들면 만화 재질이 구워 둔
+ * 파생 텍스처가 원본을 지워도 남아 쌓인다(Codex 리뷰 11/23). 라벨색이 캔 목록에 없으면 null(단색 캔)
+ */
+const heldCanLabels = new Map<string, THREE.Texture>();
+function heldCanLabelTexture(color: string) {
+  const cached = heldCanLabels.get(color);
+  if (cached) return cached;
+  const flavor = CAN_FLAVORS.find((candidate) => candidate.background === color);
+  if (!flavor) return null;
+  const texture = makeCanLabelTexture(flavor, HELD_CAN_WORDMARK_Y);
+  heldCanLabels.set(color, texture);
+  return texture;
+}
+
 /** 윗 테에 직접 긋는 선 색 — 외곽선과 같은 먹빛 */
 const INK = "#15171b";
 
@@ -25,6 +47,9 @@ const INK = "#15171b";
 function HeldCanModel({ color, isOpened, tabRef, outline }: HeldCanModelProps) {
   // 눈앞에 크게 드는 물건이라 면을 28 칸으로 둔다.
   const geometry = useMemo(() => new THREE.CylinderGeometry(0.09, 0.09, 0.3, 28, 1), []);
+  // 자판기에서 뽑은 캔의 라벨을 그대로 두른다 — 집을 때 라벨색만 넘어오므로 그 색으로 종류를 찾는다.
+  // 전에는 단색 원통이라 「뽑아서 손에 들고 이름을 읽는다」(소화전 자물쇠 힌트 ①)가 되지 않았다(11/23)
+  const labelTexture = useMemo(() => heldCanLabelTexture(color), [color]);
   // 뚜껑 테두리가 곧 캔의 윗 테라 선을 둘러야 몸통과 갈린다 — 그래서 지오를 따로 둔다.
   const lidGeometry = useMemo(() => new THREE.CircleGeometry(0.088, 28), []);
   useEffect(
@@ -36,8 +61,17 @@ function HeldCanModel({ color, isOpened, tabRef, outline }: HeldCanModelProps) {
   );
   return (
     <group>
-      <mesh geometry={geometry} castShadow>
-        <meshToonMaterial color={color} gradientMap={TOON_GRADIENT} />
+      <mesh geometry={geometry} rotation={[0, HELD_CAN_LABEL_YAW, 0]} castShadow>
+        {labelTexture ? (
+          <>
+            {/* 옆면만 라벨 — 위는 따로 얹는 뚜껑이 덮고, 아래는 라벨색 그대로 */}
+            <meshToonMaterial attach="material-0" map={labelTexture} gradientMap={TOON_GRADIENT} />
+            <meshToonMaterial attach="material-1" color={color} gradientMap={TOON_GRADIENT} />
+            <meshToonMaterial attach="material-2" color={color} gradientMap={TOON_GRADIENT} />
+          </>
+        ) : (
+          <meshToonMaterial color={color} gradientMap={TOON_GRADIENT} />
+        )}
         <ToonOutline geometry={geometry} outline={outline} />
       </mesh>
       <mesh geometry={lidGeometry} position={[0, 0.152, 0]} rotation={[-Math.PI / 2, 0, 0]}>
