@@ -4,6 +4,7 @@
  *   signed_out       로그인 창(웹사이트)을 새 탭으로 열어 준다 — 이 창을 떠나면 끊긴 뒤의 진행이 사라지니 여기서는 이동하지 않는다.
  *                    「로그인했어요」가 /me 로 다시 확인하고 같은 계정이면 저장을 다시 켠다(resumeSavingAfterLogin).
  *   account_changed  다른 계정의 세션이 됐다 — 저장은 멈춘 채 새로고침만 권한다(그 계정의 저장을 이 창 값으로 덮지 않게).
+ *   conflict         같은 계정의 다른 창이 먼저 저장했다 — 저장은 멈춘 채 새로고침만 권한다(그 창의 진행을 이 창의 옛 값으로 덮지 않게).
  * 닫을 수 있다. 닫아도 상태는 그대로라 멈춤 메뉴가 같은 까닭을 보인다. 누름이 게임(포인터 잠금 · 클릭 조작)으로 새지 않게 막는다.
  * 멈춤 메뉴와 같은 색(gameUi) — 저장 불러오기 실패 안내(SaveLoadFailedNotice)와는 같은 자리, 둘이 함께 뜨는 일은 없다.
  */
@@ -16,9 +17,10 @@ import { getSaveStatus, resumeSavingAfterLogin, subscribeSaveStatus } from "./ga
 import type { SaveStatus } from "./saveStatus";
 import { SESSION_LOST_TEXT } from "./saveStatusText";
 
-type LostStatus = "signed_out" | "account_changed";
+type LostStatus = "signed_out" | "account_changed" | "conflict";
 
-const isLost = (status: SaveStatus): status is LostStatus => status === "signed_out" || status === "account_changed";
+const isLost = (status: SaveStatus): status is LostStatus =>
+  status === "signed_out" || status === "account_changed" || status === "conflict";
 
 /** 웹사이트 로그인 화면 — next 를 붙이지 않는다(붙이면 로그인 뒤 그 탭에 게임이 또 열려 이 창과 저장이 겹친다) */
 const loginUrl = () => new URL("/login", SITE_URL).href;
@@ -67,7 +69,7 @@ export default function SaveSignedOutNotice() {
           </>
         ) : (
           <button type="button" style={primary} onClick={() => window.location.reload()}>
-            {SESSION_LOST_TEXT.account_changed.reload}
+            {SESSION_LOST_TEXT[status].reload}
           </button>
         )}
         <button type="button" style={quiet} onClick={() => setDismissedFor(status)}>

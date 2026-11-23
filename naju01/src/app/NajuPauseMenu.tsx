@@ -55,7 +55,7 @@ const toRun =
       : { ok: false, message: saveFailureText(getSaveStatus(), LEAVE_FAILED_TEXT), forceLabel };
 
 async function restart(): Promise<PauseRunResult> {
-  if (!(await restartNajuCase())) return { ok: false, message: RESTART_FAILED_TEXT };
+  if (!(await restartNajuCase())) return { ok: false, message: saveFailureText(getSaveStatus(), RESTART_FAILED_TEXT) };
   return { ok: true };
 }
 
@@ -267,7 +267,12 @@ function Stars({ n }: { n: number }) {
   );
 }
 
-const timeRowStyle: CSSProperties = { display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 };
+const timeRowStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "baseline",
+  justifyContent: "space-between",
+  gap: 8,
+};
 const timeStyle: CSSProperties = {
   font: `600 18px/1 "IBM Plex Mono", ui-monospace, monospace`,
   color: UI.text,
