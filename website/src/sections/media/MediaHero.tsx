@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { useScrollToSection } from "@/layout/headerScroll";
 import { FONT, gradientText } from "@/lib/style";
 import { sectionAnchor } from "@/navigation/subMenus";
-import { COLOR, CORNER_BRACKETS, GRADIENT, SHADOW, badgePillStyle } from "@/styles/tokens";
+import { COLOR, GRADIENT, SHADOW, badgePillStyle } from "@/styles/tokens";
 
 interface MediaHeroProps {
   top?: number;
@@ -28,9 +28,6 @@ export default function MediaHero({ top = 129 }: MediaHeroProps) {
         style={videoStyle}
       />
       <div style={videoShadeStyle} aria-hidden="true" />
-      {CORNER_BRACKETS.map((mark, i) => (
-        <div key={i} style={{ ...cornerMarkStyle, ...mark }} />
-      ))}
 
       <div style={contentStyle}>
         <div style={eyebrowStyle}>
@@ -89,13 +86,6 @@ const videoShadeStyle: CSSProperties = {
   background:
     "radial-gradient(ellipse 46% 52% at 50% 50%, rgba(5,11,26,0.9) 0%, rgba(5,11,26,0.68) 55%, rgba(5,11,26,0.4) 100%)," +
     "linear-gradient(180deg, rgba(5,11,26,0.85) 0%, rgba(5,11,26,0) 22%, rgba(5,11,26,0) 72%, #050b1a 100%)",
-};
-
-const cornerMarkStyle: CSSProperties = {
-  position: "absolute",
-  background: COLOR.navy,
-  borderRadius: "1px",
-  pointerEvents: "none",
 };
 
 const contentStyle: CSSProperties = {

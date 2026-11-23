@@ -20,6 +20,7 @@ export interface PaymentBoxContent {
   icon: string;
   title: string;
   summary: string;
+  /** 글머리 점 없이 글만 둔다. 점은 그리는 쪽이 그린다. */
   lines: readonly string[];
 }
 
@@ -28,7 +29,14 @@ interface BenefitPoint {
   note: string;
 }
 
+/** 시험운영 안내. 약관 제12조 ⑦ · 법적 고지 제15조 ③ 과 같은 말이어야 한다. */
+interface TrialNotice {
+  label: string;
+  detail: string;
+}
+
 interface Pricing {
+  trialNotice: TrialNotice;
   plans: readonly PricingPlan[];
   paymentBoxes: readonly PaymentBoxContent[];
   benefitsTitle: string;
@@ -39,8 +47,15 @@ interface Pricing {
   benefitPoints: readonly BenefitPoint[];
 }
 
-/** 구독 요금제. 플랜 3장 · 결제 정보 3상자 · 혜택 안내. */
+/**
+ * 구독 요금제. 플랜 3장 · 결제 정보 3상자 · 혜택 안내.
+ * 시험운영 중에는 결제가 없다 — 아래 요금 · 결제 · 환불 문구는 정식 오픈 기획안이고, trialNotice 가 그 사실을 화면마다 알린다.
+ */
 export const PRICING: Pricing = {
+  trialNotice: {
+    label: "시험운영 · 이용료 0원",
+    detail: "지금은 결제·구독을 받지 않습니다. 요금과 혜택, 결제·환불 기준은 정식 오픈을 가정한 기획 예시입니다.",
+  },
   plans: [
     {
       name: "BASIC",
@@ -89,10 +104,10 @@ export const PRICING: Pricing = {
       title: "결제 수단",
       summary: "카드 · 계좌이체 · 간편결제",
       lines: [
-        "• 카드 · 계좌이체 · 간편결제 중 하나 등록",
-        "• 결제 수단은 언제든 변경 가능",
-        "• 결제 실패 시 자동 재시도 (최대 2회)",
-        "• 결제 내역은 마이페이지에서 확인",
+        "카드 · 계좌이체 · 간편결제 중 하나 등록",
+        "결제 수단은 언제든 변경 가능",
+        "결제 실패 시 자동 재시도 (최대 2회)",
+        "결제 내역은 마이페이지에서 확인",
       ],
     },
     {
@@ -101,10 +116,10 @@ export const PRICING: Pricing = {
       title: "자동 결제",
       summary: "매월 결제일 자동 청구 · 언제든 해지",
       lines: [
-        "• 매월 결제일 자동 청구",
-        "• 해지 전까지 자동 결제 유지",
-        "• 결제 실패 시 이메일 · 게임 내 알림",
-        "• 해지 후에도 남은 기간은 그대로 이용 가능",
+        "매월 결제일 자동 청구",
+        "해지 전까지 자동 결제 유지",
+        "결제 실패 시 이메일 · 게임 내 알림",
+        "해지 후에도 남은 기간은 그대로 이용 가능",
       ],
     },
     {
@@ -113,10 +128,10 @@ export const PRICING: Pricing = {
       title: "환불 정책",
       summary: "해지할 때 남은 기간만큼 환불",
       lines: [
-        "• 7일 안 · 혜택 미사용 시 전액 환불",
-        "• 그 밖에는 남은 날짜만큼 일할 환불",
-        "• 결제한 수단으로 영업일 3~5일 안에 처리",
-        "• 환불하면 그 결제로 받은 혜택은 회수",
+        "7일 안 · 혜택 미사용 시 전액 환불 (3영업일 안)",
+        "그 밖에는 남은 날짜만큼 일할 환불 (영업일 3~5일)",
+        "결제한 수단으로 돌려드림",
+        "환불하면 그 결제로 받은 혜택은 회수",
       ],
     },
   ],

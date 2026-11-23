@@ -24,6 +24,7 @@ import { fetchNotices, formatNoticeDate, noticeCategoryLabel, type PublicNotice 
 import { FONT } from "@/lib/style";
 import { QUERY, ROUTES, START_GAME, useSiteNavigate } from "@/navigation/routes";
 import CreditsCard from "@/sections/credits/CreditsCard";
+import TrialNotice from "@/sections/pricing/TrialNotice";
 import TermsTabs from "@/sections/terms/TermsTabs";
 import { signOut, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
@@ -211,6 +212,7 @@ export function MobilePricingPage() {
   return (
     <Shell>
       <PageHeading eyebrow="Subscribe" title="구독" />
+      <TrialNotice style={{ marginTop: 16, padding: "10px 14px" }} />
       <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
         {PRICING.plans.map((plan) => (
           <article key={plan.name} style={cardStyle}>
@@ -235,6 +237,7 @@ export function MobilePricingPage() {
         ))}
       </div>
       <h2 style={subheadingStyle}>결제 안내</h2>
+      <p style={{ ...bodyTextStyle, marginTop: 6 }}>정식 오픈을 가정한 기준 예시입니다.</p>
       <div style={{ display: "grid", gap: 10 }}>
         {PRICING.paymentBoxes.map((box) => (
           <details key={box.id} style={{ ...cardStyle, padding: "14px 16px" }}>
@@ -249,6 +252,7 @@ export function MobilePricingPage() {
         ))}
       </div>
       <h2 style={subheadingStyle}>{PRICING.benefitsTitle}</h2>
+      <TrialNotice style={{ marginTop: 10, padding: "10px 14px" }} />
       <p style={bodyTextStyle}>{PRICING.benefitsIntro}</p>
       <ul style={plainListStyle}>
         {PRICING.benefitPoints.map((point) => (

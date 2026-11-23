@@ -11,7 +11,7 @@ import { bulletStyle } from "./pricingStyles";
 type PaymentBoxProps = PaymentBoxContent;
 
 /**
- * 결제 정보 한 상자. 항목 앞 「•」는 데이터에 글자로 들어 있어 떼고 따로 그린다 —
+ * 결제 정보 한 상자. 항목 앞 점은 글자가 아니라 따로 그린다 —
  * 그래야 줄이 넘어갈 때 둘째 줄이 점 아래로 파고들지 않는다.
  * 상자를 누르면 같은 주제를 풀어 쓴 모달이 뜬다.
  */
@@ -76,7 +76,7 @@ export default function PaymentBox({ id, icon, title, summary, lines }: PaymentB
               <span
                 style={{ fontFamily: FONT.mono, fontSize: "16px", lineHeight: 1.65, color: "#aab5c4", flex: "1 0 0" }}
               >
-                {line.replace(/^[•·]\s*/, "")}
+                {line}
               </span>
             </div>
           ))}
