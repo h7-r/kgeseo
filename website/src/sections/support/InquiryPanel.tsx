@@ -3,8 +3,8 @@ import { useState, type CSSProperties } from "react";
 import { FONT } from "@/lib/style";
 import { hasNoErrors, validateFields, type FieldErrors, type FieldName, type FormValues } from "@/lib/validation";
 import { QUERY, ROUTES, useSiteNavigate, withQuery } from "@/navigation/routes";
-import { submitInquiry, toCategoryCode } from "@/services/inquiries";
-import { useSessionUser } from "@/services/session";
+import { receiptAudience, submitInquiry, toCategoryCode } from "@/services/inquiries";
+import { confirmServerSession, useSessionUser } from "@/services/session";
 import { COLOR, SHADOW } from "@/styles/tokens";
 import { SUPPORT_EMAIL } from "@/data/contact";
 
@@ -143,7 +143,13 @@ function InquiryForm() {
       setSendError(result.reason);
       return;
     }
+    // 회원 안내를 보일지는 서버가 실제로 저장한 결과로 — 화면은 로그인인데 비회원으로 저장됐으면 세션이 끝난 것이다
+    const audience = receiptAudience(result.isMember, Boolean(user), Boolean(user?.isTest));
+    // 로그인 표시는 서버에 한 번 더 물어 거둔다 — 응답을 기다리는 사이 다른 탭에서 다시 로그인했으면 그 로그인을 지우지 않게(Codex 리뷰)
+    if (audience.isSessionExpired) void confirmServerSession();
     setReceipt({
+      isMember: audience.isMember,
+      isSessionExpired: audience.isSessionExpired,
       number: result.number,
       type: values.inquiryType ?? "",
       title: values.title ?? "",
@@ -179,7 +185,6 @@ function InquiryForm() {
           <ReceiptCard
             receipt={receipt}
             count={receiptCount}
-            isSignedIn={Boolean(user)}
             onAnother={startAnother}
             onOpenMine={() => navigate(withQuery(ROUTES.myPage, { [QUERY.tab]: "inquiries" }))}
           />
@@ -244,19 +249,23 @@ interface InquiryReceipt {
   attachment: string | null;
   /** 접수 시각(ms) */
   receivedAt: number;
+  /** 이 문의가 회원 계정에 연결돼 저장됐나 — 건마다 다를 수 있어 접수할 때의 값을 든다(services/inquiries receiptAudience) */
+  isMember: boolean;
+  /** 화면은 로그인이었는데 서버 세션이 끝나 비회원으로 접수됐다 */
+  isSessionExpired: boolean;
 }
 
 interface ReceiptCardProps {
   receipt: InquiryReceipt;
   /** 이번 방문에 접수한 건수 */
   count: number;
-  isSignedIn: boolean;
   onAnother: () => void;
   onOpenMine: () => void;
 }
 
 /** 접수 완료 — 무엇을 접수했는지 되짚어 주고, 이어서 한 건 더 쓸 수 있게 한다 */
-function ReceiptCard({ receipt, count, isSignedIn, onAnother, onOpenMine }: ReceiptCardProps) {
+function ReceiptCard({ receipt, count, onAnother, onOpenMine }: ReceiptCardProps) {
+  const isSignedIn = receipt.isMember;
   const rows: readonly (readonly [string, string])[] = [
     ["접수 번호", receipt.number],
     ["문의 유형", receipt.type],
@@ -281,7 +290,9 @@ function ReceiptCard({ receipt, count, isSignedIn, onAnother, onOpenMine }: Rece
           <span style={{ fontFamily: FONT.body, fontSize: "15px", color: COLOR.lightTextMuted }}>
             {isSignedIn
               ? "답변이 등록되면 마이페이지 「내 문의」에서 볼 수 있습니다."
-              : "운영팀이 적어 주신 이메일로 따로 답변드립니다(자동 발송 아님)."}
+              : receipt.isSessionExpired
+                ? "로그인이 만료되어 비회원으로 접수되었습니다. 답변은 적어 주신 이메일로 따로 드립니다(자동 발송 아님)."
+                : "운영팀이 적어 주신 이메일로 따로 답변드립니다(자동 발송 아님)."}
             {count > 1 ? ` (이번에 접수한 문의 ${count}건)` : ""}
           </span>
         </div>
