@@ -5,6 +5,7 @@
     {
       "puzzle_id": "PUZZLE_FIRE_CABINET_LOCK",
       "accepted_answers": [
+        "DRINK",
         "VALVE"
       ],
       "on_correct": {
