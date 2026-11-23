@@ -28,7 +28,32 @@ const CATEGORY_LABEL: Record<InquiryCategory, string> = {
 export const categoryLabel = (code: string): string => CATEGORY_LABEL[code as InquiryCategory] ?? code;
 
 export type SubmitResult =
-  { ok: true; id: string; number: string; createdAt: number } | { ok: false; reason: string; retryAfter?: number };
+  | {
+      ok: true;
+      id: string;
+      number: string;
+      createdAt: number;
+      /** 서버가 실제로 회원 계정에 연결해 저장했나(`is_member`). 옛 서버라 값이 없으면 null */
+      isMember: boolean | null;
+    }
+  | { ok: false; reason: string; retryAfter?: number };
+
+/**
+ * 접수 완료 안내를 누구 기준으로 보일까(11/23) — 화면의 로그인 표시가 아니라 서버가 실제로 저장한 결과로 고른다.
+ * 화면은 로그인으로 보이는데 서버 세션이 만료 · 폐기됐으면 문의는 비회원으로 저장된다. 그때 「마이페이지에서 볼 수 있습니다」를
+ * 보이면 「내 문의」에 없는 문의를 찾게 된다(해랑 11/20 점검 · 세진 인수인계).
+ *   isMember          회원 안내(마이페이지 「내 문의」)를 보일까 — 서버 값, 없으면(옛 서버) 화면의 로그인 표시
+ *   isSessionExpired  화면은 로그인인데 서버는 비회원으로 저장했다 — 화면의 로그인 표시를 거두고 만료를 알린다.
+ *                     시연용 테스트 계정은 서버에 없는 계정이라 늘 비회원으로 저장된다 — 만료가 아니다
+ */
+export function receiptAudience(
+  isMember: boolean | null,
+  isSignedInOnScreen: boolean,
+  isTestAccount: boolean,
+): { isMember: boolean; isSessionExpired: boolean } {
+  if (isMember === null) return { isMember: isSignedInOnScreen, isSessionExpired: false };
+  return { isMember, isSessionExpired: !isMember && isSignedInOnScreen && !isTestAccount };
+}
 
 const SERVER_ERROR_MESSAGE = "서버와 통신하지 못했습니다. 잠시 후 다시 시도해 주세요.";
 
@@ -57,8 +82,14 @@ export async function submitInquiry(input: {
     return { ok: false, reason: "입력값을 다시 확인해 주세요. 이메일 형식과 글자 수를 봐 주세요." };
   if (!response.ok) return { ok: false, reason: SERVER_ERROR_MESSAGE };
   try {
-    const body = (await response.json()) as { id: string; number: string; created_at: string };
-    return { ok: true, id: body.id, number: body.number, createdAt: parseUtc(body.created_at) };
+    const body = (await response.json()) as { id: string; number: string; created_at: string; is_member?: unknown };
+    return {
+      ok: true,
+      id: body.id,
+      number: body.number,
+      createdAt: parseUtc(body.created_at),
+      isMember: typeof body.is_member === "boolean" ? body.is_member : null,
+    };
   } catch {
     return { ok: false, reason: SERVER_ERROR_MESSAGE };
   }
