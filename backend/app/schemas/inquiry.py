@@ -49,6 +49,11 @@ class InquiryCreated(BaseModel):
     id: str
     number: str
     created_at: datetime
+    # 저장된 문의가 회원 계정에 연결됐는가(`inquiries.app_user_id` 가 채워졌는가). 화면의 로그인 표시와 다를 수 있다 —
+    # 쿠키 세션이 만료 · 폐기됐으면 서버는 비회원으로 접수하고 여기에 false 를 준다. 회원 id 등은 내보내지 않는다.
+    is_member: bool = Field(
+        description="저장된 문의가 회원 계정에 연결되면 true(마이페이지 「내 문의」에 보인다), 비회원 문의면 false."
+    )
 
 
 class MyInquiryReply(BaseModel):

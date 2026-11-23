@@ -1,6 +1,7 @@
 """1:1 문의 공개 접수(관리자 API v0.3 3단계 P3-1, 해랑 11/13).
 
 - 로그인 없이도 접수된다. 로그인 쿠키가 있으면 `app_user_id` 를 채워 마이페이지 「내 문의」에서 답변을 볼 수 있다.
+  쿠키가 만료 · 폐기된 세션이면 401 없이 비회원으로 접수된다 — 응답 `is_member` 가 실제 저장된 연결 여부를 알린다(11/20).
 - 비회원 접수는 서버에 메일 발송 수단이 없어 운영팀이 입력한 이메일로 따로 답한다(화면이 접수 전에 안내한다 — 세진 ②).
 - 요청 빈도 제한: IP 당 `rate_limit_inquiry_window_sec`(기본 600초) 안 `rate_limit_inquiry_create`(기본 5)건.
 - 첨부는 없다(파일 저장소가 없다).
@@ -84,4 +85,10 @@ async def create_inquiry_endpoint(
         app_user_id=user.id if user else None,
         client_ip=client_ip(request),
     )
-    return InquiryCreated(id=row.id, number=row.number or "", created_at=row.created_at)
+    # 회원 여부는 요청 · 로그인 표시가 아니라 실제 저장된 행으로 정한다
+    return InquiryCreated(
+        id=row.id,
+        number=row.number or "",
+        created_at=row.created_at,
+        is_member=row.app_user_id is not None,
+    )
