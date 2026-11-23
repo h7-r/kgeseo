@@ -6,8 +6,11 @@
  * - 운영은 로그인한 사람만 들어온다(shared/playLoginGate). 처음 불러올 때 401 이면 손님(개발 서버)이라 저장 없이 돈다.
  * - 저장 중 401 이 오면 세션이 끊긴 것(다른 탭 로그아웃 · 탈퇴 · 만료) — 조용히 멈추지 않고 상태를 signed_out 으로 올려
  *   안내(SaveSignedOutNotice) · 멈춤 메뉴가 「로그인이 풀렸어요」로 알린다. 다시 로그인하면 이어서 저장한다(resumeSavingAfterLogin).
- * - PUT 은 revision 을 함께 보낸다. 서버 번호와 다르면 409 {detail:{code:"save_conflict", revision}} — 다른 창이 먼저 쓴 것이라
- *   그 번호로 한 번 더 쓴다. 그 전에 /me 로 같은 계정인지 본다 — 계정이 바뀌었으면 멈춘다(account_changed). 상태는 saveStatus.ts.
+ * - PUT 은 revision 과 처음 불러온 계정 id(account_id)를 함께 보낸다. 쿠키의 회원이 그 계정이 아니면 서버가 쓰지 않고
+ *   409 {detail:{code:"account_changed"}} — revision 이 우연히 같아도(둘 다 0) 다른 계정 저장에 이 창의 진행이 들어가지 않는다(11/23).
+ * - 서버 번호와 다르면 409 {detail:{code:"save_conflict", revision}} — 다른 창이 먼저 쓴 것. /me 로 같은 계정인지 본 뒤,
+ *   이 창이 이미 저장하던 중이면 멈추고(conflict — 그 창의 진행을 옛 값으로 덮지 않는다) 첫 저장이면 그 번호로 한 번 더 쓴다
+ *   (페이지를 넘어올 때 앞 페이지의 마지막 저장과 겹친 것). 상태는 saveStatus.ts.
  */
 import { betaLog } from "@/beta/betaLog";
 import { apiUrl } from "@/config/env";
@@ -15,8 +18,10 @@ import { apiUrl } from "@/config/env";
 import { canSaveAfter, loadGameSave, saveLoadNotice } from "./gameSaveLoad";
 import {
   createSaveStatusStore,
-  decideConflictRetry,
+  decideSaveConflict,
+  isSameSave,
   readAccountId,
+  readConflictCode,
   readConflictRevision,
   type JsonAnswer,
   type SaveStatus,
@@ -85,6 +90,13 @@ let stage: GameStage | null = null;
 const saveStatus = createSaveStatusStore();
 /** 처음 불러올 때 로그인했던 계정 — 409 뒤 다시 쓰기 전 · 다시 로그인했을 때 같은 계정인지 본다. /me 를 못 읽었으면 null */
 let accountId: string | null = null;
+/** 이 페이지가 저장에 한 번이라도 성공했나 — 그 뒤의 409 는 살아 있는 다른 창이 쓴 것으로 보고 멈춘다(decideSaveConflict) */
+let hasSavedOnce = false;
+/**
+ * 결과를 받지 못한 마지막 저장(연결 끊김 · 서버 오류) — 서버에는 들어갔는데 응답만 잃었을 수 있다. 그러면 이 창의 번호가 뒤처져
+ * 다음 저장이 409 가 되는데, 그것은 다른 창이 아니라 제 저장이다(isSameSave 로 가린다)
+ */
+let unconfirmed: { stage: GameStage | null; state: string } | null = null;
 /** bfcache 에서 되살아나 새로 고치는 동안 — 떠나기 전 옛 값을 쓰지 않는다(startGameSaveLoop) */
 let isFrozen = false;
 let lastWritten = "";
@@ -132,6 +144,9 @@ export async function initGameSave(): Promise<void> {
     );
     return;
   }
+  // 계정을 저장보다 먼저 본다 — 저장을 받은 뒤에 보면, 그사이 쿠키가 다른 계정으로 바뀌었을 때 「A 의 저장 + B 의 id」가 되어
+  // 서버의 계정 확인(account_id)을 통과한다. 먼저 보면 어긋나도 「B 의 저장 + A 의 id」라 서버가 거절한다(Codex 리뷰 11/23)
+  const accountAtLoad = readAccountId(await fetchMe());
   const outcome = await loadGameSave(() => requestJson(SAVE_URL));
   if (outcome.kind === "failed") {
     console.warn(`[저장] 저장을 불러오지 못했다(${outcome.reason}) — 저장을 멈추고 새로고침 안내를 띄운다`);
@@ -139,8 +154,8 @@ export async function initGameSave(): Promise<void> {
   }
   saveStatus.set(canSaveAfter(outcome) ? "saving" : outcome.kind === "failed" ? "load_failed" : "guest");
   if (outcome.kind !== "loaded") return;
-  // 어느 계정의 저장인지 기억한다 — 409 뒤 다시 쓰기 전에 쿠키의 계정과 맞춰 본다
-  accountId = readAccountId(await fetchMe());
+  // 어느 계정의 저장인지 기억한다 — 저장할 때 같이 보내고(account_id), 409 뒤 다시 쓰기 전에 쿠키의 계정과 맞춰 본다
+  accountId = accountAtLoad;
   if (!outcome.save) return;
   const saved = outcome.save as SaveEnvelope;
   revision = saved.revision;
@@ -156,8 +171,8 @@ export const getSaveStatus = (): SaveStatus => saveStatus.get();
 /** 상태가 바뀌면 알린다(useSyncExternalStore 용) */
 export const subscribeSaveStatus = saveStatus.subscribe;
 
-/** 저장을 멈춘다 — 세션이 끊겼다(401) · 계정이 바뀌었다. 안내 · 멈춤 메뉴가 상태를 보고 알린다 */
-function stopSaving(reason: "signed_out" | "account_changed") {
+/** 저장을 멈춘다 — 세션이 끊겼다(401) · 계정이 바뀌었다 · 다른 창이 먼저 저장했다. 안내 · 멈춤 메뉴가 상태를 보고 알린다 */
+function stopSaving(reason: "signed_out" | "account_changed" | "conflict") {
   window.clearTimeout(saveTimer);
   saveStatus.set(reason);
   // 베타 기록의 사유 이름은 전처럼 — 끊김은 「401」(지난 기록과 이어 세게)
@@ -322,12 +337,26 @@ async function sendState(state: string, key: string, keepalive: boolean): Promis
   // 보내는 동안 단계가 바뀌어도 이 요청은 모은 그때의 단계로 — 열쇠(key)와 본문이 같은 순간을 가리키게
   const sentStage = stage;
   try {
+    // account_id — 처음 불러온 계정. 못 읽었으면(null) 보내지 않는다(서버가 비교하지 않고 전처럼 쓴다)
     const body = (rev: number) =>
-      JSON.stringify({ revision: rev, schema_version: SCHEMA_VERSION, stage: sentStage, state: JSON.parse(state) });
+      JSON.stringify({
+        revision: rev,
+        schema_version: SCHEMA_VERSION,
+        stage: sentStage,
+        state: JSON.parse(state),
+        ...(accountId !== null ? { account_id: accountId } : {}),
+      });
     let answer = await requestJson(SAVE_URL, { method: "PUT", body: body(revision), keepalive });
-    // 다른 창이 먼저 저장했으면 지금 플레이 중인 이쪽 값을 최신 번호로 한 번 더 쓴다 — 단, 쿠키가 다른 계정으로 바뀐 것이면 멈춘다
     if (answer.status === 409) {
-      const decision = decideConflictRetry(await fetchMe(), accountId);
+      // 서버가 계정이 다르다고 했으면 바로 멈춘다(아무것도 쓰이지 않았다)
+      if (readConflictCode(answer.body) === "account_changed") {
+        stopSaving("account_changed");
+        return;
+      }
+      // 다른 창이 먼저 저장했다 — 같은 계정인지 보고, 이미 저장하던 창이면 멈추고 첫 저장이면 최신 번호로 한 번 더 쓴다
+      let decision = decideSaveConflict(await fetchMe(), accountId, hasSavedOnce);
+      // 멈추기 전에 — 앞선 제 저장이 응답만 잃은 것이면(서버 값이 그때 보낸 것과 같다) 다른 창이 아니다. 전처럼 다시 쓴다
+      if (decision === "conflict" && unconfirmed && (await isOwnLostWrite(unconfirmed))) decision = "retry";
       if (decision !== "retry") {
         stopSaving(decision);
         return;
@@ -337,20 +366,40 @@ async function sendState(state: string, key: string, keepalive: boolean): Promis
         body: body(readConflictRevision(answer.body) ?? revision),
         keepalive,
       });
+      // 다시 쓰는 사이 계정이 바뀌었다
+      if (answer.status === 409 && readConflictCode(answer.body) === "account_changed") {
+        stopSaving("account_changed");
+        return;
+      }
       // 또 409(두 창이 동시에 첫 저장을 하다 서버가 옛 번호를 준 경우 등) — 서버 번호를 기억해 다음 저장이 바로 맞게(L22)
       if (answer.status === 409) revision = readConflictRevision(answer.body) ?? revision;
     }
     if (answer.status === 200) {
       revision = (answer.body as SaveEnvelope).revision;
       lastWritten = key;
+      hasSavedOnce = true;
+      unconfirmed = null;
     } else if (answer.status === 401) {
       stopSaving("signed_out");
     } else {
+      // 409 는 서버가 쓰지 않았다는 답이다. 그 밖(5xx 등)은 쓰였는지 알 수 없다
+      if (answer.status !== 409) unconfirmed = { stage: sentStage, state };
       noteSaveFailure(String(answer.status));
     }
   } catch {
-    // 다음 차례에 다시 쓴다.
+    // 다음 차례에 다시 쓴다. 요청이 서버에 닿았는지는 알 수 없다
+    unconfirmed = { stage: sentStage, state };
     noteSaveFailure("network");
+  }
+}
+
+/** 서버의 지금 저장이 결과를 못 받은 제 저장과 같은가 — 같으면 응답만 잃은 것이다. 못 읽으면 false(멈추는 쪽이 안전하다) */
+async function isOwnLostWrite(attempt: { stage: GameStage | null; state: string }): Promise<boolean> {
+  try {
+    const latest = await requestJson(SAVE_URL);
+    return latest.status === 200 && isSameSave(latest.body, attempt.stage, JSON.parse(attempt.state));
+  } catch {
+    return false;
   }
 }
 

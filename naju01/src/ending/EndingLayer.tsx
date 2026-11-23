@@ -8,7 +8,7 @@ import { useLaterSurvey } from "@/beta/laterSurvey";
 import { isGamePausedFlag } from "@/engine/input/gamePause";
 import type { LeaveResult, LeaveToLobbyAction } from "@/game/LeaveToLobby";
 import { getSaveStatus } from "@/save/gameSave";
-import { restartBlockedReason } from "@/save/saveStatusText";
+import { restartBlockedReason, saveFailureText } from "@/save/saveStatusText";
 
 import { RESTART_FAILED_TEXT, restartNajuCase } from "../app/restartNaju";
 import { leaveToTrain } from "../app/leaveToLobby";
@@ -60,9 +60,7 @@ function FinaleBand() {
     <div className="naju-ending-band" data-hud="엔딩 자막">
       <div className="naju-ending-band__bar naju-ending-band__bar--top" />
       <div className="naju-ending-band__bar naju-ending-band__bar--bottom">
-        {caption && (
-          <BrokenLines key={caption.key} className="naju-ending-band__caption" text={caption.text} />
-        )}
+        {caption && <BrokenLines key={caption.key} className="naju-ending-band__caption" text={caption.text} />}
       </div>
     </div>
   );
@@ -438,7 +436,11 @@ function ClearScreen({ leaveAction }: EndingLayerProps) {
     if (result === "left") return;
     setBusy(null);
     setFailure({
-      message: "저장하지 못했어요. 연결을 확인하고 다시 해 보거나, 저장 없이 갈 수 있어요.",
+      // 저장이 멈춘 상태(로그인 풀림 · 계정 바뀜 · 다른 창이 저장함)면 그 까닭을 — 연결을 확인해도 풀리지 않는다
+      message: saveFailureText(
+        getSaveStatus(),
+        "저장하지 못했어요. 연결을 확인하고 다시 해 보거나, 저장 없이 갈 수 있어요.",
+      ),
       retry: { label: "그래도 가기", run: () => void go(id, text, leave, true) },
     });
   };
@@ -448,7 +450,7 @@ function ClearScreen({ leaveAction }: EndingLayerProps) {
     setFailure(null);
     if (await restartNajuCase()) return;
     setBusy(null);
-    setFailure({ message: RESTART_FAILED_TEXT });
+    setFailure({ message: saveFailureText(getSaveStatus(), RESTART_FAILED_TEXT) });
   };
 
   return (

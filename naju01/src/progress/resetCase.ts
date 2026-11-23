@@ -10,6 +10,7 @@
  */
 import {
   detachSaveSections,
+  getSaveStatus,
   isGameSaveEnabled,
   reattachSaveSections,
   removeSavedSections,
@@ -18,6 +19,7 @@ import {
   saveBeforeLeaving,
   writeSavedSection,
 } from "@/save/gameSave";
+import { restartBlockedReason } from "@/save/saveStatusText";
 
 import { ATTEMPT_SECTION, attemptCount, readRestarts } from "./attemptCount";
 
@@ -82,6 +84,9 @@ export function resetNajuCase(): Promise<boolean> {
  */
 export function restartNajuHere(): Promise<boolean> {
   pending ??= (async () => {
+    // 저장하다 멈춘 상태(로그인 풀림 · 계정 바뀜 · 다른 창이 저장함)면 하지 않는다 — 서버 진행은 못 지우는데 Play Session 만 버려
+    // 「처음부터」가 된 것처럼 보였다. 멈춤 메뉴는 단추를 막지만 엔딩 화면은 막지 않았다(Codex 리뷰 11/23)
+    if (restartBlockedReason(getSaveStatus()) !== null) return false;
     if (!isGameSaveEnabled()) {
       forgetPlaySession();
       return true;

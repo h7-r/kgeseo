@@ -1,6 +1,6 @@
 /**
  * 저장 상태별 안내 문구 — 멈춤 메뉴(본편 · 나주) · 로비로 나가기 · 끊김 안내가 같이 쓴다. 상태는 부르는 쪽이 getSaveStatus() 로 넘긴다.
- * 「로그인 안 함」 「세션 끊김」 「계정 바뀜」 「불러오기 실패」를 가른다 — 전에는 전부 「로그인하지 않아…」였다(인증 점검 M14).
+ * 「로그인 안 함」 「세션 끊김」 「계정 바뀜」 「다른 창 저장」 「불러오기 실패」를 가른다 — 전에는 전부 「로그인하지 않아…」였다(인증 점검 M14).
  * React · 별칭(@/) 을 쓰지 않는다(naju01/tests 의 node --test 가 바로 읽는다).
  */
 import type { SaveStatus } from "./saveStatus";
@@ -18,6 +18,8 @@ export function unsavedNote(status: SaveStatus): string | null {
       return "로그인이 풀려 저장이 멈췄어요. 다시 로그인하면 이어서 저장돼요. 지금 나가면 풀린 뒤에 한 것은 남지 않아요.";
     case "account_changed":
       return "다른 계정으로 로그인되어 저장을 멈췄어요. 지금 나가면 멈춘 뒤에 한 것은 남지 않아요.";
+    case "conflict":
+      return "다른 창에서 진행이 저장되어 이 창의 저장을 멈췄어요. 새로고침하면 최신 진행으로 이어져요. 지금 나가면 멈춘 뒤에 한 것은 남지 않아요.";
   }
 }
 
@@ -30,6 +32,8 @@ export function saveFailureText(status: SaveStatus, connectionText: string): str
     return "로그인이 풀려 저장하지 못했어요. 다른 탭에서 다시 로그인한 뒤 「다시 해 보기」를 누르면 저장돼요.";
   if (status === "account_changed")
     return "다른 계정으로 로그인되어 저장하지 못했어요. 이 창의 진행은 그 계정에 저장하지 않아요.";
+  if (status === "conflict")
+    return "다른 창에서 진행이 저장되어 저장하지 못했어요. 새로고침하면 최신 진행으로 이어져요.";
   return connectionText;
 }
 
@@ -37,10 +41,11 @@ export function saveFailureText(status: SaveStatus, connectionText: string): str
 export function restartBlockedReason(status: SaveStatus): string | null {
   if (status === "signed_out") return "로그인이 풀려 지금은 기록을 지울 수 없어요. 다시 로그인한 뒤 해 주세요.";
   if (status === "account_changed") return "다른 계정으로 로그인되어 있어요. 새로고침한 뒤 해 주세요.";
+  if (status === "conflict") return "다른 창에서 진행이 저장됐어요. 새로고침한 뒤 해 주세요.";
   return null;
 }
 
-/** 화면 위쪽 끊김 안내 — 세션이 끊겼을 때 · 계정이 바뀌었을 때 */
+/** 화면 위쪽 끊김 안내 — 세션이 끊겼을 때 · 계정이 바뀌었을 때 · 다른 창이 먼저 저장했을 때 */
 export const SESSION_LOST_TEXT = {
   signed_out: {
     title: "로그인이 풀렸어요",
@@ -52,6 +57,11 @@ export const SESSION_LOST_TEXT = {
   account_changed: {
     title: "다른 계정으로 로그인되어 저장을 멈췄어요",
     body: "이 창의 진행은 저장되지 않아요. 새로고침하면 그 계정의 저장으로 시작해요.",
+    reload: "새로고침",
+  },
+  conflict: {
+    title: "다른 창에서 진행이 저장됐어요",
+    body: "이 창의 저장을 멈췄어요. 새로고침하면 최신 진행으로 이어집니다.",
     reload: "새로고침",
   },
   close: "닫기",

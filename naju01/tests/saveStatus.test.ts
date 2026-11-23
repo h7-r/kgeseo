@@ -6,7 +6,10 @@ import assert from "node:assert/strict";
 import {
   createSaveStatusStore,
   decideConflictRetry,
+  decideSaveConflict,
+  isSameSave,
   readAccountId,
+  readConflictCode,
   readConflictRevision,
   type SaveStatus,
 } from "../../src/save/saveStatus.ts";
@@ -63,7 +66,7 @@ test("409 뒤 — 비교할 수 없으면(처음 id 를 못 읽음 · /me 가 �
 
 test("안내 문구 — 저장 중이면 없고, 안 되는 까닭은 상태마다 다르다(전부 「로그인하지 않아…」였던 것)", () => {
   assert.equal(unsavedNote("saving"), null);
-  const reasons: Exclude<SaveStatus, "saving">[] = ["guest", "load_failed", "signed_out", "account_changed"];
+  const reasons: Exclude<SaveStatus, "saving">[] = ["guest", "load_failed", "signed_out", "account_changed", "conflict"];
   const notes = reasons.map((status) => unsavedNote(status));
   for (const note of notes) assert.ok(note && note.length > 0);
   assert.equal(new Set(notes).size, reasons.length, "상태마다 다른 문장");
@@ -72,6 +75,8 @@ test("안내 문구 — 저장 중이면 없고, 안 되는 까닭은 상태마�
   assert.doesNotMatch(unsavedNote("signed_out") ?? "", /로그인하지 않아/);
   assert.match(unsavedNote("account_changed") ?? "", /다른 계정/);
   assert.match(unsavedNote("load_failed") ?? "", /불러오지 못해/);
+  assert.match(unsavedNote("conflict") ?? "", /다른 창/);
+  assert.match(unsavedNote("conflict") ?? "", /새로고침/);
 });
 
 test("저장 실패 문구 — 끊김 · 계정 바뀜은 그 까닭을, 나머지는 부른 쪽의 연결 실패 문구를", () => {
@@ -80,6 +85,7 @@ test("저장 실패 문구 — 끊김 · 계정 바뀜은 그 까닭을, 나머�
   assert.equal(saveFailureText("guest", connection), connection);
   assert.match(saveFailureText("signed_out", connection), /로그인이 풀려/);
   assert.match(saveFailureText("account_changed", connection), /다른 계정/);
+  assert.match(saveFailureText("conflict", connection), /다른 창/);
 });
 
 test("처음부터 다시 — 세션이 끊긴 채로만 막는다", () => {
@@ -88,4 +94,38 @@ test("처음부터 다시 — 세션이 끊긴 채로만 막는다", () => {
   assert.equal(restartBlockedReason("load_failed"), null);
   assert.ok(restartBlockedReason("signed_out"));
   assert.ok(restartBlockedReason("account_changed"));
+  assert.ok(restartBlockedReason("conflict"), "다른 창이 저장한 뒤에는 옛 저장본으로 기록을 지우지 않는다");
+});
+
+test("409 본문의 사유 — detail.code 만 믿는다", () => {
+  assert.equal(readConflictCode(CONFLICT), "save_conflict");
+  assert.equal(readConflictCode({ detail: { code: "account_changed", message: "…" } }), "account_changed");
+  assert.equal(readConflictCode({ detail: "Conflict" }), null);
+  assert.equal(readConflictCode({ detail: { revision: 3 } }), null);
+  assert.equal(readConflictCode(null), null);
+});
+
+test("같은 계정의 409 — 이미 저장하던 창이면 멈추고, 첫 저장이면 전처럼 다시 쓴다(페이지를 넘어올 때 앞 페이지의 마지막 저장과 겹친 것)", () => {
+  assert.equal(decideSaveConflict(ME_A, "user-a", true), "conflict", "살아 있는 다른 창이 먼저 썼다 — 덮지 않는다");
+  assert.equal(decideSaveConflict(ME_A, "user-a", false), "retry", "기차 → 나주 첫 저장");
+  assert.equal(decideSaveConflict(me(0), "user-a", false), "retry");
+  assert.equal(decideSaveConflict(me(0), "user-a", true), "conflict", "/me 가 잠깐 안 돼도 덮어쓰지는 않는다");
+});
+
+test("같은 계정의 409 — 계정 확인이 먼저다(끊김 · 계정 바뀜은 저장 여부와 상관없이 그쪽으로)", () => {
+  for (const hasSavedOnce of [true, false]) {
+    assert.equal(decideSaveConflict(me(401, { detail: "Login required." }), "user-a", hasSavedOnce), "signed_out");
+    assert.equal(decideSaveConflict(ME_B, "user-a", hasSavedOnce), "account_changed");
+  }
+});
+
+test("응답을 잃은 제 저장 가리기 — 서버 값이 보냈던 것과 같으면(키 순서는 달라도) 다른 창이 아니다", () => {
+  const sent = { sections: { "naju.jars": { open: [1, 2] }, "main.inventory": ["coin"] } };
+  const fromServer = { revision: 9, stage: "naju", state: { sections: { "main.inventory": ["coin"], "naju.jars": { open: [1, 2] } } } };
+  assert.equal(isSameSave(fromServer, "naju", sent), true, "DB 가 키 순서를 바꿔 돌려줘도 같다");
+  assert.equal(isSameSave(fromServer, "headquarters", sent), false, "단계가 다르면 남이 쓴 것");
+  assert.equal(isSameSave({ ...fromServer, state: { sections: { "naju.jars": { open: [1, 2, 3] }, "main.inventory": ["coin"] } } }, "naju", sent), false);
+  assert.equal(isSameSave({ ...fromServer, state: { sections: { "naju.jars": { open: [1, 2] } } } }, "naju", sent), false, "칸이 빠졌다");
+  assert.equal(isSameSave(null, "naju", sent), false);
+  assert.equal(isSameSave("oops", "naju", sent), false);
 });

@@ -22,7 +22,7 @@ if (typeof window !== "undefined")
 
 /** 끝내기 전에 저장을 확인해야 하나 — 저장 중이거나, 저장 중이었다가 끊겼으면(그 뒤 진행이 서버에 없다) */
 const needsSaveBeforeExit = (status: SaveStatus) =>
-  status === "saving" || status === "signed_out" || status === "account_changed";
+  status === "saving" || status === "signed_out" || status === "account_changed" || status === "conflict";
 
 /** 저장하고 홈으로. force 면 저장하지 못해도 간다 */
 export async function exitGame(force = false): Promise<ExitResult> {

@@ -6,10 +6,11 @@
  *   saving           저장 중
  *   signed_out       저장 중이었는데 세션이 끊겼다(401 — 다른 탭 로그아웃 · 탈퇴 · 14일 만료). 다시 로그인하면 이어진다
  *   account_changed  저장 중이었는데 쿠키가 다른 계정의 세션이 됐다 — 그 계정의 저장을 이 창 값으로 덮지 않게 멈춘다. 새로고침해야 한다
+ *   conflict         저장 중이었는데 같은 계정의 다른 창이 먼저 저장했다 — 그 창의 진행을 이 창의 옛 값으로 덮지 않게 멈춘다. 새로고침해야 한다
  * React · 별칭(@/) · import.meta.env 를 쓰지 않는다(naju01/tests 의 node --test 가 바로 읽는다).
  */
 
-export type SaveStatus = "guest" | "load_failed" | "saving" | "signed_out" | "account_changed";
+export type SaveStatus = "guest" | "load_failed" | "saving" | "signed_out" | "account_changed" | "conflict";
 
 /** 서버 응답 한 벌 — 상태 코드와 JSON 본문(없으면 null) */
 export interface JsonAnswer {
@@ -54,6 +55,14 @@ export function readConflictRevision(body: unknown): number | null {
   return typeof detail.revision === "number" ? detail.revision : null;
 }
 
+/** PUT /me/game-save 409 본문의 사유(detail.code) — `save_conflict`(다른 창이 먼저 씀) · `account_changed`(본문의 account_id 가 쿠키 회원과 다름). 없으면 null */
+export function readConflictCode(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const { detail } = body as { detail?: { code?: unknown } | string | null };
+  if (!detail || typeof detail !== "object") return null;
+  return typeof detail.code === "string" ? detail.code : null;
+}
+
 export type ConflictDecision = "retry" | "signed_out" | "account_changed";
 
 /**
@@ -68,4 +77,50 @@ export function decideConflictRetry(me: JsonAnswer, accountId: string | null): C
   const current = readAccountId(me);
   if (accountId !== null && current !== null && current !== accountId) return "account_changed";
   return "retry";
+}
+
+export type SaveConflictDecision = ConflictDecision | "conflict";
+
+/**
+ * 같은 계정의 409 를 다시 쓸지 멈출지(미르 11/23 — 같은 계정 두 창 동시 플레이는 지원하지 않는다).
+ * 전에는 늘 최신 번호로 다시 썼다. 이 창이 처음 불러온 저장본에 제 칸만 얹어 보내므로, 그사이 다른 창이 저장한 그 창의 칸이
+ * 옛 값으로 되돌아갔다(세진 11/20 설계 문서 안 B).
+ *   이 창이 한 번이라도 저장에 성공한 뒤의 409  → conflict(멈춤 · 새로고침 안내). 살아 있는 다른 창이 쓴 것이다
+ *   아직 한 번도 저장하지 못한 채의 409        → retry(전처럼). 기차 → 나주처럼 페이지를 넘어올 때 앞 페이지의 마지막 저장이
+ *                                              이 페이지의 불러오기보다 늦게 닿으면 첫 저장이 409 다 — 한 창의 보통 흐름이라 멈추면 안 된다
+ * 계정 확인(decideConflictRetry)이 먼저다 — 끊김 · 계정 바뀜이면 그쪽으로 멈춘다.
+ */
+export function decideSaveConflict(
+  me: JsonAnswer,
+  accountId: string | null,
+  hasSavedOnce: boolean,
+): SaveConflictDecision {
+  const decision = decideConflictRetry(me, accountId);
+  if (decision !== "retry") return decision;
+  return hasSavedOnce ? "conflict" : "retry";
+}
+
+/** JSON 값 둘이 같은가 — 객체의 키 순서는 보지 않는다(서버 DB 가 키 순서를 바꿔 돌려준다) */
+function isSameJson(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a) && Array.isArray(b))
+    return a.length === b.length && a.every((value, index) => isSameJson(value, b[index]));
+  const left = a as Record<string, unknown>;
+  const right = b as Record<string, unknown>;
+  const keys = Object.keys(left);
+  return (
+    keys.length === Object.keys(right).length && keys.every((key) => key in right && isSameJson(left[key], right[key]))
+  );
+}
+
+/**
+ * GET /me/game-save 본문이 이 창이 보냈던 저장(단계 · state)과 같은가 — 응답을 잃은 제 저장인지 가린다.
+ * 같으면 409 는 다른 창 때문이 아니다(번호만 뒤처졌다). 본문 모양이 틀리면 false.
+ */
+export function isSameSave(serverBody: unknown, stage: string | null, state: unknown): boolean {
+  if (!serverBody || typeof serverBody !== "object") return false;
+  const saved = serverBody as { stage?: unknown; state?: unknown };
+  return saved.stage === stage && isSameJson(saved.state, state);
 }
