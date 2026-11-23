@@ -70,7 +70,7 @@ function leaveAfterUnlock(id: string) {
 }
 
 /** 자물쇠를 만지는 동안은 키를 여기서 다 먹는다. 화살표와 WASD 를 둘 다 받는다(걸음은 어차피 멈춰 있다). */
-function handleLockKey(code: string, id: string) {
+function handleLockKey(code: string, id: string, isRepeat: boolean) {
   // 「추가 힌트를 받으시겠습니까?」를 묻는 동안은 예(Y) · 아니요(N)만 — 다이얼은 안 돈다(12회차)
   if (isHintOffering()) {
     if (code === "KeyY") acceptHintOffer();
@@ -82,6 +82,9 @@ function handleLockKey(code: string, id: string) {
   else if (code === "ArrowUp" || code === "KeyW") turnLockDigit(id, 1);
   else if (code === "ArrowDown" || code === "KeyS") turnLockDigit(id, -1);
   else if (code === "KeyE" || code === "Enter") {
+    // 누르고 있어 자동 반복된 제출은 받지 않는다 — 판정이 빨리 돌아오면 초당 15번씩 같은 답이 서버에 갔다
+    // (11/13 운영 기록: 한 회차가 8초에 같은 오답 120번). 다이얼 돌리기 · 칸 옮기기는 누르고 있으면 계속 돌아야 해 그대로 둔다
+    if (isRepeat) return;
     // 맞으면 풀리고 나간다. 틀리면 덜컹 — "아니다"를 몸으로 알려 준다.
     // 밸브 자물쇠 막힘 힌트(valveHelp)는 「틀렸다」는 판정만 센다 — 통신 실패 자체는 안 센다. 같은 답 연달아는 한 번(낸 순간의 글자로 가린다)
     const digits = [...(getLockState(id)?.digits ?? [])];
@@ -213,7 +216,7 @@ export function useGameKeys({
 
       // 자물쇠 중엔 마우스 잠금이 풀려 있어 아래 잠금 검사에 걸리므로 그보다 앞에 둔다.
       if (lockControl && isLockActive) {
-        handleLockKey(code, lockControl.id);
+        handleLockKey(code, lockControl.id, event.repeat);
         return;
       }
       // 자물쇠 밖에서 「추가 힌트를 확인하시겠습니까?」를 묻는 중 — 예(Y) · 아니요(N)만 가로채고 걷기 등은 그대로(미르 11/10).
