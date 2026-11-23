@@ -307,6 +307,17 @@ async def write_game_save(
     user: AppUser = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ) -> GameSaveResponse:
+    # 다른 계정의 진행이 이 계정 저장에 들어가지 않게(11/20) — 게임이 불러올 때의 계정과 지금 쿠키의 회원이 다르면 쓰지 않는다.
+    # revision 이 우연히 같아도(둘 다 0 등) 막힌다. DB 를 읽기 전에 거절해 아무것도 바뀌지 않는다
+    if body.account_id is not None and body.account_id.lower() != user.id.lower():
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "code": "account_changed",
+                "message": "로그인한 계정이 바뀌어 저장하지 않았습니다.",
+            },
+            headers={"Cache-Control": "no-store"},
+        )
     _check_json(body.state, MAX_STATE_BYTES)
     # rollback 뒤에는 회원 행 속성을 읽을 수 없다(만료 재조회) — 번호를 먼저 떼어 둔다
     user_id = user.id

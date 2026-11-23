@@ -33,6 +33,10 @@ class GameSaveWrite(BaseModel):
     schema_version: int = Field(ge=1, le=1000)
     stage: str = Field(pattern=r"^[a-z0-9_.-]{1,32}$")
     state: dict[str, Any]
+    # (선택, 11/20) 게임이 저장을 처음 불러올 때의 계정 id(`/me` 의 user_id). 있으면 지금 로그인 쿠키의 회원과 같을 때만 쓴다 —
+    # 다르면 409 `account_changed`(아무것도 바꾸지 않는다). **인증이 아니다**: 쓰는 대상은 늘 쿠키의 회원이고, 이 값은 거절에만 쓴다.
+    # 없으면 지금까지와 같다(옛 클라이언트 호환). 옛 서버는 모르는 필드라 무시한다(배포 순서 무관).
+    account_id: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 class GameSaveResponse(BaseModel):
