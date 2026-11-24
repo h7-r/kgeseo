@@ -1,5 +1,6 @@
 """로비 입장권 발급 설정 로더 — 실행 프로필 · 읽는 경로 · 운영 시작 검사(로비 설계 v0.19 3.3절)."""
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -135,12 +136,20 @@ def test_unreadable_local_file_disables_even_with_good_env(monkeypatch, tmp_path
     assert state.reasons and "PermissionError" in state.reasons[0]
 
 
+# 폴더를 파일로 읽을 때 OS 가 내는 예외가 다르다(11/24 집 PC Windows 에서 확인): Linux · macOS 는 IsADirectoryError(EISDIR),
+# Windows 는 PermissionError(EACCES). 그 OS 가 내는 이름 하나만 받는다 — 아무 예외나 허용하지 않는다.
+DIRECTORY_READ_ERROR = (
+    "PermissionError" if sys.platform == "win32" else "IsADirectoryError"
+)
+
+
 def test_local_file_that_is_a_directory_disables(tmp_path):
     local = tmp_path / ".env.lobby"
     local.mkdir()
     state = load_state(GOOD_TEST_ENV, local)
+    assert local.is_dir()
     assert not state.enabled
-    assert "IsADirectoryError" in state.reasons[0]
+    assert state.reasons == (f"로비 설정을 읽지 못했다({DIRECTORY_READ_ERROR})",)
 
 
 def test_malformed_local_file_line_disables_and_names_only_the_line(tmp_path):

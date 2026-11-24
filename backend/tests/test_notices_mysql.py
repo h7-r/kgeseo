@@ -39,6 +39,29 @@ pytestmark = pytest.mark.skipif(
 
 REVISION = "734021834040"
 
+# 옛 공지 이전의 고정 원본(11/24). 실제 website/src/data/support.ts 의 NOTICES 배열은 11/16(64b9f65)에 지워져, 그 파일을
+# 읽던 이 시험이 늘 UsageError 로 깨졌다. 지워지기 전 원본과 같은 꼴 — 본문 없는 항목만 있어서, 사람이 준 본문(--bodies)이
+# 있는 항목만 등록 대상이 된다. 분류 · 날짜는 스크립트가 받는 값(점검 · 이벤트 · 업데이트, YYYY.MM.DD)이다.
+LEGACY_SOURCE = """
+export const NOTICES: readonly Notice[] = [
+  {
+    category: "업데이트",
+    title: "(시험) 업데이트 안내",
+    date: "2026.11.04",
+  },
+  {
+    category: "점검",
+    title: "(시험) 정기 점검 안내",
+    date: "2026.09.04",
+  },
+  {
+    category: "이벤트",
+    title: "(시험) 시즌 이벤트",
+    date: "2026.09.01",
+  },
+];
+"""
+
 
 def _client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
@@ -352,12 +375,12 @@ def test_public_and_admin_flows_on_real_database(monkeypatch):
         assert [log["target_id"] for log in filtered["logs"]] == [gone["id"]]
 
         # 옛 공지 이전 — 사람이 준 본문이 있는 한 건만, 두 번 실행해도 한 번만. 지운 것은 되살리지 않는다
-        notices = legacy.parse_legacy_notices(
-            legacy.DEFAULT_SOURCE.read_text(encoding="utf-8")
-        )
+        notices = legacy.parse_legacy_notices(LEGACY_SOURCE)
+        assert len(notices) == 3 and all(n.body is None for n in notices)
         planned = legacy.plan(notices, {notices[1].legacy_key: "운영팀이 쓴 본문"})
         candidates = [item for item in planned if item.is_candidate]
         assert len(candidates) == 1
+        assert candidates[0].notice.legacy_key == notices[1].legacy_key
         async with sessions() as db:
             assert [
                 len(x) for x in await legacy.import_candidates(db, candidates, now)
