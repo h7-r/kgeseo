@@ -14,6 +14,7 @@ import { botAppearance, botPose, VIEWER_PITCH, VIEWER_SPOT, VIEWER_YAW } from ".
 import {
   BOT_COUNT,
   BOTS_IDLE,
+  SOLE_LOD,
   currentCommit,
   MEASURE_SECONDS,
   perfStore,
@@ -80,6 +81,8 @@ function Bot({ index, startedAt, onReady }: { index: number; startedAt: number; 
         toon={TOON}
         outline={OUTLINE}
         framePriority={BOT_AVATAR_PRIORITY}
+        // 실제 원격 사람(RemotePlayers)과 같게 — ?soleLod=off 로 끄고 비교한다
+        distantSoleLod={SOLE_LOD}
       />
       <ReadySignal index={index} onReady={onReady} />
     </Suspense>

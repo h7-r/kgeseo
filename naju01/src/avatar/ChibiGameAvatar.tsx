@@ -2,7 +2,7 @@
 // 우리 몸체에 맞춰 만든 Tripo 걷기·대기·달리기)을 리타게팅하고, 보정·접지 IK·팔 IK·쥠을 얹는다.
 import { useGLTF } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import { type RefObject, useEffect, useMemo, useRef } from "react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
 import { exposeDevHook } from "@/debug/devHooks";
@@ -104,6 +104,38 @@ const SHOE_ONLY_SOLE_CLIPS: ReadonlySet<string> = new Set([
 /** 확인 안 된 동작이 끝난 뒤에도 섞이는 동안(크로스페이드 0.2초)은 맨발까지 센다 */
 const SOLE_FADE_SECONDS = 0.2;
 
+/**
+ * 원격 사람의 발바닥 높이 재는 간격(11/24). 발바닥 최저점 계산(정점마다 CPU 스키닝)이 로비 아바타 CPU 의 대부분이라
+ * (걷는 9명 프로파일: 일한 시간의 약 40 %), 가까운 사람만 매 프레임 재고 멀거나 화면 밖이면 지난 값을 몇 프레임 더 쓴다.
+ * 걷기에서 최저점은 한 걸음에 약 38mm 오르내린다 — 120fps 에서 2 프레임 묵히면 1 ~ 2mm, 10m 밖 4 프레임이면 5mm 안팎.
+ */
+const SOLE_LOD_NEAR_METERS = 4;
+const SOLE_LOD_FAR_METERS = 10;
+const SOLE_STRIDE_MID = 2;
+const SOLE_STRIDE_FAR = 4;
+const SOLE_STRIDE_OFFSCREEN = 8;
+const soleLodPoint = new THREE.Vector3();
+
+/** 몇 프레임에 한 번 잴지와 화면 안인지 — 몸 가운데(허리 높이)를 카메라로 비춰 본다. 깊이 규약(로그 · 거꾸로)과 상관없게 NDC x · y 만 쓴다 */
+function soleLodFor(group: THREE.Object3D, camera: THREE.Camera, avatarScale: number) {
+  soleLodPoint.setFromMatrixPosition(group.matrixWorld);
+  soleLodPoint.y += 0.8 * avatarScale;
+  soleLodPoint.applyMatrix4(camera.matrixWorldInverse);
+  const meters = soleLodPoint.length() / Math.max(1e-6, avatarScale);
+  // 카메라 뒤(보기 방향은 −z)거나 화면 가장자리 밖(몸 폭만큼 여유)이면 화면 밖
+  const behind = soleLodPoint.z > 0;
+  soleLodPoint.applyMatrix4(camera.projectionMatrix);
+  const onScreen = !behind && Math.abs(soleLodPoint.x) < 1.3 && Math.abs(soleLodPoint.y) < 1.3;
+  const stride = !onScreen
+    ? SOLE_STRIDE_OFFSCREEN
+    : meters < SOLE_LOD_NEAR_METERS
+      ? 1
+      : meters < SOLE_LOD_FAR_METERS
+        ? SOLE_STRIDE_MID
+        : SOLE_STRIDE_FAR;
+  return { stride, onScreen };
+}
+
 // 팔·다리 길이, 어깨 폭, 발 크기는 뼈 배율로 덮는다. 믹서가 쓴 뒤에 불러야 한다(클립에 위치·배율 트랙이 있을 수 있다).
 
 /** 팔·다리 뿌리 뼈 배율. 손은 팔 배율을 물려받아 되돌린다(손 크기는 모프로). 다리 배율을 돌려준다. */
@@ -151,6 +183,11 @@ interface ChibiGameAvatarProps {
    * 헤엄치지 않는다. 음수라 R3F 자동 렌더는 그대로 돈다. 본편은 FRAME_PRIORITY.avatar 를 넘긴다.
    */
   framePriority?: number;
+  /**
+   * 로비의 다른 플레이어(원격)면 true — 발바닥 높이를 거리 · 시야에 따라 덜 자주 잰다(soleLodFor).
+   * 내 캐릭터 · 생성 화면 · 갤러리는 늘 매 프레임 잰다(기본 false).
+   */
+  distantSoleLod?: boolean;
 }
 
 function ChibiGameAvatar({
@@ -165,6 +202,7 @@ function ChibiGameAvatar({
   outline = DEFAULT_OUTLINE,
   correction = DEFAULT_CORRECTION,
   framePriority = -20,
+  distantSoleLod = false,
 }: ChibiGameAvatarProps) {
   const root = useRef<THREE.Group>(null);
   // 팀 캐릭터 전용 옷 번호(캡 · 해병대 반팔 · 바지)를 풀어 아래는 기존 번호로 그린다 — teamOutfit.ts, 검토 22회차
@@ -268,6 +306,10 @@ function ChibiGameAvatar({
   // 발바닥 최저점 캐시 — 정점 7731 개를 매 프레임 훑는 값이 아바타당 3.0ms 다.
   const soleHeightCache = useRef<number | null>(null);
   const soleFingerprint = useRef("");
+  // 원격 사람의 발바닥 재기 간격 — 프레임 번호와 사람마다 다른 시작점(여럿이 같은 프레임에 몰리지 않게)
+  const soleFrame = useRef(0);
+  const [soleSeed] = useState(() => Math.floor(Math.random() * SOLE_STRIDE_OFFSCREEN));
+  const soleWasOnScreen = useRef(true);
   const fadeEnd = useRef(0);
   // 이 시각까지는 맨발 밑창도 센다(확인 안 된 동작이 섞여 있을 수 있다)
   const bodySoleUntil = useRef(0);
@@ -392,6 +434,7 @@ function ChibiGameAvatar({
     //   최저점이 38mm 움직인다. 제자리 클립 + 크로스페이드 끝 + 외형 그대로일 때만 쓴다.
     //   외형은 항목을 고르지 않고 설정 전체를 지문으로 쓴다 — 항목을 늘릴 때 여기를 잊으면 조용히 틀린다.
     const fingerprint = `${next}|${body}|${JSON.stringify(config)}`;
+    const sameLook = fingerprint === soleFingerprint.current;
     const canUseCache =
       STATIONARY_CLIPS.has(next) &&
       next === currentMotion.current &&
@@ -401,7 +444,26 @@ function ChibiGameAvatar({
       fingerprint === soleFingerprint.current &&
       soleHeightCache.current !== null;
     soleFingerprint.current = fingerprint;
-    if (!canUseCache) {
+    // 원격 사람: 멀거나 화면 밖이면 지난 값을 더 쓴다. 동작이 바뀌거나 섞이는 중 · 공중 · 주먹 · 외형 변경 · 화면에 막 들어온
+    //   프레임은 매번 잰다(묵힌 값이 크게 틀릴 수 있는 때).
+    soleFrame.current += 1;
+    let skipByLod = false;
+    if (distantSoleLod && !canUseCache) {
+      const lod = soleLodFor(group, camera, avatarScale);
+      const enteredScreen = lod.onScreen && !soleWasOnScreen.current;
+      soleWasOnScreen.current = lod.onScreen;
+      skipByLod =
+        lod.stride > 1 &&
+        !enteredScreen &&
+        sameLook &&
+        soleHeightCache.current !== null &&
+        next === currentMotion.current &&
+        now >= fadeEnd.current &&
+        now >= timers.current.attackEnd &&
+        state.grounded &&
+        (soleFrame.current + soleSeed) % lod.stride !== 0;
+    }
+    if (!canUseCache && !skipByLod) {
       // 전부 본다 — 넷 중 하나만 보면 최저점을 놓쳐 몇 mm 씩 묻히고 깜빡인다.
       // 보이는 신발이 있고 확인된 동작이면 맨발 정점은 세지 않는다 — 신발 안의 맨발(모프 −1.5)은 신발 바닥보다 위라
       //   결과가 같다(SHOE_ONLY_SOLE_CLIPS). 로비 버벅임(검토 12회차): 아바타당 4,481 → 1,122.

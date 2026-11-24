@@ -56,6 +56,8 @@ function readInt(name: string, fallback: number, min: number, max: number): numb
 export const BOT_COUNT = readInt("bots", MAX_BOTS, 0, MAX_BOTS);
 /** ?botMotion=idle — 원인 가르기용. 기본(walk)은 모두 걷는다(가장 무거운 경우) */
 export const BOTS_IDLE = query.get("botMotion") === "idle";
+/** ?soleLod=off — 원격 사람의 발바닥 재기 간격 조절을 끈다(켠 것과 번갈아 재는 비교용) */
+export const SOLE_LOD = query.get("soleLod") !== "off";
 /** ?perfSeconds= — 장치 점검용으로 짧게 돌릴 때만. 판정 기록은 기본 60초로 잰다 */
 export const MEASURE_SECONDS = readInt("perfSeconds", 60, 5, 600);
 export const SETTLE_MS = 3000;
