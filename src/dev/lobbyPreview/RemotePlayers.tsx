@@ -333,6 +333,8 @@ function RemoteAvatar({
             toon={TOON}
             outline={OUTLINE}
             framePriority={FRAME_PRIORITY.avatar - 1}
+            // 다른 사람은 멀거나 화면 밖이면 발바닥 높이를 덜 자주 잰다(ChibiGameAvatar soleLodFor)
+            distantSoleLod
           />
         </Suspense>
       </group>
