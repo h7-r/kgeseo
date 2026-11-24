@@ -74,6 +74,7 @@ import { readSavedSection } from "@/save/gameSave";
 import CaseStartCard from "./CaseStartCard";
 import { FrameLimiter } from "@/engine/FrameLimiter";
 import { activeFrameLimit, frameloopFor } from "@/engine/frameLimit";
+import { useViewportArea } from "@/engine/pixelBudget";
 import { useRenderCap } from "@/engine/renderCap";
 import { requestGameLock } from "@/engine/input/lookGuard";
 import NajuPauseMenu from "./NajuPauseMenu";
@@ -99,6 +100,8 @@ import { SceneSettledSignal } from "../transition/SceneSettledSignal";
 import {
   ALLOW_VIEW_TOGGLE,
   autoMaxDpr,
+  autoMinDpr,
+  fixedParamMaxDpr,
   DEPTH_MODE,
   IS_ARRIVING_FROM_HUB,
   IS_BLOOM_DISABLED,
@@ -114,7 +117,6 @@ import {
   LEGACY_SIDEKICK_APPEARANCE_KEY,
   MAX_DPR,
   MESH_APPEARANCE_KEY,
-  MIN_DPR,
   MSAA_SAMPLES,
   SHADOW_QUALITY,
   START_DPR,
@@ -146,6 +148,10 @@ export default function App() {
   // 동적 해상도 — dpr 을 못 박으면 가장 나쁜 자리(Z1 마을)에 맞춰야 해서 한가한 곳의 성능을 버린다.
   // 배율이 바뀌면 프레임버퍼를 다시 잡으므로 0.25 눈금으로만 움직인다.
   const [dpr, setDpr] = useState(IS_DPR_AUTO ? Math.min(START_DPR, autoMaxDpr()) : MAX_DPR);
+  // 창 넓이 — 자동 해상도의 위 · 아래 끝이 여기에 달려 있다(engine/pixelBudget). 바뀌면 다시 그려 상한을 다시 읽는다
+  const viewportArea = useViewportArea();
+  const maxAutoDpr = autoMaxDpr(viewportArea);
+  const minAutoDpr = autoMinDpr(viewportArea);
 
   // 본편과 같은 설정(같은 저장 열쇠) — 본편에서 줄인 소리가 여기서도 그대로다
   const settings = useSettings();
@@ -412,7 +418,10 @@ export default function App() {
         // 끌 때도 방식(type)은 켤 때와 같게 둔다 — false 만 주면 방식 값이 바뀌어 같은 재질이 한 벌 더 구워진다(11/12 실측)
         shadows={SHADOW_QUALITY === "off" ? { enabled: false, type: THREE.PCFShadowMap } : "percentage"}
         // [1, 상한] 배열을 주면 three 가 기기 픽셀비로 골라 PerformanceMonitor 가 정한 값이 묻힌다
-        dpr={fixedDpr ?? Math.min(dpr, autoMaxDpr())}
+        dpr={
+          fixedDpr ??
+          (IS_DPR_AUTO ? Math.min(Math.max(dpr, minAutoDpr), maxAutoDpr) : Math.min(dpr, fixedParamMaxDpr()))
+        }
         // 밝기 100% 면 필터를 아예 안 건다(합성 비용 0)
         style={settings.brightness !== 1 ? { filter: `brightness(${settings.brightness})` } : undefined}
         gl={{
@@ -442,7 +451,7 @@ export default function App() {
                 다시 붙을 때는 지금 배율에 해당하는 자리(factor)에서 잇는다 */}
             {IS_DPR_AUTO && fixedDpr === null && renderCapFps === 0 && (
               <PerformanceMonitor
-                factor={Math.min(1, Math.max(0, (dpr - MIN_DPR) / Math.max(0.01, autoMaxDpr() - MIN_DPR)))}
+                factor={Math.min(1, Math.max(0, (dpr - minAutoDpr) / Math.max(0.01, maxAutoDpr - minAutoDpr)))}
                 // 프레임 제한이 60 아래(절전 30)면 그 값에 맞춰 본다 — 안 그러면 일부러 덜 그리는 것을 느린 기기로 읽어 해상도를 내린다
                 bounds={() => (frameLimit > 0 && frameLimit < 60 ? [frameLimit * 0.83, frameLimit * 0.96] : [50, 58])}
                 // 멈추지 않고 계속 맞춘다 — drei 는 오르기만 해도 횟수를 세어, 세 번이면 시작 13초 만에 상한에 굳고
@@ -451,8 +460,10 @@ export default function App() {
                 onChange={({ factor }) => {
                   // 기본은 0.25 단위, 저사양은 0.05 단위(0.65 ~ 1 사이를 0.25 로 자르면 0.75 · 1 둘뿐이다)
                   const steps = IS_LOW_QUALITY ? 20 : 4;
+                  // 상 · 하한은 그때 창 넓이로 다시 읽는다(창을 옮기거나 키운 직후에도 맞게)
                   const max = autoMaxDpr();
-                  const next = Math.min(max, Math.round((MIN_DPR + (max - MIN_DPR) * factor) * steps) / steps);
+                  const min = autoMinDpr();
+                  const next = Math.max(min, Math.min(max, Math.round((min + (max - min) * factor) * steps) / steps));
                   setDpr((previous) => (previous === next ? previous : next));
                 }}
               />

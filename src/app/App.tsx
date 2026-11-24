@@ -28,6 +28,7 @@ import {
   useGameFrozen,
   useTouchMode,
 } from "@/engine/input";
+import { budgetMaxDpr, useViewportArea } from "@/engine/pixelBudget";
 import { IS_LOW_QUALITY, IS_MOBILE_QUALITY, MOBILE_MAX_DPR } from "@/engine/quality";
 import { PLAYER_MESHY_APPEARANCE_KEY, PLAYER_SIDEKICK_APPEARANCE_KEY } from "@/engine/storage";
 import { SettingsIcon } from "@/game/gameIcons";
@@ -140,13 +141,16 @@ const CAMERA = {
 /** 역이 선 뒤 기차 안을 미리 짓기까지(ms) — 첫 화면의 셰이더 굽기(400 ms · 3 초)와 겹치지 않게 그 뒤로 */
 const TRAIN_PREMOUNT_MS = 6000;
 
-function canvasDpr({ resolution }: Settings): number | [number, number] {
+function canvasDpr({ resolution }: Settings, area: number): number | [number, number] {
   if (resolution !== "auto" && RESOLUTION_DPR[resolution]) {
     return Math.min(RESOLUTION_DPR[resolution], window.devicePixelRatio || 1);
   }
-  if (IS_LOW_QUALITY) return 1;
+  // 큰 창(4K 배율 1 · 4K 150 %)이면 화면 픽셀 총량 상한이 배율을 더 자른다 — 배율 1 아래로도 간다(engine/pixelBudget)
+  const budget = budgetMaxDpr(area);
+  if (IS_LOW_QUALITY) return Math.min(1, budget);
   // 모바일은 기기 배율이 3 이라 상한값이 곧 배율이다 — 픽셀이 배율의 제곱으로 는다. PC 상한(1.5)은 넘지 않는다
-  return IS_MOBILE_QUALITY ? [1, Math.min(MOBILE_MAX_DPR, 1.5)] : [1, 1.5];
+  const max = Math.min(IS_MOBILE_QUALITY ? Math.min(MOBILE_MAX_DPR, 1.5) : 1.5, budget);
+  return [Math.min(1, max), max];
 }
 
 // 개발 서버에서 ?dev 일 때만 받는다. 운영 빌드는 import.meta.env.DEV 가 false 로 접혀 이 import 자체가 번들에서 빠진다 —
@@ -314,6 +318,8 @@ export default function App() {
     openWindow(OVERLAY_LAYERS.destination);
   }, [isTrainEntry, isTrain, openWindow]);
   const settings = useSettings();
+  // 창 넓이 — 해상도 배율 상한이 여기에 달려 있다(engine/pixelBudget)
+  const viewportArea = useViewportArea();
   // 영상에 가려졌거나 창이 뒤로 간 동안은 덜 그린다(engine/renderCap)
   const renderCapFps = useRenderCap();
   const frameLimit = activeFrameLimit(settings.frameLimit, renderCapFps);
@@ -433,7 +439,7 @@ export default function App() {
         frameloop={isEnteringNaju || isFrozen ? "never" : frameloopFor(frameLimit)}
         // 그림자는 씬을 광원 시점에서 한 번 더 그린다. 끄면 드로우콜이 거의 절반 — 저사양에서 가장 큰 절약.
         shadows={IS_LOW_QUALITY || IS_MOBILE_QUALITY ? false : "percentage"}
-        dpr={canvasDpr(settings)}
+        dpr={canvasDpr(settings, viewportArea)}
         // 밝기 100% 면 필터를 아예 안 건다(합성 비용 0)
         style={settings.brightness !== 1 ? { filter: `brightness(${settings.brightness})` } : undefined}
         gl={GL_OPTIONS}

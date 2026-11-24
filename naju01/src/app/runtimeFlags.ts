@@ -3,6 +3,7 @@
  * 본편과 같은 개발용 스위치(?fx=off)와 나주 전용 스위치. 나주맵은 Leva 패널을 띄우지 않는다.
  * 저사양(?q=low)은 본편과 같은 `@/engine/quality` 의 IS_LOW_QUALITY 를 쓴다.
  */
+import { budgetMaxDpr, budgetMinDpr, viewportArea } from "@/engine/pixelBudget";
 import { IS_LOW_QUALITY, IS_MOBILE_QUALITY, MOBILE_MAX_DPR } from "@/engine/quality";
 import { PLAYER_MESHY_APPEARANCE_KEY, readStorage } from "@/engine/storage";
 
@@ -113,10 +114,18 @@ export const MAX_DPR = Math.min(3, Math.max(1, +(DPR_PARAM || DEFAULT_MAX_DPR) |
  * 화면의 3배 픽셀을 MSAA 로 그린다 — 빠른 그래픽 카드일수록 끝까지 올라가 GPU 를 다 썼다(베타 11/16, 4K 에서 6720×3780).
  * 창을 다른 모니터로 옮기면 값이 바뀌므로 그릴 때마다 읽는다. ?dpr= 로 못 박은 값(A/B)은 자르지 않는다
  */
-export const autoMaxDpr = () =>
+export const autoMaxDpr = (area = viewportArea()) =>
+  Math.min(MAX_DPR, Math.max(1, (typeof window !== "undefined" && window.devicePixelRatio) || 1), budgetMaxDpr(area));
+/** ?dpr= 로 못 박은 실행(A/B 측정)의 상한 — 픽셀 총량 상한을 걸지 않는다(요청한 배율 그대로 재야 한다) */
+export const fixedParamMaxDpr = () =>
   Math.min(MAX_DPR, Math.max(1, (typeof window !== "undefined" && window.devicePixelRatio) || 1));
 /** 자동 조절 하한 — 이보다 내리면 너무 뿌예진다 */
 export const MIN_DPR = IS_LOW_QUALITY ? 0.65 : 1;
+/**
+ * 지금 창의 자동 조절 하한 — 큰 창(4K 등)이면 MIN_DPR 아래로도 내려가 1080p 한 장 분량까지 줄인다(engine/pixelBudget).
+ * 상한보다 높아지지는 않는다
+ */
+export const autoMinDpr = (area = viewportArea()) => Math.min(MIN_DPR, budgetMinDpr(area), autoMaxDpr(area));
 export const IS_DPR_AUTO = !DPR_PARAM;
 /** 자동 조절이 시작하는 값 */
 export const START_DPR = IS_LOW_QUALITY ? 0.85 : 1.25;
