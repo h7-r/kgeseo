@@ -551,24 +551,80 @@ def test_import_skips_existing_ids_including_deleted():
     assert (len(inserted), len(skipped), again.added) == (0, 1, [])
 
 
-def test_script_dry_run_does_not_touch_db_and_bad_confirm_stops(tmp_path, capsys):
-    source = tmp_path / "support.ts"
-    source.write_text(SAMPLE, encoding="utf-8")
-    assert legacy.main(["--source", str(source)]) == 0
-    out = capsys.readouterr().out
-    assert "등록 대상 1 · 제외 4" in out and "DB 에 접속하지 않음" in out
-    # --execute 인데 DB 이름 확인이 틀리면 쓰지 않고 2
-    assert legacy.main(["--source", str(source), "--execute", "--confirm", "x"]) == 2
-    bad = tmp_path / "bodies.json"
-    bad.write_text(json.dumps(["not", "a", "map"]), encoding="utf-8")
-    assert legacy.main(["--source", str(source), "--bodies", str(bad)]) == 2
-
-
 class _BoomSession:
     """열리면 실패한다 — 확인 모드 · 등록 대상 0 에서 DB 를 열지 않는지 본다."""
 
     def __call__(self):
         raise AssertionError("DB session must not be opened")
+
+
+@pytest.fixture
+def blocked_db(monkeypatch):
+    """스크립트가 DB 세션을 여는 바로 그 자리(`app.db.session.AsyncSessionLocal`, `main` 안에서 실행 때 가져온다)를 막는다.
+
+    막지 않으면 실행 환경의 DB_NAME 과 확인 값이 우연히 같을 때(예: 가짜 값 DB_NAME=x) 실제 DB 에 공지를 쓸 수 있다.
+    `AssertionError` 는 `SQLAlchemyError` 가 아니라 스크립트가 삼키지 않는다 — 열리면 시험이 바로 실패한다.
+    """
+
+    import app.db.session as session_module
+
+    monkeypatch.setattr(session_module, "AsyncSessionLocal", _BoomSession())
+
+
+def _mismatch(db_name: str) -> str:
+    """지금 설정의 DB 이름과 절대 같을 수 없는 확인 값."""
+
+    return f"{db_name}-mismatch"
+
+
+def test_script_dry_run_does_not_touch_db_and_bad_confirm_stops(
+    blocked_db, tmp_path, capsys
+):
+    from app.core.config import settings
+
+    source = tmp_path / "support.ts"
+    source.write_text(SAMPLE, encoding="utf-8")
+    assert legacy.main(["--source", str(source)]) == 0
+    out = capsys.readouterr().out
+    assert "등록 대상 1 · 제외 4" in out and "DB 에 접속하지 않음" in out
+    # --execute 인데 DB 이름 확인이 틀리면 쓰지 않고 2 — 확인 값은 실행 환경의 DB_NAME 과 늘 다르다(11/24: 고정 값 "x" 는
+    # DB_NAME=x 환경에서 확인을 통과해 실제 등록 경로로 들어갔다)
+    confirm = _mismatch(settings.db_name)
+    assert confirm != settings.db_name
+    assert (
+        legacy.main(["--source", str(source), "--execute", "--confirm", confirm]) == 2
+    )
+    bad = tmp_path / "bodies.json"
+    bad.write_text(json.dumps(["not", "a", "map"]), encoding="utf-8")
+    assert legacy.main(["--source", str(source), "--bodies", str(bad)]) == 2
+
+
+@pytest.mark.parametrize("db_name", ["x", "waegok_dev", "test_notices_local"])
+def test_execute_confirm_is_checked_against_the_configured_db_name(
+    blocked_db, monkeypatch, tmp_path, capsys, db_name
+):
+    """회귀(11/24): 확인 판정은 실행 환경의 DB_NAME 이 무엇이든(짧은 가짜 값 "x" 포함) 같고, 거절이면 DB 를 열지 않는다."""
+
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "db_name", db_name)
+    source = tmp_path / "support.ts"
+    source.write_text(SAMPLE, encoding="utf-8")
+    execute = ["--source", str(source), "--execute"]
+
+    refused = [[], ["--confirm", ""], ["--confirm", _mismatch(db_name)]]
+    if db_name != "x":
+        refused.append(
+            ["--confirm", "x"]
+        )  # 예전 고정 확인 값 — 다른 DB 이름에서는 늘 거절
+    refused.append(["--confirm", db_name.upper()])  # 대소문자도 정확히 같아야 한다
+    for extra in refused:
+        assert legacy.main(execute + extra) == legacy.EXIT_USAGE == 2, extra
+        assert "--confirm 으로 지금 설정의 DB 이름을 정확히" in capsys.readouterr().err
+
+    # 같은 이름이면 확인을 통과해 DB 세션을 여는 자리까지 간다 — 막아 둔 자리가 스크립트가 실제로 여는 자리임을 확인
+    with pytest.raises(AssertionError, match="DB session must not be opened"):
+        legacy.main(execute + ["--confirm", db_name])
 
 
 @needs_legacy_source
