@@ -1,5 +1,6 @@
 /**
- * 구독 화면 시험운영 안내 — 요금표 · 결제 정보 · 혜택 머리, 구독 · 자세히 보기 창, 휴대폰 화면이 「결제가 없다」를 늘 알리는지 본다.
+ * 구독 화면 기획 예시 안내 — 「구독하기」 창 맨 위(휴대폰은 구독 화면 맨 위) 한 곳에서 「실제 결제가 아니다」를 알리는지 본다.
+ * 곳곳에 붙던 안내 상자는 한 곳으로 모았다(해랑 11/25).
  * 약관 제12조 ⑦ · 법적 고지 제15조 ③ 은 요금 화면을 「기획 예시」라고 적는다. 화면이 그 말을 빠뜨리면 유료 서비스로 오해한다(11/19 점검).
  *
  *   npm run web:test
@@ -11,25 +12,12 @@ import { readFileSync } from "node:fs";
 const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 const count = (text, pattern) => text.match(pattern)?.length ?? 0;
 
-test("안내 글이 0원 · 결제 없음 · 기획 예시를 모두 말한다", () => {
-  const notice = read("website/src/data/pricing.ts").match(/trialNotice: \{\s*label: "([^"]+)",\s*detail: "([^"]+)"/);
-  assert.ok(notice, "PRICING.trialNotice 를 찾지 못했다");
-  const [, label, detail] = notice;
-  assert.match(label, /시험운영/);
-  assert.match(label, /0원/);
-  assert.match(detail, /결제·구독을 받지 않습니다/);
-  assert.match(detail, /기획 예시/);
-});
-
-test("플랜 자세히 보기 창 맨 아래 줄이 실제 결제가 아니라고 말한다", () => {
-  const footnote = read("website/src/data/pricing.ts").match(/planFootnote: "([^"]+)"/);
-  assert.ok(footnote, "PRICING.planFootnote 를 찾지 못했다");
-  assert.match(footnote[1], /예시/);
-  assert.match(footnote[1], /실제 결제나 구독으로 이어지지 않습니다/);
-  assert.match(
-    read("website/src/sections/pricing/PlanDetailModal.tsx"),
-    /pricing-detail__actions">\s*<p className="pricing-detail__footnote">\{PRICING\.planFootnote\}/,
-  );
+test("안내 문장이 기획 예시 · 결제 없음 · 바뀔 수 있음을 말한다", () => {
+  const notice = read("website/src/data/pricing.ts").match(/exampleNotice:\s*"([^"]+)"/);
+  assert.ok(notice, "PRICING.exampleNotice 를 찾지 못했다");
+  assert.match(notice[1], /기획 예시안/);
+  assert.match(notice[1], /실제 결제는 이루어지지 않/);
+  assert.match(notice[1], /추후 변경될 수 있습니다/);
 });
 
 test("약관도 요금 화면을 같은 말(0원 · 기획 예시)로 적는다", () => {
@@ -39,15 +27,14 @@ test("약관도 요금 화면을 같은 말(0원 · 기획 예시)로 적는다"
   assert.match(terms, /가격·혜택은 서비스 기획 예시/);
 });
 
-test("데스크톱 세 덩이 머리 · 구독 창 · 두 자세히 보기 창 · 휴대폰에 안내가 붙는다", () => {
+test("안내는 「구독하기」 창과 휴대폰 구독 맨 위, 한 곳씩에만 있다", () => {
   const plans = read("website/src/sections/pricing/PricingPlans.tsx");
-  assert.equal(count(plans, /aside=\{<TrialNotice /g), 2, "요금표 · 결제 정보 머리");
-  assert.equal(count(plans, /<TrialNotice \/>/g), 1, "구독하기 창");
-  assert.equal(count(read("website/src/sections/pricing/BenefitsBlock.tsx"), /aside=\{<TrialNotice /g), 1, "혜택 머리");
-  for (const modal of ["PlanDetailModal", "PaymentDetailModal"]) {
-    assert.equal(count(read(`website/src/sections/pricing/${modal}.tsx`), /<TrialNotice \/>/g), 1, modal);
+  assert.equal(count(plans, /PRICING\.exampleNotice/g), 1, "구독하기 창");
+  assert.match(plans, /description=\{PRICING\.exampleNotice\}/, "구독하기 창 제목 바로 아래");
+  assert.equal(count(read("website/src/mobile/MobilePages.tsx"), /PRICING\.exampleNotice/g), 1, "휴대폰 맨 위");
+  for (const file of ["BenefitsBlock", "PlanDetailModal", "PaymentDetailModal", "BlockHeader"]) {
+    assert.doesNotMatch(read(`website/src/sections/pricing/${file}.tsx`), /exampleNotice|TrialNotice/, file);
   }
-  assert.equal(count(read("website/src/mobile/MobilePages.tsx"), /<TrialNotice /g), 2, "휴대폰 맨 위 · 혜택");
 });
 
 test("환불 상자의 청약철회 환급 기한이 약관 제8조 ④(3영업일)와 같다", () => {

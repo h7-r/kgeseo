@@ -115,7 +115,7 @@ function buildIndex(): IndexEntry[] {
   );
 
   entries.push(
-    entry("구독 · 시험운영 안내", "구독", ROUTES.pricing, PRICING.trialNotice),
+    entry("구독 · 기획 예시 안내", "구독", ROUTES.pricing, PRICING.exampleNotice),
     entry("구독 · 플랜 비교", "구독", ROUTES.pricing, PRICING.plans),
     entry("구독 · 결제 정보", "구독", ROUTES.pricing, PRICING.paymentBoxes),
     entry("구독 · 혜택 안내", "구독", ROUTES.pricing, [

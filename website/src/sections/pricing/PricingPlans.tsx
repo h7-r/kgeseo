@@ -1,6 +1,5 @@
 import { useState, type CSSProperties } from "react";
 
-import ComingSoonChip from "@/components/ComingSoonChip";
 import HeartbeatLine from "@/components/HeartbeatLine";
 import Modal from "@/components/Modal";
 import { modalSecondaryStyle } from "@/components/modalButtonStyles";
@@ -13,8 +12,7 @@ import BenefitsBlock from "./BenefitsBlock";
 import BlockHeader from "./BlockHeader";
 import PaymentBox from "./PaymentBox";
 import PlanDetailModal from "./PlanDetailModal";
-import { desktopNoticeStyle, pricingSectionStyle } from "./pricingStyles";
-import TrialNotice from "./TrialNotice";
+import { pricingSectionStyle } from "./pricingStyles";
 
 const PLAN_BACKGROUNDS: Readonly<Record<PlanName, string>> = {
   BASIC: "linear-gradient(180deg, #070f2a 0%, #01040a 100%)",
@@ -83,7 +81,6 @@ export default function PricingPlans({ top }: PricingPlansProps) {
           eyebrow="Plans"
           title="구독 플랜 비교"
           description="플랜별 혜택을 한눈에 비교하고 나에게 맞는 플랜을 고르세요."
-          aside={<TrialNotice style={desktopNoticeStyle} />}
         />
 
         <div style={{ position: "relative", width: "1587px", height: "640px" }}>
@@ -221,7 +218,6 @@ export default function PricingPlans({ top }: PricingPlansProps) {
           eyebrow="Payment"
           title="결제 정보"
           description="정식 오픈을 가정한 결제 수단과 자동 결제 · 환불 기준 예시입니다."
-          aside={<TrialNotice style={desktopNoticeStyle} />}
         />
         <div style={{ display: "flex", gap: "24px", width: "100%" }}>
           {PRICING.paymentBoxes.map((box) => (
@@ -245,11 +241,10 @@ export default function PricingPlans({ top }: PricingPlansProps) {
         open={isSubscribeOpen}
         onClose={closeModal}
         title={`${selectedPlan?.name ?? ""} 플랜 구독`}
-        description="이메일 오픈 알림도 준비 중이라 지금은 신청을 받지 않습니다. 결제가 열리면 고객센터 공지로 먼저 알려 드립니다."
+        description={PRICING.exampleNotice}
       >
         {selectedPlan && (
           <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
-            <TrialNotice />
             <div style={modalPlanStyle}>
               <span style={{ fontFamily: FONT.mono, fontSize: "15px", color: COLOR.textMuted }}>
                 {selectedPlan.summary}
@@ -259,7 +254,6 @@ export default function PricingPlans({ top }: PricingPlansProps) {
               </span>
             </div>
             <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", alignItems: "center" }}>
-              <ComingSoonChip label="오픈 알림 준비 중" style={{ fontSize: "14px" }} />
               <button type="button" className="button" style={modalSecondaryStyle} onClick={closeModal}>
                 <span className="button__label">닫기</span>
               </button>

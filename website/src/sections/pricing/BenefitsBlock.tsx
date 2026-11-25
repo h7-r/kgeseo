@@ -10,8 +10,7 @@ import { sectionAnchor } from "@/navigation/subMenus";
 import { COLOR, GRADIENT } from "@/styles/tokens";
 
 import BlockHeader from "./BlockHeader";
-import { bulletStyle, desktopNoticeStyle, pricingSectionStyle } from "./pricingStyles";
-import TrialNotice from "./TrialNotice";
+import { bulletStyle, pricingSectionStyle } from "./pricingStyles";
 
 // 작은 그림이 끝나는 x(849)와 글이 시작하는 x(1184)의 한가운데. 혜택 칸 안쪽 기준이다.
 const ARC_CENTER_X = Math.round((849 + 1184) / 2);
@@ -25,7 +24,6 @@ export default function BenefitsBlock() {
         eyebrow="Benefits"
         title="혜택 안내"
         description="정식 오픈을 가정한 구독 혜택과 시즌 드롭 계획입니다."
-        aside={<TrialNotice style={desktopNoticeStyle} />}
       />
       <div style={benefitsRowStyle}>
         <div style={{ width: "520px", height: "356px", borderRadius: "16px", overflow: "hidden", flexShrink: 0 }}>

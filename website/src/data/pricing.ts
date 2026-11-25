@@ -29,16 +29,12 @@ interface BenefitPoint {
   note: string;
 }
 
-/** 시험운영 안내. 약관 제12조 ⑦ · 법적 고지 제15조 ③ 과 같은 말이어야 한다. */
-interface TrialNotice {
-  label: string;
-  detail: string;
-}
-
 interface Pricing {
-  trialNotice: TrialNotice;
-  /** 플랜 자세히 보기 창 맨 아래 줄. 내용을 끝까지 읽은 뒤에도 「실제 결제가 아니다」가 남게 한다. */
-  planFootnote: string;
+  /**
+   * 「구독하기」 창 맨 위 한 줄(휴대폰은 구독 화면 맨 위). 이 안내는 이 한 곳에만 둔다.
+   * 약관 제12조 ⑦ · 법적 고지 제15조 ③ 의 「기획 예시」와 같은 말이어야 한다.
+   */
+  exampleNotice: string;
   plans: readonly PricingPlan[];
   paymentBoxes: readonly PaymentBoxContent[];
   benefitsTitle: string;
@@ -51,14 +47,11 @@ interface Pricing {
 
 /**
  * 구독 요금제. 플랜 3장 · 결제 정보 3상자 · 혜택 안내.
- * 시험운영 중에는 결제가 없다 — 아래 요금 · 결제 · 환불 문구는 정식 오픈 기획안이고, trialNotice 가 그 사실을 화면마다 알린다.
+ * 시험운영 중에는 결제가 없다 — 아래 요금 · 결제 · 환불 문구는 정식 오픈 기획안이고, exampleNotice 가 「구독하기」 창에서 그 사실을 알린다.
  */
 export const PRICING: Pricing = {
-  trialNotice: {
-    label: "시험운영 · 이용료 0원",
-    detail: "지금은 결제·구독을 받지 않습니다. 요금과 혜택, 결제·환불 기준은 정식 오픈을 가정한 기획 예시입니다.",
-  },
-  planFootnote: "이 요금제는 정식 서비스를 가정해 구성한 예시로, 실제 결제나 구독으로 이어지지 않습니다.",
+  exampleNotice:
+    "이 구독 서비스는 현재 기획 예시안입니다. 실제 결제는 이루어지지 않으며, 요금과 혜택은 추후 변경될 수 있습니다.",
   plans: [
     {
       name: "BASIC",
