@@ -21,6 +21,17 @@ test("안내 글이 0원 · 결제 없음 · 기획 예시를 모두 말한다",
   assert.match(detail, /기획 예시/);
 });
 
+test("플랜 자세히 보기 창 맨 아래 줄이 실제 결제가 아니라고 말한다", () => {
+  const footnote = read("website/src/data/pricing.ts").match(/planFootnote: "([^"]+)"/);
+  assert.ok(footnote, "PRICING.planFootnote 를 찾지 못했다");
+  assert.match(footnote[1], /예시/);
+  assert.match(footnote[1], /실제 결제나 구독으로 이어지지 않습니다/);
+  assert.match(
+    read("website/src/sections/pricing/PlanDetailModal.tsx"),
+    /pricing-detail__actions">\s*<p className="pricing-detail__footnote">\{PRICING\.planFootnote\}/,
+  );
+});
+
 test("약관도 요금 화면을 같은 말(0원 · 기획 예시)로 적는다", () => {
   const terms = read("website/src/data/terms.ts");
   assert.match(terms, /이용료는 \*\*0원\*\*/);

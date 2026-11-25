@@ -37,6 +37,8 @@ interface TrialNotice {
 
 interface Pricing {
   trialNotice: TrialNotice;
+  /** 플랜 자세히 보기 창 맨 아래 줄. 내용을 끝까지 읽은 뒤에도 「실제 결제가 아니다」가 남게 한다. */
+  planFootnote: string;
   plans: readonly PricingPlan[];
   paymentBoxes: readonly PaymentBoxContent[];
   benefitsTitle: string;
@@ -56,6 +58,7 @@ export const PRICING: Pricing = {
     label: "시험운영 · 이용료 0원",
     detail: "지금은 결제·구독을 받지 않습니다. 요금과 혜택, 결제·환불 기준은 정식 오픈을 가정한 기획 예시입니다.",
   },
+  planFootnote: "이 요금제는 정식 서비스를 가정해 구성한 예시로, 실제 결제나 구독으로 이어지지 않습니다.",
   plans: [
     {
       name: "BASIC",

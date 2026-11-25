@@ -1,6 +1,6 @@
 import Modal from "@/components/Modal";
 import { modalPrimaryStyle } from "@/components/modalButtonStyles";
-import type { PricingPlan } from "@/data/pricing";
+import { PRICING, type PricingPlan } from "@/data/pricing";
 import { PLAN_DETAILS } from "@/data/pricingDetails";
 
 import DetailBlockView from "./DetailBlockView";
@@ -37,6 +37,7 @@ export default function PlanDetailModal({ plan, open, onClose, onSubscribe }: Pl
       </div>
 
       <div className="pricing-detail__actions">
+        <p className="pricing-detail__footnote">{PRICING.planFootnote}</p>
         <button type="button" className="button button--primary" style={modalPrimaryStyle} onClick={onSubscribe}>
           <span className="button__label">구독하기</span>
         </button>
