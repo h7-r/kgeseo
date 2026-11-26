@@ -139,6 +139,63 @@ def test_investigator_name_keeps_single_spaces_between_words(lobby):
 
 
 @pytest.mark.parametrize(
+    ("display_name", "expected"),
+    [
+        # 언더바 허용(11/26 프론트 합의) — 계정 닉네임으로 바뀌지 않고 조사관명 그대로 실린다
+        ("조사_관", "조사_관"),
+        ("Agent_007", "Agent_007"),
+        ("_a", "_a"),  # 앞 언더바
+        ("a_", "a_"),  # 뒤 언더바
+        ("조사__관", "조사__관"),  # 연속 언더바
+        ("김 _철수", "김 _철수"),  # 공백 뒤 언더바
+        ("김_ 철수", "김_ 철수"),  # 언더바 뒤 공백
+        ("김 철_수", "김 철_수"),
+        ("김  철_수", "김 철_수"),  # 연속 공백은 한 칸으로 — 언더바가 있어도 같다
+        ("Agent_007_ab", "Agent_007_ab"),  # 12자(상한) · 언더바 포함
+        # 기존 정상 이름 · 길이 경계는 그대로
+        ("한서진", "한서진"),
+        ("Hanna", "Hanna"),
+        ("김 철수", "김 철수"),
+        ("가나", "가나"),  # 2자(하한)
+        ("가" * 12, "가" * 12),  # 12자(상한)
+    ],
+)
+def test_ticket_carries_public_investigator_name(lobby, display_name, expected):
+    lobby.db.get_result = SimpleNamespace(display_name=display_name)
+    response = _post(lobby.client)
+    assert response.status_code == 200
+    assert _nickname(response) == expected
+
+
+@pytest.mark.parametrize(
+    "display_name",
+    [
+        # 언더바만으로 된 이름 — 언더바가 아닌 허용 문자가 한 글자도 없다(공백을 섞어도 같다)
+        "__",
+        "_ _",
+        "__ ___",
+        *("_" * n for n in range(3, 13)),  # 언더바만 3~12자(2자는 위 "__")
+        # 언더바로 끊어 쓴 예약어 · 금칙어 — 공용 목록 판정이 `_` 를 떼고 보므로 우회되지 않는다
+        "관_리_자",
+        "ad_min",
+        "f_u_c_k",
+        # 언더바를 허용해도 다른 특수문자 · 길이 · 제어 문자 제한은 그대로
+        "조사_관!",
+        "조사-관",
+        "조사.관",
+        "Agent@007",
+        "가_" + "가" * 11,  # 13자
+        "조사_\t관",
+    ],
+)
+def test_underscore_does_not_open_other_names(lobby, display_name):
+    lobby.db.get_result = SimpleNamespace(display_name=display_name)
+    response = _post(lobby.client)
+    assert response.status_code == 200
+    assert _nickname(response) == "조사관"
+
+
+@pytest.mark.parametrize(
     "display_name",
     [
         "   ",  # 공백뿐
