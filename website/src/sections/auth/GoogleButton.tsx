@@ -9,6 +9,9 @@ const BUTTON_SIZE = "44px";
 // 구글이 이 주소를 거절하면 단추가 크기 0 으로 숨는다. 이만큼 기다려도 안 보이면 대체 단추를 둔다.
 const BUTTON_APPEAR_TIMEOUT_MS = 8000;
 const BUTTON_CHECK_INTERVAL_MS = 500;
+// 홈 맨 아래 빠른 가입에도 이 단추가 있다. 화면에 이만큼 가까워져야 구글 스크립트를 받는다 —
+// 홈만 보고 가는 사람까지 구글에 접속시키지 않고, 첫 화면 받기 · 해석도 나눠 쓰지 않게.
+const NEAR_VIEW_MARGIN = "800px 0px";
 
 /** 단추가 안 그려진 까닭은 운영자 몫이다. 사용자에게는 「준비 중」만 보이고, 콘솔 등록 안내는 개발 서버에서만 남긴다. */
 function warnButtonHidden() {
@@ -36,41 +39,52 @@ export default function GoogleButton({ onBusyChange, onResult, onError }: Google
     const slot = slotRef.current;
     if (!slot) return;
     let appearCheck: ReturnType<typeof setInterval> | undefined;
-    mountGoogleButton(slot, {
-      onBusyChange: (busy) => {
-        setIsBusy(busy);
-        handlersRef.current.onBusyChange(busy);
-      },
-      onResult: (result) => handlersRef.current.onResult(result),
-      onError: (message) => handlersRef.current.onError(message),
-    })
-      .then((finish) => {
-        if (isGone) {
-          finish();
-          return;
-        }
-        unmount = finish;
-        // 스크립트를 받느라 걸린 시간은 빼고 단추를 그린 뒤부터 잰다. 늦게라도 나타나면 안내를 거둔다.
-        const startedAt = Date.now();
-        let hasWarned = false;
-        appearCheck = setInterval(() => {
-          const isVisible = Boolean(slot.querySelector("iframe")?.getBoundingClientRect().width);
-          if (isVisible) {
-            clearInterval(appearCheck);
-            setIsButtonHidden(false);
-          } else if (Date.now() - startedAt > BUTTON_APPEAR_TIMEOUT_MS) {
-            if (!hasWarned) warnButtonHidden();
-            hasWarned = true;
-            setIsButtonHidden(true);
-          }
-        }, BUTTON_CHECK_INTERVAL_MS);
+    const mount = () =>
+      mountGoogleButton(slot, {
+        onBusyChange: (busy) => {
+          setIsBusy(busy);
+          handlersRef.current.onBusyChange(busy);
+        },
+        onResult: (result) => handlersRef.current.onResult(result),
+        onError: (message) => handlersRef.current.onError(message),
       })
-      .catch((error: unknown) => {
-        if (!isGone)
-          setUnavailableReason((error instanceof Error && error.message) || "Google 로그인을 쓸 수 없습니다.");
-      });
+        .then((finish) => {
+          if (isGone) {
+            finish();
+            return;
+          }
+          unmount = finish;
+          // 스크립트를 받느라 걸린 시간은 빼고 단추를 그린 뒤부터 잰다. 늦게라도 나타나면 안내를 거둔다.
+          const startedAt = Date.now();
+          let hasWarned = false;
+          appearCheck = setInterval(() => {
+            const isVisible = Boolean(slot.querySelector("iframe")?.getBoundingClientRect().width);
+            if (isVisible) {
+              clearInterval(appearCheck);
+              setIsButtonHidden(false);
+            } else if (Date.now() - startedAt > BUTTON_APPEAR_TIMEOUT_MS) {
+              if (!hasWarned) warnButtonHidden();
+              hasWarned = true;
+              setIsButtonHidden(true);
+            }
+          }, BUTTON_CHECK_INTERVAL_MS);
+        })
+        .catch((error: unknown) => {
+          if (!isGone)
+            setUnavailableReason((error instanceof Error && error.message) || "Google 로그인을 쓸 수 없습니다.");
+        });
+    const nearView = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        nearView.disconnect();
+        mount();
+      },
+      { rootMargin: NEAR_VIEW_MARGIN },
+    );
+    nearView.observe(slot);
     return () => {
       isGone = true;
+      nearView.disconnect();
       clearInterval(appearCheck);
       unmount?.();
     };
