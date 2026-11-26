@@ -4,7 +4,6 @@ import type { PricingPlan } from "@/data/pricing";
 import { PLAN_DETAILS } from "@/data/pricingDetails";
 
 import DetailBlockView from "./DetailBlockView";
-import TrialNotice from "./TrialNotice";
 
 interface PlanDetailModalProps {
   plan: PricingPlan;
@@ -23,7 +22,6 @@ export default function PlanDetailModal({ plan, open, onClose, onSubscribe }: Pl
     <Modal open={open} onClose={onClose} title={plan.name} description={plan.summary} className="modal--detail">
       {/* 내용만 모달 안에서 넘긴다. 제목과 「구독하기」는 늘 보인다. */}
       <div className="pricing-detail" tabIndex={0} role="region" aria-label={`${plan.name} 플랜 내용`}>
-        <TrialNotice />
         <div className="pricing-detail__price">
           <span>
             <span className="pricing-detail__amount">{plan.price}</span>

@@ -24,7 +24,6 @@ import { fetchNotices, formatNoticeDate, noticeCategoryLabel, type PublicNotice 
 import { FONT } from "@/lib/style";
 import { QUERY, ROUTES, START_GAME, useSiteNavigate } from "@/navigation/routes";
 import CreditsCard from "@/sections/credits/CreditsCard";
-import TrialNotice from "@/sections/pricing/TrialNotice";
 import TermsTabs from "@/sections/terms/TermsTabs";
 import { signOut, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
@@ -212,7 +211,8 @@ export function MobilePricingPage() {
   return (
     <Shell>
       <PageHeading eyebrow="Subscribe" title="구독" />
-      <TrialNotice style={{ marginTop: 16, padding: "10px 14px" }} />
+      {/* 휴대폰은 「구독하기」 창이 없어 같은 안내를 맨 위 한 곳에 둔다. */}
+      <p style={{ ...bodyTextStyle, marginTop: 12, color: COLOR.textDim }}>{PRICING.exampleNotice}</p>
       <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
         {PRICING.plans.map((plan) => (
           <article key={plan.name} style={cardStyle}>
@@ -252,7 +252,6 @@ export function MobilePricingPage() {
         ))}
       </div>
       <h2 style={subheadingStyle}>{PRICING.benefitsTitle}</h2>
-      <TrialNotice style={{ marginTop: 10, padding: "10px 14px" }} />
       <p style={bodyTextStyle}>{PRICING.benefitsIntro}</p>
       <ul style={plainListStyle}>
         {PRICING.benefitPoints.map((point) => (

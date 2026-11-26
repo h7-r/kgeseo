@@ -3,7 +3,6 @@ import type { PaymentTopic } from "@/data/pricing";
 import { PAYMENT_DETAILS } from "@/data/pricingDetails";
 
 import DetailBlockView from "./DetailBlockView";
-import TrialNotice from "./TrialNotice";
 
 interface PaymentDetailModalProps {
   topic: PaymentTopic;
@@ -20,7 +19,6 @@ export default function PaymentDetailModal({ topic, title, open, onClose }: Paym
     <Modal open={open} onClose={onClose} title={title} description={lead} className="modal--detail">
       {/* 내용만 모달 안에서 넘긴다. */}
       <div className="pricing-detail" tabIndex={0} role="region" aria-label={`${title} 내용`}>
-        <TrialNotice />
         {blocks.map((block) => (
           <DetailBlockView key={block.heading} block={block} />
         ))}
