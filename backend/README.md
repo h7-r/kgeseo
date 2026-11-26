@@ -57,6 +57,8 @@ cp .env.example .env                       # DB 비밀번호 · 구글/네이버
 .venv/bin/uvicorn app.main:app --port 8000
 ```
 
+새 DB 는 아래 [3. MySQL 최초 준비](#3-mysql-최초-준비) 대로 `utf8mb4_0900_ai_ci` 로 만들고, `upgrade` 가 1419 로 멈추면 같은 절의 트리거 생성 조건을 본다.
+
 테스트 계정 시드는 이 PC 의 MySQL(127.0.0.1 · localhost · ::1)이고 DB 이름이 개발·테스트용(`test_*` · `*_test` · `*_dev` · `*_local`)일 때만 쓴다.
 `waegok` 처럼 운영과 겹칠 수 있는 이름은 거부하므로 시드할 DB 는 `waegok_dev` 같은 이름으로 만든다. 조건은 `scripts/seed_test_account.py` 맨 위에 있다.
 
@@ -211,11 +213,12 @@ DB_NAME=waegok
 Alembic은 database와 MySQL user 자체를 생성하지 않습니다. 새 PC에서는 MySQL 관리자 계정으로 최초 한 번 database와 애플리케이션 계정을 만들고, 해당 database에 필요한 권한을 부여해야 합니다.
 
 다음 SQL은 로컬 개발용 예시이며 실제 비밀번호 대신 placeholder를 사용합니다.
+**새로 만드는 빈 개발 DB**는 MySQL 8 기본 collation인 `utf8mb4_0900_ai_ci`로 만듭니다.
 
 ```sql
 CREATE DATABASE waegok
   CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
+  COLLATE utf8mb4_0900_ai_ci;
 
 CREATE USER 'waegok_app'@'localhost'
   IDENTIFIED BY '<LOCAL_PASSWORD>';
@@ -225,6 +228,54 @@ FLUSH PRIVILEGES;
 ```
 
 MySQL 계정의 host 부분과 database 이름은 실제 실행 환경에 맞게 설정합니다.
+테스트 계정을 시드하려면 DB 이름을 `waegok_dev`처럼 개발용 이름으로 만듭니다([웹사이트 로그인까지 띄우기](#웹사이트-로그인까지-띄우기) 참고).
+
+#### collation을 `utf8mb4_0900_ai_ci`로 맞추는 이유
+
+예전 예시처럼 `utf8mb4_unicode_ci` DB에서 `alembic upgrade head`를 실행하면 `e4c1f7a2b9d6`(NPC 턴 멱등 저장소)에서 멈춥니다.
+
+```text
+(3780, "Referencing column 'play_session_id' and referenced column 'id' in foreign key constraint 'npc_turn_requests_ibfk_1' are incompatible.")
+```
+
+- 초기 migration의 `play_sessions` 등은 테이블 문자 집합을 지정하지 않아 **DB 기본 collation**(`utf8mb4_unicode_ci`)을 따릅니다.
+- 뒤의 migration(`npc_turn_requests` 등)은 `mysql_charset="utf8mb4"`만 지정하므로 MySQL 8의 utf8mb4 기본 collation인 **`utf8mb4_0900_ai_ci`**로 만들어집니다.
+- FK로 이어지는 `CHAR(36)` 두 열의 collation이 달라 MySQL이 FK를 거부합니다.
+- DB를 `utf8mb4_0900_ai_ci`로 만들면 두 쪽이 같아져 전체 migration이 끝까지 적용됩니다(아래 검증 기록).
+
+주의:
+
+- 이 안내는 **새로 만드는 빈 DB**에만 적용합니다. 운영 DB나 데이터가 있는 기존 DB의 collation을 `ALTER DATABASE` · `ALTER TABLE ... CONVERT TO`로 일괄 변경하지 마세요. 기존 DB가 이 오류로 멈췄다면 담당자와 먼저 상의합니다.
+- 이 오류로 멈춘 **새 빈 개발 DB**는 일부 테이블과 `alembic_version`이 남은 상태입니다. 데이터가 없는 것을 확인한 뒤 DB를 지우고 `utf8mb4_0900_ai_ci`로 다시 만든 다음 처음부터 적용합니다.
+- MySQL 서버 설정(`default_collation_for_utf8mb4`)을 바꾼 환경은 위 기본값과 다를 수 있습니다. `SELECT @@character_set_server, @@collation_server;`와 `SHOW CREATE DATABASE <DB 이름>;`로 확인합니다.
+
+#### binary logging이 켜진 MySQL의 트리거 생성 조건
+
+migration `d2a6f8b1c903`은 NPC 승인 이력 수정 · 삭제를 막는 트리거 2개를 만듭니다. MySQL 8은 binary logging이 기본으로 켜져 있어, migration 실행 계정에 `SUPER`가 없으면 다음 오류로 멈춥니다.
+
+```text
+(1419, 'You do not have the SUPER privilege and binary logging is enabled (you *might* want to use the less safe log_bin_trust_function_creators variable)')
+```
+
+로컬 개발 DB에서는 **로컬 관리자 계정**으로 아래처럼 필요한 동안만 `log_bin_trust_function_creators`를 켭니다.
+
+```sql
+-- 1) 지금 값을 확인하고 기록해 둔다 (log_bin = 1 이고 trust 값이 0 일 때만 아래 2) 가 필요)
+SELECT @@global.log_bin, @@global.log_bin_trust_function_creators;
+
+-- 2) migration(또는 트리거를 만드는 MySQL 테스트) 실행 직전에만
+SET GLOBAL log_bin_trust_function_creators = 1;
+
+-- 3) 실행이 성공하든 실패하든 끝나면 바로 1) 에서 기록한 값으로 되돌린다
+SET GLOBAL log_bin_trust_function_creators = 0;
+```
+
+- `SET PERSIST`나 `my.ini`(`my.cnf`)에 적어 상시 켜 두지 않습니다. `SET GLOBAL`은 MySQL을 다시 시작하면 원래 설정으로 돌아갑니다.
+- 앱 계정(`waegok_app` 등)과 테스트 계정에는 `SUPER`를 주지 않습니다.
+- `root` 등 관리자 계정은 DB · 계정 생성, 권한 부여, 위 설정 변경에만 씁니다. 관리자 계정으로 앱(`uvicorn`), `alembic`, `pytest`를 실행하거나 `.env`에 관리자 계정을 넣지 마세요.
+- migration 실행 계정에는 대상 schema의 `TRIGGER` 권한도 필요합니다. 위 예시의 `ALL PRIVILEGES`에는 포함됩니다. 없으면 `1142 TRIGGER command denied`로 멈춥니다. 앱 계정 하나로 migration까지 돌리는 것은 로컬 개발용 단순화입니다. 운영에서는 앱 실행 계정에 `TRIGGER` · `DROP`을 주지 않습니다(`docs/npc_approval_persistence.md`).
+- 이 오류로 멈추면 이력 테이블만 만들어지고 revision은 오르지 않은 부분 상태가 남습니다. 복구 절차와 운영 권한 표는 [`docs/npc_approval_persistence.md`](docs/npc_approval_persistence.md) 「운영 적용 전 권한 확인」을 따릅니다. `alembic stamp`로 version만 올리지 않습니다.
+- **운영 RDS 설정(DB 파라미터 그룹)은 운영 담당자 영역입니다.** 이 README의 로컬 절차로 운영 DB 설정을 바꾸지 않습니다.
 
 ### 4. Migration 적용
 
@@ -236,7 +287,19 @@ MySQL 계정의 host 부분과 database 이름은 실제 실행 환경에 맞게
 
 기존 DB에는 migration 이력이 현재 코드와 일치하는지 먼저 확인해야 합니다. 확인 없이 `upgrade`, `stamp`, `downgrade`를 실행하지 마세요.
 
-현재 로컬 검증 시 기존 `waegok` DB의 `alembic_version`은 `f59fc2b266d8`이었고 현재 코드의 migration head는 `d7481874fb1c`였습니다. 두 값이 일치하지 않아 해당 기존 DB에는 `upgrade head`를 실행하지 않았습니다. 이는 한 로컬 DB에서 확인한 결과이며 팀 공용 DB 상태를 의미하지 않습니다.
+```powershell
+.\.venv\Scripts\python.exe -m alembic heads     # 코드의 head (2026-11-26 main 기준 하나: 93fb40166c08)
+.\.venv\Scripts\python.exe -m alembic current   # DB 가 기록한 revision
+.\.venv\Scripts\python.exe -m alembic check     # 적용 뒤 모델과 DB 차이 확인
+```
+
+`heads`가 두 개 이상 나오는 시점에는 `upgrade heads`를 씁니다.
+
+2026-11-24 검증 기록(Windows, MySQL 8.0.46, binary logging 켜짐, 새 빈 개발 DB):
+
+- `utf8mb4_unicode_ci` DB: `e4c1f7a2b9d6`에서 3780으로 멈춤
+- `utf8mb4_0900_ai_ci`로 다시 만든 DB: `d2a6f8b1c903`에서 1419로 멈춤(트리거)
+- 데이터가 없음을 확인하고 빈 DB를 다시 만든 뒤 `log_bin_trust_function_creators = 1`로 처음부터 재실행: migration 27개 적용, `current` = `heads` = `93fb40166c08`. 실행 뒤 값은 0으로 되돌림
 
 ### 5. 서버 실행
 
@@ -261,7 +324,7 @@ Windows에서는 기존 검증 스크립트로 세 명령을 순서대로 실행
 powershell -ExecutionPolicy Bypass -File .\scripts\check.ps1
 ```
 
-현재 환경에서 확인한 검증 기록은 다음과 같습니다. 테스트 파일이 변경되면 테스트 수와 파일 수는 달라질 수 있습니다.
+초기 구성 당시 확인한 검증 기록은 다음과 같습니다. 이후 테스트가 크게 늘어 지금의 테스트 수와 파일 수는 이 기록과 다릅니다.
 
 ```text
 Python 3.13.14
@@ -272,6 +335,32 @@ pip check 성공
 Ruff check: All checks passed
 Ruff format check: 64 files already formatted
 ```
+
+#### MySQL 의존 테스트
+
+`pytest`만 실행하면 MySQL 의존 테스트는 켜는 변수(`*_ISOLATED=1`)가 없어 **skip**됩니다. 실행하려면 각 하네스의 격리 조건을 모두 갖춰야 합니다. 변수를 켰는데 URL · 포트 · DB 이름이 조건에 맞지 않으면, 테스트는 DB에 접속하기 전에 실패합니다.
+
+| 하네스 | 켜는 변수 | 전용 DB 이름 접두사 | 자세한 조건 |
+|---|---|---|---|
+| 관리자 API 등 | `ADMIN_API_MYSQL_ISOLATED=1`, `ADMIN_API_MYSQL_URL`, `ADMIN_API_MYSQL_DATADIR` | `test_admin_api_` | `tests/test_admin_api_mysql.py` 맨 위 |
+| NPC 턴 · 공개 · 힌트 등 | `NPC_IDEMPOTENCY_MYSQL_ISOLATED=1`, `NPC_IDEMPOTENCY_MYSQL_URL`, `NPC_IDEMPOTENCY_MYSQL_DATADIR` | `test_npc_idem_` | [`docs/npc_turn_idempotency_store.md`](docs/npc_turn_idempotency_store.md) |
+| NPC 승인 이력 | `APPROVAL_MYSQL_ISOLATED=1`, `APPROVAL_MYSQL_URL`, `APPROVAL_MYSQL_DATADIR` | `test_npc_approval_` | [`docs/npc_approval_persistence.md`](docs/npc_approval_persistence.md) |
+| 베타 이벤트 | `BETA_EVENTS_MYSQL_ISOLATED=1`, `BETA_EVENTS_MYSQL_URL`, `BETA_EVENTS_MYSQL_DATADIR` | `test_beta_events_` | `tests/test_beta_events_mysql.py` 맨 위 |
+
+공통 조건:
+
+- URL은 `mysql+aiomysql`, `localhost` 또는 `127.0.0.1`, **3306이 아닌 명시 포트**입니다. `DATADIR`는 그 테스트 인스턴스의 실제 데이터 디렉터리로, 접속 후 `@@datadir`와 비교합니다.
+- 전용 schema는 비어 있어야 합니다. 테스트가 migration을 직접 적용하고 끝나면 정리합니다. NPC 승인 이력 하네스는 승인 이력 revision(`d2a6f8b1c903`, `b3f7c2e9a4d1`)만 적용하고, 나머지 하네스는 전체 체인을 적용합니다. 앱 `.env`의 DB(`waegok` 등)는 쓰지 않습니다.
+- migration에 트리거가 있으므로 테스트 인스턴스에도 위 [트리거 생성 조건](#binary-logging이-켜진-mysql의-트리거-생성-조건)이 똑같이 적용됩니다. 실행 동안만 켜고 끝나면 되돌립니다.
+- 테스트 계정은 전용 schema 권한만 가진 별도 계정을 씁니다. 관리자 계정을 URL에 넣지 않습니다.
+
+파일 이름만으로는 단위 테스트와 MySQL 의존 테스트를 완전히 나눌 수 없습니다.
+
+- `tests/test_case_publication_ng_integration.py`는 이름에 `_mysql`이 없지만 NPC 하네스(`NPC_IDEMPOTENCY_MYSQL_*`)를 씁니다.
+- `tests/test_publication_policy_client_skill_mysql.py`는 자체 변수 없이 `test_case_publication_cli_mysql.py`의 하네스를 가져다 씁니다.
+- `tests/test_social_onboarding_mysql.py`는 위 하네스와 달리 `ONBOARDING_MYSQL_TESTS=1`일 때만 돌고, **앱 `.env`의 DB**에 임시 테이블을 만들어 씁니다. 개발 전용 DB가 아니면 켜지 마세요.
+
+어떤 파일이 어떤 하네스를 쓰는지는 `git grep -nE "_MYSQL_ISOLATED|ONBOARDING_MYSQL_TESTS" -- tests`로 확인합니다.
 
 ## Health Check
 
@@ -322,7 +411,7 @@ app/content/cases/<case_id>.server.json
 
 ## DB
 
-현재 생성된 주요 테이블:
+초기 migration이 만드는 기본 테이블(이후 migration에서 회원 · 관리자 · NPC 등 테이블이 더해져, 2026-11-26 main 기준 전체 적용 시 `alembic_version` 포함 29개):
 
 ```text
 alembic_version
@@ -331,11 +420,7 @@ play_sessions
 interaction_events
 ```
 
-현재 Alembic head:
-
-```text
-d7481874fb1c
-```
+Alembic head는 코드가 바뀔 때마다 달라지므로 `alembic heads`로 확인합니다(2026-11-26 main 기준 `93fb40166c08`).
 
 `anonymous_sessions` 구조:
 
