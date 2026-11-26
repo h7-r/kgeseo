@@ -37,10 +37,14 @@ router = APIRouter(
 
 NO_STORE = {"Cache-Control": "no-store"}
 
-# 캐릭터 생성 화면 규칙과 같다(naju01/src/characterCreation/nameRules.ts DEFAULT_NAME_RULES):
-# 2~12자, 한글·영문·숫자, 낱말 사이 한 칸 공백. 저장 API(PUT /me/character)는 길이만 보므로 여기서 다시 본다.
+# 공개 조사관명 규칙: 2~12자, 한글(자모 포함)·영문·숫자·언더바(_), 낱말 사이 한 칸 공백.
+# 언더바만으로는 이름이 될 수 없다 — 언더바가 아닌 허용 문자가 한 글자 이상 있어야 한다(맨 앞 `(?=…)` 조건).
+# 프론트와 합의한 정규식(11/26)을 두 줄로 나눠 쓴 것이다 — 캐릭터 생성 화면 규칙(naju01/src/characterCreation/
+# nameRules.ts DEFAULT_NAME_RULES)도 같은 식으로 바꾸기로 했다. 저장 API(PUT /me/character)는 길이만 보므로 여기서 다시 본다.
+# 언더바로 끊어 쓴 예약어·금칙어(관_리_자 등)는 아래 공용 목록 판정이 `_` 를 떼고 보므로 그대로 걸러진다.
 INVESTIGATOR_NAME = re.compile(
-    r"[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+( [가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+)*"
+    r"(?=.*[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9])"
+    r"[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9_]+( [가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9_]+)*"
 )
 
 
