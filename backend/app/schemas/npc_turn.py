@@ -22,10 +22,28 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+# 상황 코드는 콘텐츠 팩(`situations[].code`)과 같은 목록 하나를 쓴다. 이 목록 밖의 코드는 422다.
+from app.schemas.npc_content import NpcSituationCode
+
 NpcTurnTrigger = Literal["player_message", "auto"]
 MAX_PLAYER_MESSAGE_LENGTH = 200
 # 멈춘 시간 상한(하루) — 그보다 크면 잘못 잰 값이다
 MAX_PAUSED_MS = 86_400_000
+
+
+class NpcSituation(BaseModel):
+    """auto 턴에 FE가 감지한 상황(계약 v0.4.16 §2). 말할지 · 무엇을 말할지는 BE가 정한다.
+
+    - `code`만 필수. `zone_id` · `value`는 선택이다.
+    - `zone_id`: 플레이어가 있는 Zone. 11/9 나주 대응표 전에는 형식을 묶지 않는다(§9-8).
+    - `value`: 수치가 있는 상황(남은 숨 초 · 누적 실수 · 머문 시간 등). 숫자만 받는다 — 문자열 · 불리언은 422.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    code: NpcSituationCode
+    zone_id: str | None = Field(default=None, min_length=1, max_length=64)
+    value: float | None = Field(default=None, strict=True, allow_inf_nan=False)
 
 
 class NpcTurnRequest(BaseModel):
@@ -40,6 +58,8 @@ class NpcTurnRequest(BaseModel):
     )
     # 플레이어가 보고 있는 Object(현재 구역). 서버가 퍼즐로 다시 찾는다(퍼즐 ID는 받지 않는다).
     focus_object_id: str | None = Field(default=None, min_length=1, max_length=64)
+    # 계약 v0.4.16 §2: trigger=auto 일 때만. 없으면 기존 퍼즐 자동 개입 그대로다.
+    situation: NpcSituation | None = None
     # auto 턴만. FE 가 마지막으로 보낸 플레이어 상호작용 뒤 게임이 멈춰 있던 시간(ms) — ESC 멈춤 메뉴 · 설정 · 소지품처럼
     # 게임 시계가 얼어 있던 시간. 무입력 판정(idle_too_long)의 경과 시간에서 뺀다(미르 11/11 「일시정지한 시간을 못 풀고 있는
     # 시간으로 세면 안 된다」). 클라 값이라 NPC 개입 시점에만 쓴다 — 경과 시간보다 크면 0 으로 깎인다. 없으면 빼지 않는다.
@@ -62,11 +82,16 @@ class NpcTurnRequest(BaseModel):
             raise ValueError("player_message requires message")
         if self.trigger == "auto" and self.message is not None:
             raise ValueError("auto turn must not carry a message")
+        if self.trigger != "auto" and self.situation is not None:
+            # 계약 v0.4.16 §2: player_message 턴에는 situation을 싣지 않는다.
+            raise ValueError("situation is only allowed on auto turns")
         if (
             self.trigger == "player_message"
             and self.paused_ms_since_interaction is not None
         ):
-            raise ValueError("player_message must not carry paused_ms_since_interaction")
+            raise ValueError(
+                "player_message must not carry paused_ms_since_interaction"
+            )
         return self
 
 
@@ -128,5 +153,10 @@ class NpcTurnEventRecord(BaseModel):
     # 자동 개입 제안을 응답했는가. 횟수 · 쿨다운은 표시 보고(npc_suggestion_shown)로만 센다(PM v0.4.7).
     auto_intervened: bool = False
     auto_intervene: NpcAutoInterveneRecord | None = None
+    # 계약 v0.4.16 §5: 요청의 상황 코드. 상황 대사로 답했으면 situation_replied(쿨다운 · 횟수는 이것으로 센다).
+    # situation_reason은 말하지 않은 이유(쿨다운 · 대사 없음 · 퍼즐 우선). 대사 원문은 남기지 않는다.
+    situation_code: NpcSituationCode | None = None
+    situation_replied: bool = False
+    situation_reason: str | None = None
     # NPC는 게임 상태를 바꾸지 않는다.
     state_changes: list[dict[str, object]] = Field(default_factory=list, max_length=0)

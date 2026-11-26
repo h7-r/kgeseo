@@ -9,6 +9,12 @@
    `status="published"`와 승인 기록이 있어도 승인으로 보지 않는다(기본 비공개).
 
 결과(이슈)에는 코드 · 위치 · ID만 담는다. 대사 · 정답 · 힌트 원문 · 조건 값은 담지 않는다.
+
+[상황 대사(계약 v0.4.16 §3 · §4)] 넛지와 같은 규칙이다 — 정답 · 힌트 원문 보호(PROTECTED_TEXT, 정답 예외 없음).
+넛지는 `reveal_when`으로 미공개 단서를 막지만 상황 대사에는 `reveal_when`이 없어 어느 상태에서나 나올 수 있다.
+그래서 일반 팩 GEN-LEAK과 같이 「아무것도 풀지 · 얻지 · 해금하지 않은 상태」로 기존 출력 검사
+(`check_generated_line`)의 미공개 단서 · 힌트 겹침(LEAK_CLUE · LEAK_HINT)을 본다(UNREVEALED_LEAK). 판정할 수 없으면
+(힌트 원본 오류) 막는다. NG · U는 게시 게이트의 NG 검사가 같은 판정기로 본다.
 """
 
 from collections.abc import Iterator, Mapping
@@ -17,10 +23,11 @@ from typing import Any, Literal
 
 from pydantic import ValidationError
 
-from app.schemas.npc_content import NpcContentPack, NpcNudgeContent
+from app.schemas.npc_content import NpcContentPack, NpcNudgeContent, NpcSituationLine
 from app.schemas.puzzle_runtime import PuzzleRuntimeDefinition
 from app.services.hint import HintSource
 from app.services.npc import NpcContentUnsafeError, _ensure_no_protected_text
+from app.services.npc_generation_policy import check_generated_line
 from app.services.npc_reveal import evaluate_reveal_when
 
 # 평가기가 빈 상태로 이 이유를 내면 문법은 맞다. 장면 · 엔딩 조건은 문법은 맞지만 게시할 수 없다.
@@ -35,8 +42,13 @@ NpcContentIssueCode = Literal[
     "UNDEFINED_HINT_LEVEL",
     "UNSUPPORTED_CONDITION",
     "PROTECTED_TEXT",
+    "UNREVEALED_LEAK",
     "APPROVAL_UNVERIFIED",
 ]
+
+# 상황 대사에 쓰는 기존 출력 검사 코드. NG · U 규칙은 넘기지 않으므로 그 미검증 표시(ng_rules · open_rules)는 뺀다.
+_UNREVEALED_CODES = frozenset({"LEAK_CLUE", "LEAK_HINT", "UNVERIFIED"})
+_RULES_NOT_PASSED = frozenset({"ng_rules", "open_rules"})
 
 
 @dataclass(frozen=True)
@@ -185,6 +197,20 @@ def validate_npc_content_links(
                 NpcContentIssue("PROTECTED_TEXT", f"{location}.text", str(error))
             )
 
+    # 계약 v0.4.16: 상황 대사는 넛지와 같이 정답 · 힌트 원문 보호(정답 예외 없음) + 미공개 단서 · 힌트 겹침.
+    for location, line in _located_situation_lines(pack):
+        try:
+            _ensure_no_protected_text(
+                line.text, runtime.case_id, runtime, hint_source, allowed_puzzle_id=None
+            )
+        except NpcContentUnsafeError as error:
+            issues.append(
+                NpcContentIssue("PROTECTED_TEXT", f"{location}.text", str(error))
+            )
+        issues.extend(
+            _unrevealed_leak_issues(line.text, f"{location}.text", runtime, hint_source)
+        )
+
     # PM v0.4.3: 내보내거나 model_context에 들어가는 문장도 정답 · 힌트 원문과 겹치면 막는다.
     # ng[]는 서버 검사 전용(공개되지 않음)이라 대상이 아니다.
     for location, text in _public_texts(pack):
@@ -220,6 +246,38 @@ def _located_nudges(pack: NpcContentPack) -> Iterator[tuple[str, NpcNudgeContent
     for entry_index, entry in enumerate(pack.puzzles):
         for index, nudge in enumerate(entry.nudges):
             yield f"$.puzzles.{entry_index}.nudges.{index}", nudge
+
+
+def _located_situation_lines(
+    pack: NpcContentPack,
+) -> Iterator[tuple[str, NpcSituationLine]]:
+    for entry_index, entry in enumerate(pack.situations or ()):
+        for index, line in enumerate(entry.lines):
+            yield f"$.situations.{entry_index}.lines.{index}", line
+
+
+def _unrevealed_leak_issues(
+    text: str,
+    location: str,
+    runtime: PuzzleRuntimeDefinition,
+    hint_source: HintSource,
+) -> list[NpcContentIssue]:
+    """어느 상태에서나 나올 수 있는 문장의 미공개 단서 · 힌트 겹침(빈 상태로 기존 출력 검사)."""
+
+    result = check_generated_line(
+        text,
+        case_id=runtime.case_id,
+        runtime=runtime,
+        state={},
+        hint_source=hint_source,
+        rules=None,
+    )
+    return [
+        # 근거는 단서 ID · 「퍼즐:단계」만 싣는다(원문 없음).
+        NpcContentIssue("UNREVEALED_LEAK", location, f"{item.code}:{item.rule_id}")
+        for item in result.violations
+        if item.code in _UNREVEALED_CODES and item.rule_id not in _RULES_NOT_PASSED
+    ]
 
 
 def _leaf_conditions(condition: Mapping[str, Any]) -> Iterator[tuple[str, Any]]:

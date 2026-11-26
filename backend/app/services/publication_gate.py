@@ -348,14 +348,17 @@ def evaluate_publication(
     leaks = _client_leaks(documents["client"], case_id, server_model, hint_source)
     add("LEAK_CLIENT", "FAIL" if leaks else "PASS", *leaks)
 
-    # 9. NG · U(PUB-NG): 판정 기준이 주입되지 않으면 미검증
+    # 9. NG · U(PUB-NG): 판정 기준이 주입되지 않으면 미검증. 대상은 케이스 넛지와 상황 대사(계약 v0.4.16 §3).
     if ng_checker is None:
         add("NG", "UNVERIFIED", "no NG checker")
     else:
         flagged = [
-            nudge.line_id
-            for _, nudge in _located_nudges(npc_model)
-            if ng_checker(nudge.text)
+            line.line_id
+            for line in (
+                *(nudge for _, nudge in _located_nudges(npc_model)),
+                *npc_model.situation_lines(),
+            )
+            if ng_checker(line.text)
         ]
         add("NG", "FAIL" if flagged else "PASS", *flagged)
 
