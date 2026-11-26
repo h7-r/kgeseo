@@ -7,7 +7,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import CHAR, INTEGER, ForeignKey
+from sqlalchemy import CHAR, INTEGER, ForeignKey, Index
 from sqlalchemy.dialects.mysql import DATETIME
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -34,6 +34,8 @@ class GuestSessionTransfer(Base):
     """로그인 순간 게스트 진행을 계정으로 옮긴 기록. 게스트 하나는 한 번만 옮겨진다(guest_session_id 유일)."""
 
     __tablename__ = "guest_session_transfers"
+    # 마이그레이션 d8f2a6c4e1b9 가 만든 인덱스(app_user_id FK 도 이것을 쓴다)를 모델에도 적어 alembic check 와 맞춘다
+    __table_args__ = (Index("ix_guest_session_transfers_user", "app_user_id"),)
 
     id: Mapped[str] = mapped_column(CHAR(36), primary_key=True)
     guest_session_id: Mapped[str] = mapped_column(
