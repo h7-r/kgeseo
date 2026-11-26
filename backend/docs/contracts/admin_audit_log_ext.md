@@ -83,7 +83,10 @@ await _audit(db, admin, "create_notice", None, target_type="notice", target_id=n
 
 ## 5. 남은 일(이 PR 밖)
 
-- 1년 지난 `client_ip` · `user_agent` NULL 파기 배치(D14-a · 문의 IP 와 함께) — 세진, 방식 · 일정 PM 결정 후.
+- ~~1년 지난 `client_ip` · `user_agent` NULL 파기 배치(D14-a · 문의 IP 와 함께) — 세진, 방식 · 일정 PM 결정 후.~~
+  → **11/26 PM 최종 결정: 수집 후 달력 1년 지난 감사 기록은 행 전체 삭제**(WD-09 유지, IP · UA 만 NULL 은 폐기). `target_type` · `target_id` 도
+  행과 함께 파기되고 따로 지우지 않는다. 구현 1차 `scripts/purge_retention_data.py` 의 `audit_log_purge`(운영 등록 · 실행은 PM) —
+  `account_withdrawal_v0.2.md` §10 ③.
 - 로그인 경로 IP(`user_sessions` 등) — 베타 뒤 세진.
 - 활동 로그 화면 표시(앞 두 자리 IP · 대상 표기) — 해랑.
 - 격리 MySQL 에서 upgrade · downgrade 왕복과 쓰기 · 조회 확인 — 격리 DB 준비 후.
