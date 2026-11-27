@@ -1,24 +1,14 @@
 import { useState, type CSSProperties } from "react";
 
 import { FONT } from "@/lib/style";
-import { hasNoErrors, validateFields, type FieldErrors, type FieldName, type FormValues } from "@/lib/validation";
 import { QUERY, ROUTES, useSiteNavigate, withQuery } from "@/navigation/routes";
-import { receiptAudience, submitInquiry, toCategoryCode } from "@/services/inquiries";
-import { confirmServerSession, useSessionUser } from "@/services/session";
 import { COLOR, SHADOW } from "@/styles/tokens";
 import { SUPPORT_EMAIL } from "@/data/contact";
 
 import InquiryField from "./InquiryField";
 import PanelHeading from "./PanelHeading";
 import { ACTIVE_TAB_BACKGROUND, labelStyle } from "./supportStyles";
-
-const INQUIRY_FIELDS: readonly FieldName[] = ["inquiryType", "title", "content", "email"];
-
-/**
- * 문의 서버(관리자 API v0.3, POST /api/v1/inquiries)가 생겨 켰다(미르 11/13). 끄면 전처럼 메일 안내만 보인다 —
- * 서버가 내려가 접수를 받지 못할 때 쓰는 스위치.
- */
-const IS_INQUIRY_API_READY = true;
+import { IS_INQUIRY_API_READY, receiptMessage, useInquiryForm, type InquiryReceipt } from "./useInquiryForm";
 
 export default function InquiryPanel() {
   return IS_INQUIRY_API_READY ? <InquiryForm /> : <InquiryByEmail />;
@@ -106,75 +96,8 @@ function InfoCard() {
 
 /** 문의 서버 접수 양식(관리자 API v0.3 P3-1, 11/13) — 접수 번호는 서버가 준다. 첨부는 없다(파일 저장소가 없다). */
 function InquiryForm() {
-  const user = useSessionUser();
   const navigate = useSiteNavigate();
-  // 로그인했으면 답변 받을 이메일을 내 이메일로 채워 둔다(고칠 수 있다).
-  const blankForm = (): FormValues => (user?.email ? { email: user.email } : {});
-  const [values, setValues] = useState<FormValues>(blankForm);
-  const [errors, setErrors] = useState<FieldErrors>({});
-  const [submitted, setSubmitted] = useState(false);
-  // 마지막으로 접수한 문의. 있으면 입력 칸 자리에 접수 완료 카드를 보인다.
-  const [receipt, setReceipt] = useState<InquiryReceipt | null>(null);
-  const [receiptCount, setReceiptCount] = useState(0);
-  const [isSending, setIsSending] = useState(false);
-  const [sendError, setSendError] = useState("");
-
-  const handleChange = (name: FieldName) => (value: string) => {
-    const next = { ...values, [name]: value };
-    setValues(next);
-    if (submitted) setErrors(validateFields(INQUIRY_FIELDS, next));
-  };
-
-  const handleSubmit = async () => {
-    setSubmitted(true);
-    const nextErrors = validateFields(INQUIRY_FIELDS, values);
-    setErrors(nextErrors);
-    if (!hasNoErrors(nextErrors) || isSending) return;
-    setIsSending(true);
-    setSendError("");
-    const result = await submitInquiry({
-      category: toCategoryCode(values.inquiryType ?? ""),
-      title: values.title ?? "",
-      body: values.content ?? "",
-      email: values.email ?? "",
-    });
-    setIsSending(false);
-    if (!result.ok) {
-      setSendError(result.reason);
-      return;
-    }
-    // 회원 안내를 보일지는 서버가 실제로 저장한 결과로 — 화면은 로그인인데 비회원으로 저장됐으면 세션이 끝난 것이다
-    const audience = receiptAudience(result.isMember, Boolean(user), Boolean(user?.isTest));
-    // 로그인 표시는 서버에 한 번 더 물어 거둔다 — 응답을 기다리는 사이 다른 탭에서 다시 로그인했으면 그 로그인을 지우지 않게(Codex 리뷰)
-    if (audience.isSessionExpired) void confirmServerSession();
-    setReceipt({
-      isMember: audience.isMember,
-      isSessionExpired: audience.isSessionExpired,
-      number: result.number,
-      type: values.inquiryType ?? "",
-      title: values.title ?? "",
-      content: values.content ?? "",
-      email: values.email ?? "",
-      attachment: null,
-      receivedAt: result.createdAt,
-    });
-    setReceiptCount((count) => count + 1);
-  };
-
-  /** 「추가 접수하기」 — 빈 양식으로 돌아간다 */
-  const startAnother = () => {
-    setValues(blankForm());
-    setErrors({});
-    setSubmitted(false);
-    setSendError("");
-    setReceipt(null);
-  };
-
-  const fieldProps = (name: FieldName) => ({
-    value: values[name] ?? "",
-    onChange: handleChange(name),
-    error: errors[name],
-  });
+  const { user, receipt, receiptCount, isSending, sendError, submit, startAnother, fieldProps } = useInquiryForm();
 
   return (
     <>
@@ -225,7 +148,7 @@ function InquiryForm() {
               className="button"
               style={{ ...submitButtonStyle, opacity: isSending ? 0.7 : 1 }}
               disabled={isSending}
-              onClick={handleSubmit}
+              onClick={submit}
             >
               <span className="button__label">{isSending ? "접수하는 중…" : "문의 접수하기"}</span>
             </button>
@@ -236,23 +159,6 @@ function InquiryForm() {
       </div>
     </>
   );
-}
-
-/** 방금 접수한 문의 한 건 — 접수 완료 카드가 되짚어 주는 값. 서버에 있으니 브라우저에는 두지 않는다 */
-interface InquiryReceipt {
-  number: string;
-  type: string;
-  title: string;
-  content: string;
-  /** 답변 받을 이메일 */
-  email: string;
-  attachment: string | null;
-  /** 접수 시각(ms) */
-  receivedAt: number;
-  /** 이 문의가 회원 계정에 연결돼 저장됐나 — 건마다 다를 수 있어 접수할 때의 값을 든다(services/inquiries receiptAudience) */
-  isMember: boolean;
-  /** 화면은 로그인이었는데 서버 세션이 끝나 비회원으로 접수됐다 */
-  isSessionExpired: boolean;
 }
 
 interface ReceiptCardProps {
@@ -288,11 +194,7 @@ function ReceiptCard({ receipt, count, onAnother, onOpenMine }: ReceiptCardProps
             문의가 접수되었습니다
           </span>
           <span style={{ fontFamily: FONT.body, fontSize: "15px", color: COLOR.lightTextMuted }}>
-            {isSignedIn
-              ? "답변이 등록되면 마이페이지 「내 문의」에서 볼 수 있습니다."
-              : receipt.isSessionExpired
-                ? "로그인이 만료되어 비회원으로 접수되었습니다. 답변은 적어 주신 이메일로 따로 드립니다(자동 발송 아님)."
-                : "운영팀이 적어 주신 이메일로 따로 답변드립니다(자동 발송 아님)."}
+            {receiptMessage(receipt)}
             {count > 1 ? ` (이번에 접수한 문의 ${count}건)` : ""}
           </span>
         </div>

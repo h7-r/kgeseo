@@ -185,9 +185,17 @@ export const RULES = {
     !value ? "비밀번호를 입력해 주세요." : value.length > MAX.password ? `${MAX.password}자까지 쓸 수 있습니다.` : "",
   code: (value?: string) =>
     !value?.trim() ? "인증코드를 입력해 주세요." : !/^\d{6}$/.test(value.trim()) ? "인증코드는 숫자 6자리입니다." : "",
-  title: (value?: string) => (!value?.trim() ? "제목을 입력해 주세요." : ""),
+  // 서버 한도(문의 제목 100자 · 내용 4000자)를 접수 전에 알린다 — 넘기면 서버가 422 로 거절했다(11/20 점검)
+  title: (value?: string) =>
+    !value?.trim() ? "제목을 입력해 주세요." : value.length > 100 ? "제목은 100자까지 쓸 수 있습니다." : "",
   content: (value?: string) =>
-    !value?.trim() ? "내용을 입력해 주세요." : value.trim().length < 10 ? "10자 이상 적어 주세요." : "",
+    !value?.trim()
+      ? "내용을 입력해 주세요."
+      : value.trim().length < 10
+        ? "10자 이상 적어 주세요."
+        : value.length > 4000
+          ? "내용은 4000자까지 쓸 수 있습니다."
+          : "",
   inquiryType: (value?: string) => (!value ? "문의 유형을 선택해 주세요." : ""),
 } as const;
 

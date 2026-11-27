@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from "react";
 
 import { FONT } from "@/lib/style";
 import type { MyProgress } from "@/lib/myProgress";
+import { parseBackendTimestamp } from "@/lib/serverTime";
 import { COLOR } from "@/styles/tokens";
 
 import { darkCardStyle, labelTextStyle, profileStartStyle, subheadingStyle, valueTextStyle } from "./myPageStyles";
@@ -54,13 +55,15 @@ export function ProgressTab({ progress, onStart }: ProgressTabProps) {
   // 점을 잇는 선 — 지금 단계까지는 초록, 그 뒤는 어둡게. 점이 다섯 칸 가운데에 있어 선은 10%~90% 사이다
   const current = journey.findIndex((step) => step.state === "current");
   const reached = current < 0 ? 1 : current / Math.max(1, journey.length - 1);
+  // 캐릭터 기록(/me/character)이 없어도 저장이 캐릭터 생성을 지났으면 만든 것이다 — 「안 만들었다」와 「✓ 성공」이 같이 뜨지 않게
+  const isCharacterMade = journey[0]?.state === "done";
   return (
     <>
       <div style={{ ...darkCardStyle, gap: "22px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "16px" }}>
           <span style={subheadingStyle}>여정</span>
           <span style={labelTextStyle}>
-            {characterName ? `조사관 ${characterName}` : "캐릭터를 아직 만들지 않았습니다"}
+            {characterName ? `조사관 ${characterName}` : isCharacterMade ? "조사관" : "캐릭터를 아직 만들지 않았습니다"}
             {" · "}
             {savedAt ? `마지막 저장 ${formatDateTime(savedAt)}` : "저장된 기록 없음"}
           </span>
@@ -241,7 +244,7 @@ export function ItemsTab({ progress }: { progress: MyProgress }) {
             <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: "1 0 0", minWidth: 0 }}>
               <span style={{ ...valueTextStyle, fontWeight: 700 }}>{item.name}</span>
               <span style={{ ...labelTextStyle, fontSize: "14px" }}>
-                {item.source} · {formatDateTime(new Date(item.acquired_at))}
+                {item.source} · {formatAcquiredAt(item.acquired_at)}
               </span>
             </div>
             <span style={countChipStyle}>× {item.quantity}</span>
@@ -483,3 +486,9 @@ const countChipStyle: CSSProperties = {
   color: COLOR.textBright,
   whiteSpace: "nowrap",
 };
+
+/** 아이템을 얻은 때. 서버 시각(시간대 표기 없는 UTC)을 보는 사람의 시각으로 — 못 읽으면 「—」 */
+function formatAcquiredAt(value: string): string {
+  const at = parseBackendTimestamp(value);
+  return at === undefined ? "—" : formatDateTime(new Date(at));
+}

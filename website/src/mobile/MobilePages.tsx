@@ -12,6 +12,7 @@ import { MY_PAGE_CONTENT, MY_PAGE_TABS } from "@/data/myPage";
 import type { MyProgress } from "@/lib/myProgress";
 import { useMyInquiries, type MyInquiriesState } from "@/sections/myPage/useMyInquiries";
 import { useMyProgress } from "@/sections/myPage/useMyProgress";
+import { IS_INQUIRY_API_READY } from "@/sections/support/useInquiryForm";
 import { categoryLabel, formatInquiryDate, inquiryStatusLabel, parseUtc } from "@/services/inquiries";
 import { PRICING } from "@/data/pricing";
 import { useActiveTabInView } from "@/components/useActiveTabInView";
@@ -20,7 +21,13 @@ import { TERMS_TABS } from "@/data/terms";
 import { GAMEPLAY_VIDEOS, VIDEOS, type Video } from "@/data/videos";
 import { useQueryTab } from "@/hooks/useQueryTab";
 import { searchSite } from "@/lib/searchIndex";
-import { fetchNotices, formatNoticeDate, noticeCategoryLabel, type PublicNotice } from "@/services/notices";
+import {
+  fetchNoticeDetail,
+  fetchNotices,
+  formatNoticeDate,
+  noticeCategoryLabel,
+  type PublicNotice,
+} from "@/services/notices";
 import { FONT } from "@/lib/style";
 import { QUERY, ROUTES, START_GAME, useSiteNavigate } from "@/navigation/routes";
 import CreditsCard from "@/sections/credits/CreditsCard";
@@ -29,6 +36,7 @@ import { signOut, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
 import { IS_MOBILE_PLAY_READY } from "./gameStartStore";
+import MobileInquiryForm from "./MobileInquiryForm";
 import MobilePage from "./MobilePage";
 import {
   bodyTextStyle,
@@ -268,18 +276,46 @@ export function MobilePricingPage() {
 
 type MobileNoticesState = { status: "loading" } | { status: "ready"; items: PublicNotice[] } | { status: "error" };
 
-/** 서버 공지 첫 쪽(6건) — 옛 하드코딩 9건은 쓰지 않는다(미르 11/16). 못 불러오면 안내 + 문의 메일 */
+/**
+ * 서버 공지 — 옛 하드코딩 9건은 쓰지 않는다(미르 11/16). 못 불러오면 안내 + 문의 메일.
+ * 제목을 누르면 본문을 받아 펼치고, 7건째부터는 「공지 더 보기」로 다음 쪽을 붙인다(11/20 점검 — 전엔 제목 6건뿐이었다).
+ */
 function MobileNotices() {
   const [state, setState] = useState<MobileNoticesState>({ status: "loading" });
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
     fetchNotices({ page: 1 }, controller.signal)
-      .then((page) => setState({ status: "ready", items: page.items }))
+      .then((first) => {
+        setState({ status: "ready", items: first.items });
+        setHasMore(first.total_pages > 1);
+      })
       .catch(() => {
         if (!controller.signal.aborted) setState({ status: "error" });
       });
     return () => controller.abort();
   }, []);
+  const loadMore = async () => {
+    if (state.status !== "ready" || isLoadingMore) return;
+    setIsLoadingMore(true);
+    try {
+      const next = await fetchNotices({ page: page + 1 });
+      // 쪽 사이에 예약 공지가 게시되거나 고정이 바뀌면 목록이 한 칸 밀려 같은 공지가 또 온다 — id 로 거른다
+      setState((previous) => {
+        if (previous.status !== "ready") return previous;
+        const seen = new Set(previous.items.map((notice) => notice.id));
+        return { status: "ready", items: [...previous.items, ...next.items.filter((notice) => !seen.has(notice.id))] };
+      });
+      setPage(next.page);
+      setHasMore(next.page < next.total_pages);
+    } catch {
+      // 다음 쪽을 못 받으면 단추를 남겨 다시 누르게 한다
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
   const note = (text: string) => (
     <p style={{ fontFamily: FONT.body, fontSize: "14px", lineHeight: 1.6, color: COLOR.textMuted, margin: "16px 0 0" }}>
       {text}
@@ -290,9 +326,48 @@ function MobileNotices() {
     return note(`공지를 불러오지 못했어요. 잠시 후 다시 시도하거나 ${SUPPORT_EMAIL} 로 알려 주세요.`);
   if (state.items.length === 0) return note("아직 등록된 공지가 없습니다.");
   return (
-    <ul style={{ ...plainListStyle, paddingLeft: 0, listStyle: "none", gap: 10 }}>
-      {state.items.map((notice) => (
-        <li key={notice.id} style={{ ...cardStyle, padding: "12px 14px" }}>
+    <>
+      <ul style={{ ...plainListStyle, paddingLeft: 0, listStyle: "none", gap: 10 }}>
+        {state.items.map((notice) => (
+          <MobileNoticeItem key={notice.id} notice={notice} />
+        ))}
+      </ul>
+      {hasMore && (
+        <button
+          type="button"
+          style={{ ...secondaryButtonStyle, marginTop: 12, width: "100%" }}
+          onClick={loadMore}
+          disabled={isLoadingMore}
+        >
+          {isLoadingMore ? "불러오는 중…" : "공지 더 보기"}
+        </button>
+      )}
+    </>
+  );
+}
+
+/** 공지 한 건. 처음 펼칠 때 본문을 받는다. 관리자가 쓴 글이라 글자로만 그린다(HTML 해석 없음) */
+function MobileNoticeItem({ notice }: { notice: PublicNotice }) {
+  const [body, setBody] = useState<string | null>(null);
+  const [isFailed, setIsFailed] = useState(false);
+  // 받는 중에 접었다 다시 펼쳐도 같은 요청을 또 보내지 않는다
+  const isLoadingRef = useRef(false);
+  const openBody = () => {
+    if (body !== null || isLoadingRef.current) return;
+    isLoadingRef.current = true;
+    // 못 받았던 공지를 다시 펼치면 처음부터 다시 받는다(실패 문구가 남지 않게)
+    setIsFailed(false);
+    fetchNoticeDetail(notice.id)
+      .then((detail) => setBody(detail.body))
+      .catch(() => setIsFailed(true))
+      .finally(() => {
+        isLoadingRef.current = false;
+      });
+  };
+  return (
+    <li style={{ ...cardStyle, padding: 0 }}>
+      <details onToggle={(event) => event.currentTarget.open && openBody()}>
+        <summary style={{ ...summaryStyle, padding: "12px 14px", display: "block" }}>
           <span style={badgeStyle}>{noticeCategoryLabel(notice.category)}</span>
           {notice.is_pinned && <span style={{ ...badgeStyle, marginLeft: 6 }}>고정</span>}
           <div
@@ -303,9 +378,12 @@ function MobileNotices() {
           <div style={{ fontFamily: FONT.mono, fontSize: "12px", color: COLOR.textDim, marginTop: 4 }}>
             {formatNoticeDate(notice.published_at)}
           </div>
-        </li>
-      ))}
-    </ul>
+        </summary>
+        <p style={{ ...bodyTextStyle, fontSize: "14px", whiteSpace: "pre-line", margin: 0, padding: "0 14px 14px" }}>
+          {body ?? (isFailed ? "본문을 불러오지 못했습니다. 접었다 다시 펼치면 다시 받습니다." : "불러오는 중…")}
+        </p>
+      </details>
+    </li>
   );
 }
 
@@ -329,14 +407,17 @@ export function MobileSupportPage() {
           ))}
         </div>
       )}
-      {tab === "inquiry" && (
-        <div style={{ ...cardStyle, marginTop: 16 }}>
-          <p style={{ ...bodyTextStyle, marginTop: 0 }}>
-            1:1 문의 접수 화면을 준비하고 있습니다. 문의는 <b>{SUPPORT_EMAIL}</b> 로 보내 주세요. 평균 1~2영업일 안에
-            답변드립니다.
-          </p>
-        </div>
-      )}
+      {tab === "inquiry" &&
+        (IS_INQUIRY_API_READY ? (
+          <MobileInquiryForm />
+        ) : (
+          <div style={{ ...cardStyle, marginTop: 16 }}>
+            <p style={{ ...bodyTextStyle, marginTop: 0 }}>
+              지금은 메일로 문의를 받고 있습니다. <b>{SUPPORT_EMAIL}</b>으로 보내 주시면 평균 1~2영업일 안에
+              답변드립니다.
+            </p>
+          </div>
+        ))}
     </Shell>
   );
 }
@@ -418,19 +499,44 @@ function MobileInquiries({ inquiries }: { inquiries: MyInquiriesState }) {
   if (inquiries.length === 0) {
     return <p style={noteStyle}>아직 접수한 문의가 없습니다. 로그인한 채 접수하면 답변을 여기에서 볼 수 있습니다.</p>;
   }
-  // 접수 번호가 앞에 있어 같은 날 같은 유형이 여럿이어도 줄이 겹치지 않는다
+  // 접수 번호가 앞에 있어 같은 날 같은 유형이 여럿이어도 줄이 겹치지 않는다. 누르면 내가 쓴 내용과 답변이 펼쳐진다
   return (
-    <Rows
-      rows={inquiries.map(
-        (inquiry) =>
-          [
-            `${inquiry.number} · ${categoryLabel(inquiry.category)} · ${inquiryStatusLabel(inquiry.status)}`,
-            `${inquiry.title} — ${formatInquiryDate(parseUtc(inquiry.created_at))}`,
-          ] as const,
-      )}
-    />
+    <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
+      {inquiries.map((inquiry) => (
+        <details key={inquiry.id} style={{ ...cardStyle, padding: "14px 16px" }}>
+          <summary style={summaryStyle}>
+            <span style={{ ...badgeStyle, marginRight: 8 }}>{inquiryStatusLabel(inquiry.status)}</span>
+            {inquiry.title}
+            <div style={{ fontFamily: FONT.mono, fontSize: "12px", color: COLOR.textDim, marginTop: 4 }}>
+              {inquiry.number} · {categoryLabel(inquiry.category)} · {formatInquiryDate(parseUtc(inquiry.created_at))}
+            </div>
+          </summary>
+          <p style={{ ...bodyTextStyle, fontSize: "14px", whiteSpace: "pre-line" }}>{inquiry.body}</p>
+          {inquiry.replies.length === 0 ? (
+            <p style={{ ...bodyTextStyle, fontSize: "13px", color: COLOR.textDim }}>아직 답변이 없습니다.</p>
+          ) : (
+            inquiry.replies.map((reply) => (
+              <div key={`${inquiry.id}:${reply.created_at}`} style={replyStyle}>
+                <div style={{ fontFamily: FONT.mono, fontSize: "12px", color: COLOR.accent }}>
+                  운영팀 답변 · {formatInquiryDate(parseUtc(reply.created_at))}
+                </div>
+                <p style={{ ...bodyTextStyle, fontSize: "14px", whiteSpace: "pre-line", marginTop: 6 }}>{reply.body}</p>
+              </div>
+            ))
+          )}
+        </details>
+      ))}
+    </div>
   );
 }
+
+const replyStyle: CSSProperties = {
+  marginTop: 12,
+  padding: "12px 14px",
+  borderRadius: 12,
+  background: "rgba(8,22,61,0.55)",
+  border: `1px solid ${COLOR.border}`,
+};
 
 /** 모바일 내 진행 · 업적 · 아이템 — 데스크톱 탭과 같은 요약을 줄로 */
 function MobileProgressRows({ tab, progress }: { tab: string; progress: MyProgress }) {

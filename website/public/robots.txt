@@ -1,0 +1,16 @@
+# ESCAPE THE LEGEND — 검색엔진 안내. 로그인 뒤 화면 · 관리자 · 인증 단계는 색인하지 않는다
+User-agent: *
+Disallow: /admin
+Disallow: /mypage
+Disallow: /play
+Disallow: /signup/social
+Disallow: /reset-password
+Disallow: /forgot-password
+Disallow: /error/
+Disallow: /maintenance
+Disallow: /offline
+Disallow: /search
+# 네이버 로그인 콜백(/로그인/콜백) — 로봇은 퍼센트 인코딩한 주소로 맞춘다
+Disallow: /%EB%A1%9C%EA%B7%B8%EC%9D%B8/
+
+Sitemap: https://www.k-escape.com/sitemap.xml
