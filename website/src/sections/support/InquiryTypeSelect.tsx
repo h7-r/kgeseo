@@ -3,9 +3,7 @@ import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } f
 import { COLOR } from "@/styles/tokens";
 
 import { fieldTextStyle } from "./supportStyles";
-
-/** 디자인에 목록이 없어 공지·FAQ 분류를 그대로 쓴다. */
-const INQUIRY_TYPES = ["계정", "게임플레이", "결제", "기술지원", "기타"] as const;
+import { INQUIRY_TYPES } from "./useInquiryForm";
 
 type InquiryType = (typeof INQUIRY_TYPES)[number];
 

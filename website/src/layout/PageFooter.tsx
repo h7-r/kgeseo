@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 
 import { FOOTER_ATTR } from "@/lib/layout";
 import { FONT } from "@/lib/style";
-import { FOOTER_LINKS, useSiteNavigate } from "@/navigation/routes";
+import { PAGE_FOOTER_LINKS, useSiteNavigate } from "@/navigation/routes";
 import { COLOR } from "@/styles/tokens";
 import { SUPPORT_EMAIL } from "@/data/contact";
 
@@ -18,7 +18,7 @@ export default function PageFooter() {
           <span style={taglineStyle}>· 지역 탐험 방탈출 2026</span>
         </div>
         <div style={linksStyle}>
-          {FOOTER_LINKS.map(({ label, target }) => (
+          {PAGE_FOOTER_LINKS.map(({ label, target }) => (
             <button
               key={label}
               type="button"

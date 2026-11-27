@@ -7,6 +7,7 @@ import MobilePage from "@/mobile/MobilePage";
 import { primaryButtonStyle as mobilePrimaryButtonStyle, sectionStyle } from "@/mobile/mobileStyles";
 import { FONT, gradientText } from "@/lib/style";
 import { QUERY, ROUTES, useSiteNavigate, withQuery, type RoutePath } from "@/navigation/routes";
+import { useMaintenanceMessage } from "@/services/siteStatus";
 import { COLOR, GRADIENT, SHADOW } from "@/styles/tokens";
 
 type ErrorKind = "404" | "403" | "500" | "503" | "offline";
@@ -73,6 +74,8 @@ export default function ErrorPage({ kind = "404" }: ErrorPageProps) {
   const isMobile = useIsMobileLayout();
   const screen = ERROR_SCREENS[kind];
   const { secondary } = screen;
+  // 점검 화면에는 관리자가 적은 안내(시간 · 까닭)를 함께 보인다
+  const notice = useMaintenanceMessage(kind === "503");
 
   // 인터넷이 돌아오면 새로고침을 떠올리지 않아도 되게 알려 준다.
   const [isOnline, setIsOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
@@ -109,6 +112,7 @@ export default function ErrorPage({ kind = "404" }: ErrorPageProps) {
             {screen.title}
           </h1>
           <p style={{ ...descriptionStyle, fontSize: "15px", margin: 0 }}>{screen.description}</p>
+          {notice && <p style={{ ...noticeStyle, fontSize: "15px" }}>{notice}</p>}
           {kind === "offline" && isOnline && (
             <p style={{ fontFamily: FONT.mono, fontSize: "14px", color: COLOR.success, margin: 0 }}>
               연결이 돌아왔습니다. 다시 시도해 주세요.
@@ -134,10 +138,20 @@ export default function ErrorPage({ kind = "404" }: ErrorPageProps) {
     <Stage height={900}>
       <div style={centerStyle}>
         <div style={codeStyle}>{screen.code}</div>
-        <div style={{ fontFamily: FONT.display, fontSize: "48px", color: COLOR.textBright, whiteSpace: "nowrap" }}>
+        <h1
+          style={{
+            margin: 0,
+            fontFamily: FONT.display,
+            fontSize: "48px",
+            fontWeight: "inherit",
+            color: COLOR.textBright,
+            whiteSpace: "nowrap",
+          }}
+        >
           {screen.title}
-        </div>
+        </h1>
         <div style={descriptionStyle}>{screen.description}</div>
+        {notice && <p style={noticeStyle}>{notice}</p>}
 
         {kind === "offline" && isOnline && (
           <div style={{ fontFamily: FONT.mono, fontSize: "16px", color: COLOR.success }}>
@@ -236,4 +250,20 @@ const mobileLinkStyle: CSSProperties = {
   fontSize: "14px",
   color: COLOR.accent,
   cursor: "pointer",
+};
+
+// 관리자가 적은 점검 안내 — 관리자가 쓴 글이라 글자로만 그린다(HTML 해석 없음)
+const noticeStyle: CSSProperties = {
+  margin: 0,
+  maxWidth: "640px",
+  padding: "12px 18px",
+  borderRadius: "12px",
+  border: "1px solid rgba(251,191,36,0.35)",
+  background: "rgba(251,191,36,0.06)",
+  fontFamily: FONT.mono,
+  fontSize: "16px",
+  lineHeight: 1.6,
+  color: COLOR.warning,
+  whiteSpace: "pre-line",
+  textAlign: "center",
 };

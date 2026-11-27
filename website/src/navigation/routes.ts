@@ -195,3 +195,13 @@ export const FOOTER_LINKS: readonly { label: string; target: NavTarget }[] = [
   { label: "고객센터", target: ROUTES.support },
   { label: "크레딧", target: ROUTES.credits },
 ];
+
+/**
+ * 하위 페이지 · 휴대폰 푸터 링크 — 약관 · 처리방침은 어느 화면에서든 한 번에 닿아야 한다(11/20 점검 — 전엔 머리 메뉴 「브랜드」로만 갔다).
+ * 홈은 Marquee 맨 아래 줄에 이미 둘이 있어 FOOTER_LINKS 를 그대로 쓴다(같은 링크가 두 번 나오지 않게).
+ */
+export const PAGE_FOOTER_LINKS: readonly { label: string; target: NavTarget }[] = [
+  ...FOOTER_LINKS,
+  { label: "이용약관", target: withQuery(ROUTES.terms, { [QUERY.tab]: "terms" }) },
+  { label: "개인정보처리방침", target: withQuery(ROUTES.terms, { [QUERY.tab]: "privacy" }) },
+];

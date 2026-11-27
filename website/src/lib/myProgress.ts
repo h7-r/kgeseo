@@ -5,6 +5,7 @@
  */
 import { najuCaseProgress, type CaseProgress } from "../../../naju01/src/progress/caseProgress.ts";
 import { ITEMS, type ItemKind } from "../../../naju01/src/puzzles/itemCatalog.ts";
+import { parseBackendTimestamp } from "@/lib/serverTime";
 
 /** 게임 저장의 단계(src/save/gameSave.ts GameStage) — 앞에서부터 차례로 지난다 */
 const JOURNEY = [
@@ -152,11 +153,12 @@ export function summarizeMyProgress(
   // 본부실 이후로 넘어갔으면 튜토리얼은 끝난 것이다(옛 저장본엔 끝 표시가 없을 수 있다)
   const isTutorialDone =
     tutorial.isFinished === true || journey.findIndex((step) => step.state === "current") > 1 || naju !== null;
-  const savedAt = save?.updated_at ? new Date(save.updated_at) : null;
+  // 서버 시각은 시간대 표기 없는 UTC 다 — new Date 로 읽으면 현지 시각으로 보여 9시간 이르게 나왔다(11/20 점검)
+  const savedAtMs = save?.updated_at ? parseBackendTimestamp(save.updated_at) : undefined;
   return {
     isEmpty: save === null,
     journey,
-    savedAt: savedAt && !Number.isNaN(savedAt.getTime()) ? savedAt : null,
+    savedAt: savedAtMs === undefined ? null : new Date(savedAtMs),
     isTutorialDone,
     naju,
     caseItems: readCaseItems(sections),

@@ -2,7 +2,7 @@ import { SUPPORT_EMAIL } from "@/data/contact";
 import { ABOUT_CONTENT, ABOUT_TABS } from "@/data/about";
 import { MY_PAGE_CONTENT, MY_PAGE_TABS } from "@/data/myPage";
 import { PRICING } from "@/data/pricing";
-import { FAQ_ITEMS } from "@/data/support";
+import { FAQ_ITEMS, SUPPORT_TABS } from "@/data/support";
 import { TERMS_CONTENT, TERMS_TABS } from "@/data/terms";
 import { stripEmphasis } from "@/lib/emphasis";
 import { QUERY, ROUTES, withQuery, type NavTarget } from "@/navigation/routes";
@@ -54,6 +54,8 @@ function entry(title: string, section: string, path: NavTarget, content: unknown
   return { title, section, path, body, lowerTitle: title.toLowerCase(), lowerBody: body.toLowerCase() };
 }
 
+const supportTab = (tab: (typeof SUPPORT_TABS)[number]["id"]) => withQuery(ROUTES.support, { [QUERY.tab]: tab });
+
 let cachedIndex: IndexEntry[] | null = null;
 
 function buildIndex(): IndexEntry[] {
@@ -104,12 +106,13 @@ function buildIndex(): IndexEntry[] {
 
   entries.push(
     // 공지는 서버(공지 API)에 있어 정적 색인에 넣지 않는다(미르 11/16) — 고객센터 입구만 찾히게 한 줄
-    entry("고객센터 · 공지사항", "고객센터", ROUTES.support, "공지사항 점검 이벤트 업데이트 안내"),
-    entry("고객센터 · 자주 묻는 질문", "고객센터", ROUTES.support, FAQ_ITEMS),
+    // 결과를 누르면 그 탭이 바로 열리게 ?tab= 을 싣는다(11/20 점검 — 전엔 모두 공지 탭으로 갔다)
+    entry("고객센터 · 공지사항", "고객센터", supportTab("notices"), "공지사항 점검 이벤트 업데이트 안내"),
+    entry("고객센터 · 자주 묻는 질문", "고객센터", supportTab("faq"), FAQ_ITEMS),
     entry(
       "고객센터 · 1:1 문의",
       "고객센터",
-      ROUTES.support,
+      supportTab("inquiry"),
       `1:1 문의하기 문의 메일 ${SUPPORT_EMAIL} 비밀번호 계정 신고 운영 시간 평일 10:00 18:00`,
     ),
   );
@@ -129,7 +132,12 @@ function buildIndex(): IndexEntry[] {
   // 탭 내용은 사람마다 다르다(내 진행 · 아이템) — 탭이 무엇을 담는지 말로만 색인한다.
   for (const tab of MY_PAGE_TABS) {
     const content = tab.id === "account" || tab.id === "subscription" ? MY_PAGE_CONTENT[tab.id] : null;
-    entries.push(entry(`마이페이지 · ${tab.label}`, "마이페이지", ROUTES.myPage, [tab.keywords, content]));
+    entries.push(
+      entry(`마이페이지 · ${tab.label}`, "마이페이지", withQuery(ROUTES.myPage, { [QUERY.tab]: tab.id }), [
+        tab.keywords,
+        content,
+      ]),
+    );
   }
 
   cachedIndex = entries;

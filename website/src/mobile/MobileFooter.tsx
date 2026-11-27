@@ -2,7 +2,7 @@
 import type { CSSProperties } from "react";
 
 import { FONT } from "@/lib/style";
-import { FOOTER_LINKS, useSiteNavigate } from "@/navigation/routes";
+import { PAGE_FOOTER_LINKS, useSiteNavigate } from "@/navigation/routes";
 import { COLOR } from "@/styles/tokens";
 
 import { GUTTER, safeBottom } from "./mobileStyles";
@@ -17,7 +17,7 @@ export default function MobileFooter() {
         <span style={{ fontWeight: 400, color: COLOR.textSubtle }}> · 지역 탐험 방탈출 2026</span>
       </div>
       <div style={linksStyle}>
-        {FOOTER_LINKS.map(({ label, target }) => (
+        {PAGE_FOOTER_LINKS.map(({ label, target }) => (
           <button key={label} type="button" style={linkStyle} onClick={() => navigate(target)}>
             {label}
           </button>
