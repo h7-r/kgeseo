@@ -18,6 +18,13 @@ class MeResponse(BaseModel):
     providers: list[str]
 
 
+class PasswordChangeRequest(BaseModel):
+    """로그인한 회원의 비밀번호 변경(계약 password_reset_v0.1 §4). 지금 비밀번호를 다시 확인한다."""
+
+    current_password: str = Field(min_length=1, max_length=128, repr=False)
+    new_password: str = Field(min_length=1, max_length=128, repr=False)
+
+
 class WithdrawalRequest(BaseModel):
     """회원 탈퇴 요청(계약 account_withdrawal_v0.2 §2). 이메일 비밀번호 수단이 있는 회원은 비밀번호가 필수다(소셜도 연결돼 있어도).
     소셜 전용 회원은 보내도 쓰지 않는다(`reauth_required`). 형식 오류는 입력을 되돌려 보내지 않는다(`main.SENSITIVE_INPUT_FIELDS`)."""

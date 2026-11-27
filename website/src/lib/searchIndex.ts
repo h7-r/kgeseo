@@ -6,7 +6,6 @@ import { FAQ_ITEMS, SUPPORT_TABS } from "@/data/support";
 import { TERMS_CONTENT, TERMS_TABS } from "@/data/terms";
 import { stripEmphasis } from "@/lib/emphasis";
 import { QUERY, ROUTES, withQuery, type NavTarget } from "@/navigation/routes";
-import { IS_ACCOUNT_MANAGEMENT_READY } from "@/services/account/manageAccount";
 
 /**
  * 사이트 검색 색인. 검색용으로 글을 따로 베껴 두면 언젠가 본문과 어긋나므로
@@ -71,10 +70,7 @@ function buildIndex(): IndexEntry[] {
     ]),
     entry("회원가입", "인증", ROUTES.signup, "회원가입 닉네임 지역 이메일 비밀번호 약관 동의 만 14세"),
     entry("로그인", "인증", ROUTES.login, "로그인 이메일 비밀번호 간편 로그인 구글 네이버"),
-    // 비밀번호 찾기는 백엔드가 준비될 때까지 검색에도 내놓지 않는다
-    ...(IS_ACCOUNT_MANAGEMENT_READY
-      ? [entry("비밀번호 찾기", "인증", ROUTES.forgotPassword, "비밀번호 찾기 재설정 인증코드 6자리")]
-      : []),
+    entry("비밀번호 찾기", "인증", ROUTES.forgotPassword, "비밀번호 찾기 재설정 인증코드 6자리"),
     entry("게임 영상", "컬렉션", ROUTES.media, [
       "게임 영상 꺼진 화톳불 기우제 강 밑 물굴 바람 장막 깨어난 돌새",
       "몰입감 넘치는 게임 경험 실시간 3D 탐험 정교한 퍼즐 스토리 몰입 멀티플레이 출시 예정",

@@ -34,6 +34,7 @@ from app.models.npc_publication import (
     NpcPublicationState,
 )
 from app.models.npc_turn_idempotency import NpcTurnRequest, NpcTurnResponseBody
+from app.models.password_reset import PasswordResetCode
 
 # PlaySession 모델도 Alembic의 Base.metadata에 등록되도록 import한다.
 from app.models.play_session import PlaySession

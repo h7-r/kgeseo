@@ -9,6 +9,7 @@
 | `beta_events` | POST /api/v1/beta-events (베타 분석 기록, 11/11) | IP 당 60초에 1500회 |
 | `login` | POST /api/v1/auth/login (11/18) | IP 당 60초에 60회 |
 | `social_google` · `social_naver` · `social_onboarding_complete` | POST /api/v1/auth/google · /auth/naver · /auth/social-onboarding/complete (11/18) | 각각 IP 당 60초에 30회(`RATE_LIMIT_SOCIAL_LOGIN` 하나) |
+| `password_reset_request` · `password_reset_verify` · `password_reset_complete` | POST /api/v1/auth/password-reset/request · /verify · /complete (11/25) | IP 당 60초에 10 · 30 · 30회 |
 
 - 규칙마다 · IP 마다 따로 센다. 한 API 를 다 써도 다른 API 는 그대로다.
 - 한도와 창은 환경 변수(`RATE_LIMIT_*`)로 바꿀 수 있다. 값이 없으면 위 기본값이고, 0 · 음수 · 숫자가 아닌 값은
@@ -44,6 +45,9 @@ LOGIN = "login"
 SOCIAL_GOOGLE = "social_google"
 SOCIAL_NAVER = "social_naver"
 SOCIAL_ONBOARDING_COMPLETE = "social_onboarding_complete"
+PASSWORD_RESET_REQUEST = "password_reset_request"
+PASSWORD_RESET_VERIFY = "password_reset_verify"
+PASSWORD_RESET_COMPLETE = "password_reset_complete"
 
 RATE_LIMITED_CODE = "rate_limited"
 RATE_LIMITED_MESSAGE = "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."
@@ -71,6 +75,9 @@ def configured_rule(name: str) -> RateLimitRule:
         SOCIAL_GOOGLE: settings.rate_limit_social_login,
         SOCIAL_NAVER: settings.rate_limit_social_login,
         SOCIAL_ONBOARDING_COMPLETE: settings.rate_limit_social_login,
+        PASSWORD_RESET_REQUEST: settings.rate_limit_password_reset_request,
+        PASSWORD_RESET_VERIFY: settings.rate_limit_password_reset_verify,
+        PASSWORD_RESET_COMPLETE: settings.rate_limit_password_reset_complete,
     }
     # 문의 접수만 창이 길다(10분) — 나머지는 공용 창
     window = (

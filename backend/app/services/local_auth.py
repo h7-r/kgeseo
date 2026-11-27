@@ -201,6 +201,17 @@ async def register_user(db: AsyncSession, request: LocalRegisterRequest) -> AppU
     return user
 
 
+async def local_password_hash(db: AsyncSession, user_id: str) -> str | None:
+    """이메일 수단의 지금 해시(같은 트랜잭션의 잠그지 않는 읽기). 로그인 직후 부르면 login_user 가 확인한 바로 그 값이다 —
+    같은 스냅숏을 읽으므로. 세션을 만들 때 다시 견주어 그 사이 비밀번호가 바뀌었는지 본다(user_session.start_session)."""
+    identity = await db.scalar(
+        select(AuthIdentity).where(
+            AuthIdentity.app_user_id == user_id, AuthIdentity.provider == "local"
+        )
+    )
+    return identity.password_hash if isinstance(identity, AuthIdentity) else None
+
+
 async def login_user(db: AsyncSession, email: str, password: str) -> AppUser:
     identity = await get_local_identity_by_email(db, email)
     if identity is None or identity.password_hash is None:
