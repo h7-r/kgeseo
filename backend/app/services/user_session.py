@@ -7,8 +7,11 @@ from datetime import datetime, timedelta
 from uuid import uuid4
 
 from fastapi import Depends, HTTPException, Request, Response, status
-from sqlalchemy import or_, select, update
+from sqlalchemy import and_, case, delete, null, or_, select, update
+from sqlalchemy.dialects.mysql import insert as mysql_insert
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.util import identity_key
 
 from app.core.config import settings
 from app.db.session import get_db
@@ -33,6 +36,10 @@ SESSION_LIFETIME = timedelta(days=14)
 THROTTLE_WINDOW = timedelta(minutes=15)
 MAX_FAILURES_PER_EMAIL = 5
 MAX_FAILURES_PER_IP = 30
+# 실패 기록 쓰기가 다른 요청 · 정리 작업과 겹쳐 MySQL 이 트랜잭션을 되돌렸을 때(교착 1213 · 잠금 대기 초과 1205)
+# 처음부터 다시 하는 횟수. 되돌린 트랜잭션은 아무것도 남기지 않으므로 다시 해도 두 번 세지 않는다.
+FAILURE_WRITE_ATTEMPTS = 3
+RETRYABLE_MYSQL_ERRORS = frozenset({1205, 1213})
 
 
 def wait_phrase(seconds: int) -> str:
@@ -269,7 +276,8 @@ async def login_lock_remaining_seconds(
     now = utc_now()
     remaining: int | None = None
     for key, _ in _throttle_keys(request, email):
-        row = await db.get(LoginThrottle, key)
+        # 같은 세션이 앞서 읽어 둔 객체가 아니라 지금 DB 값을 본다(다른 요청이 방금 센 실패 · 잠금)
+        row = await db.get(LoginThrottle, key, populate_existing=True)
         if (
             isinstance(row, LoginThrottle)
             and row.locked_until
@@ -284,27 +292,106 @@ async def is_login_locked(db: AsyncSession, request: Request, email: str) -> boo
     return await login_lock_remaining_seconds(db, request, email) is not None
 
 
+def _failure_upsert(key: str, limit: int, now: datetime):
+    """실패 하나를 한 문장으로 센다(`INSERT … ON DUPLICATE KEY UPDATE`). 읽고 나서 쓰지 않으므로 동시 요청이 서로의 집계를
+    덮지 않고, 첫 실패가 겹쳐도 중복 키 오류가 없다. 행이 그 사이 지워졌으면(정기 파기) 새 창으로 다시 만든다.
+
+    규칙(기존과 같음): 창이 15분을 「넘게」 지났으면 새 창(1회)으로, 아니면 +1. 한도에 닿으면 `지금 + 15분` 까지 잠근다.
+    동시 요청을 위한 보완: 이미 진행 중인 잠금은 늘리지도 풀지도 않는다(잠금 확인을 지난 뒤 겹쳐 들어온 실패가 잠금을
+    연장하거나, 창이 바뀌었다고 풀어 버리지 않게).
+
+    MySQL 은 UPDATE 절의 대입을 **왼쪽부터** 하고, 뒤의 식은 앞에서 바뀐 값을 본다. 그래서 잠금 → 횟수 → 창 시작 순서로
+    둔다 — 잠금 · 횟수를 정하는 식이 모두 바뀌기 전의 횟수 · 창 시작을 본다(`tests/test_login_throttle_concurrency_mysql.py`).
+    """
+    table = LoginThrottle.__table__
+    expired = table.c.window_started_at < now - THROTTLE_WINDOW
+    lock_active = and_(table.c.locked_until.is_not(None), table.c.locked_until > now)
+    next_count = case((expired, 1), else_=table.c.failed_count + 1)
+    lock_at = now + THROTTLE_WINDOW
+    insert = mysql_insert(table).values(
+        key_hash=key,
+        failed_count=1,
+        window_started_at=now,
+        locked_until=lock_at if limit <= 1 else None,
+    )
+    return insert.on_duplicate_key_update(
+        [
+            (
+                "locked_until",
+                case(
+                    (lock_active, table.c.locked_until),
+                    (next_count >= limit, lock_at),
+                    (expired, null()),
+                    else_=table.c.locked_until,
+                ),
+            ),
+            ("failed_count", next_count),
+            (
+                "window_started_at",
+                case((expired, now), else_=table.c.window_started_at),
+            ),
+        ]
+    )
+
+
+def _mysql_error_code(error: OperationalError) -> int | None:
+    args = getattr(error.orig, "args", None)
+    return args[0] if args and isinstance(args[0], int) else None
+
+
+def _forget_throttle_rows(db: AsyncSession, keys: list[str]) -> None:
+    """세션에 남은 옛 `LoginThrottle` 객체를 버린다(문장으로 바꾼 행은 ORM 객체에 반영되지 않는다)."""
+    for key in keys:
+        cached = db.identity_map.get(identity_key(LoginThrottle, key))
+        if cached is not None:
+            db.expunge(cached)
+
+
+async def _write_throttle_rows(db: AsyncSession, statements) -> None:
+    """실패 기록 문장들을 한 트랜잭션으로 커밋한다. MySQL 이 교착 · 잠금 대기 초과로 되돌리면 정해진 횟수만큼 처음부터
+    다시 한다(되돌린 트랜잭션은 남긴 것이 없어 두 번 세지 않는다). 다른 오류 · 마지막 실패는 그대로 올린다 — 숨기지 않는다.
+
+    호출자는 읽기만 했거나 앞선 트랜잭션을 끝낸 상태여야 한다. 미반영 ORM 변경은 여기서 막지만, 이미 실행한 Core SQL이나
+    flush한 변경은 이 검사로 알 수 없다. 로그인 실패는 읽기만 했고, 탈퇴 · 비밀번호 변경 실패는 먼저 rollback한다."""
+    if db.new or db.dirty or db.deleted:
+        raise RuntimeError(
+            "login throttle writes need a session without pending changes"
+        )
+    for attempt in range(1, FAILURE_WRITE_ATTEMPTS + 1):
+        try:
+            for statement in statements():
+                await db.execute(statement)
+            await db.commit()
+            return
+        except OperationalError as error:
+            await db.rollback()
+            if (
+                _mysql_error_code(error) not in RETRYABLE_MYSQL_ERRORS
+                or attempt == FAILURE_WRITE_ATTEMPTS
+            ):
+                raise
+
+
 async def record_login_failure(db: AsyncSession, request: Request, email: str) -> None:
-    now = utc_now()
-    for key, limit in _throttle_keys(request, email):
-        row = await db.get(LoginThrottle, key)
-        if not isinstance(row, LoginThrottle):
-            row = LoginThrottle(key_hash=key, failed_count=0, window_started_at=now)
-            db.add(row)
-        elif now - row.window_started_at > THROTTLE_WINDOW:
-            row.failed_count = 0
-            row.window_started_at = now
-            row.locked_until = None
-        row.failed_count += 1
-        if row.failed_count >= limit:
-            row.locked_until = now + THROTTLE_WINDOW
-    await db.commit()
+    """이메일 · IP 키마다 실패 하나를 센다(동시 요청에도 유실 · 중복 키 없음). 이 함수가 커밋한다.
+
+    키는 해시 순서로 쓴다 — 키를 둘씩 잡는 요청끼리 늘 같은 순서로 행을 잠가 서로 기다리다 막히지 않게 한다."""
+    keys = sorted(_throttle_keys(request, email))
+
+    def statements():
+        now = utc_now()  # 다시 할 때마다 그때 시각으로
+        return [_failure_upsert(key, limit, now) for key, limit in keys]
+
+    await _write_throttle_rows(db, statements)
+    _forget_throttle_rows(db, [key for key, _ in keys])
 
 
 async def clear_login_failures(db: AsyncSession, request: Request, email: str) -> None:
-    """성공하면 그 이메일의 실패만 지운다. IP 집계는 남겨 여러 계정을 돌려 보는 공격을 막는다."""
+    """성공하면 그 이메일의 실패만 지운다. IP 집계는 남겨 여러 계정을 돌려 보는 공격을 막는다.
+
+    읽지 않고 조건으로 지운다 — 그 사이 다른 요청 · 정기 파기가 행을 지웠거나 새로 썼어도 오류 없이 지금 행을 지운다."""
     key, _ = _throttle_keys(request, email)[0]
-    row = await db.get(LoginThrottle, key)
-    if isinstance(row, LoginThrottle):
-        await db.delete(row)
-        await db.commit()
+    await _write_throttle_rows(
+        db, lambda: [delete(LoginThrottle).where(LoginThrottle.key_hash == key)]
+    )
+    _forget_throttle_rows(db, [key])

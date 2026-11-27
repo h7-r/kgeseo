@@ -75,6 +75,11 @@ def mysql_url():
                     primary_key=column.primary_key,
                     nullable=column.nullable,
                     unique=column.unique,
+                    server_default=(
+                        column.server_default.arg
+                        if column.server_default is not None
+                        else None
+                    ),
                 )
             )
         table = Table(prefix + "_" + suffix, metadata, *columns, mysql_engine="InnoDB")
