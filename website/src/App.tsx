@@ -38,9 +38,9 @@ import { QUERY, ROUTES, isAdminRoute, launchGame, pageTitle, safeNextPath } from
 import ErrorPage from "@/pages/ErrorPage";
 import HomePage from "@/pages/HomePage";
 import SocialCallbackPage from "@/pages/SocialCallbackPage";
-import { IS_ACCOUNT_MANAGEMENT_READY } from "@/services/account/manageAccount";
 import { getSessionUser, useSessionChecking, useSessionUser } from "@/services/session";
 import { useMaintenanceRedirect } from "@/services/siteStatus";
+import WithdrawnNotice from "@/sections/myPage/WithdrawnNotice";
 
 /** 관리자가 점검 모드를 켜면 사이트 화면을 점검 화면으로 보낸다(관리자 주소 · 게임은 예외). */
 function MaintenanceGate() {
@@ -68,6 +68,7 @@ export default function App() {
       {isMobile ? <MobileBackdrop /> : <SiteBackdrop />}
       <ReadProgressBar />
       <MaintenanceGate />
+      <WithdrawnNotice />
       {isMobile ? <MobileHeader /> : <HeaderLayer />}
       <VideoModal />
       <GameTransition />
@@ -95,10 +96,10 @@ export default function App() {
             }
           />
           <Route path={ROUTES.socialOnboarding} element={<SocialOnboardingPage />} />
-          {/* 비밀번호 찾기는 백엔드가 준비될 때까지 막는다 — 주소로 들어와도 로그인으로 보낸다 */}
-          <Route path={ROUTES.forgotPassword} element={<PasswordResetRoute mode="forgotPassword" />} />
-          <Route path={ROUTES.verifyCode} element={<PasswordResetRoute mode="verifyCode" />} />
-          <Route path={ROUTES.resetPassword} element={<PasswordResetRoute mode="resetPassword" />} />
+          {/* 비밀번호 찾기 세 화면(백엔드 계약 password_reset_v0.1) — 새 비밀번호 화면은 코드를 맞혀 받은 증표가 있어야 진행된다 */}
+          <Route path={ROUTES.forgotPassword} element={<AuthPage mode="forgotPassword" />} />
+          <Route path={ROUTES.verifyCode} element={<AuthPage mode="verifyCode" />} />
+          <Route path={ROUTES.resetPassword} element={<AuthPage mode="resetPassword" />} />
           <Route path={ROUTES.about} element={<AboutPage />} />
           <Route path={ROUTES.terms} element={<TermsPage />} />
           <Route path={ROUTES.credits} element={<CreditsPage />} />
@@ -157,11 +158,6 @@ function RedirectIfSession({ children }: { children: ReactNode }) {
 /** 화면을 옮기는 사이에 한 줄만 보여 주는 자리 */
 function TransitNotice({ children }: { children: ReactNode }) {
   return <p style={{ padding: "160px 24px", textAlign: "center", color: "#8fa0c4" }}>{children}</p>;
-}
-
-function PasswordResetRoute({ mode }: { mode: "forgotPassword" | "verifyCode" | "resetPassword" }) {
-  if (!IS_ACCOUNT_MANAGEMENT_READY) return <Navigate to={ROUTES.login} replace />;
-  return <AuthPage mode={mode} />;
 }
 
 /**

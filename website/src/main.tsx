@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 
 import { startBackgroundLoading } from "@/app/boot";
 import { isAdminRoute } from "@/navigation/routes";
+import { forgetOldBrowserAccountStore } from "@/services/account/db";
 import { restoreServerSession, startSessionWatch } from "@/services/session";
 
 import App from "./App";
@@ -12,6 +13,7 @@ import "@/styles/index.css";
 import "@/mobile/mobile.css";
 
 startBackgroundLoading();
+forgetOldBrowserAccountStore();
 // 관리자 화면은 들어올 때 권한 검사(RequireAdmin)가 /me 를 다시 묻는다. 여기서도 부르면 같은 요청이 두 번 나간다.
 if (!isAdminRoute(window.location.pathname)) {
   void restoreServerSession();

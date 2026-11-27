@@ -13,7 +13,7 @@ const AUTH_API = apiUrl("/api/v1/auth");
 const SERVER_ERROR_MESSAGE = "서버와 통신하지 못했습니다. 잠시 후 다시 시도해 주세요.";
 const INPUT_ERROR_MESSAGE = "입력값을 다시 확인해 주세요.";
 
-type AuthResponse =
+export type AuthResponse =
   | { ok: true; status: number; body: unknown }
   | {
       ok: false;
@@ -58,10 +58,15 @@ export function errorCode(body: unknown): string | undefined {
 }
 
 /** 서버가 꺼져 있어도 던지지 않고 실패 결과로 돌려준다(status 0). */
-async function postAuth(path: string, payload: unknown): Promise<AuthResponse> {
+function postAuth(path: string, payload: unknown): Promise<AuthResponse> {
+  return postApi(`${AUTH_API}${path}`, payload);
+}
+
+/** 쿠키를 싣는 JSON POST. 인증 API 밖(/me/password)도 같은 실패 모양을 쓴다. */
+export async function postApi(url: string, payload: unknown): Promise<AuthResponse> {
   let response: Response;
   try {
-    response = await fetch(`${AUTH_API}${path}`, {
+    response = await fetch(url, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -93,7 +98,7 @@ async function postAuth(path: string, payload: unknown): Promise<AuthResponse> {
 }
 
 /** 429 의 안내. 로그인 잠김(login_locked)과 요청 과다(rate_limited)를 code 로 가른다. 429 가 아니면 undefined. */
-function tooManyRequestsMessage(result: AuthResponse): string | undefined {
+export function tooManyRequestsMessage(result: AuthResponse): string | undefined {
   if (result.ok || result.status !== 429) return undefined;
   return errorCode(result.body) === "login_locked"
     ? lockedLoginMessage(result.retryAfter)

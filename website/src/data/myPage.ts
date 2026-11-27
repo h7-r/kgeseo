@@ -22,9 +22,9 @@ type Pair = readonly [label: string, value: string];
 /**
  * 계정 설정에서 실제로 동작하는 항목.
  * 나머지(2단계 인증·계정 연동 등)는 서버가 있어야 해서 action 없이 「준비 중」으로 둔다.
- * 회원 탈퇴는 서버(POST /me/withdrawal, #177)가 있지만 연동 시점은 미르 승인 뒤 — 그때 "withdraw" 가 여기 더해진다.
+ * 회원 탈퇴는 POST /me/withdrawal(#177), 처리 정지 요청은 1:1 문의로 받는다(처리방침의 권리 행사 창구).
  */
-export type AccountAction = "changePassword" | "exportData" | "signOut";
+export type AccountAction = "changePassword" | "exportData" | "signOut" | "withdraw" | "requestByInquiry";
 
 interface SettingsItem {
   label: string;
@@ -79,9 +79,9 @@ export const MY_PAGE_CONTENT: MyPageContent = {
           // 서버에 있는 내 데이터(계정 · 저장본 · 캐릭터 · 아이템 · 문의)를 JSON 파일로
           { label: "데이터 관리", value: "내보내기", action: "exportData" },
           { label: "로그아웃", value: "로그아웃하기", action: "signOut" },
-          { label: "개인정보 처리 정지", value: "요청하기" },
-          // 탈퇴 API 는 있다(POST /me/withdrawal, #177) — 화면 연동 시점은 미르 승인 뒤(계약 §11). 그전까지 준비 중
-          { label: "회원 탈퇴", value: "준비 중" },
+          // 열람 · 정정 · 삭제 · 처리 정지는 1:1 문의로 받는다(처리방침 권리 행사) — 문의 탭으로 보낸다
+          { label: "개인정보 처리 정지", value: "1:1 문의로 요청", action: "requestByInquiry" },
+          { label: "회원 탈퇴", value: "탈퇴하기", action: "withdraw" },
         ],
       },
     ],
