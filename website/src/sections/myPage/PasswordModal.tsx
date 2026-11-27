@@ -3,8 +3,8 @@ import { useState, type ChangeEvent, type CSSProperties, type FormEvent } from "
 import Modal from "@/components/Modal";
 import { modalPrimaryStyle, modalSecondaryStyle } from "@/components/modalButtonStyles";
 import { FONT } from "@/lib/style";
-import { validatePasswordConfirm, RULES } from "@/lib/validation";
-import { changePassword } from "@/services/account/manageAccount";
+import { MAX_LENGTH, validatePasswordConfirm, RULES } from "@/lib/validation";
+import { changePassword } from "@/services/account/passwordApi";
 import type { SessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
@@ -18,8 +18,8 @@ interface PasswordModalProps {
 }
 
 /**
- * 비밀번호 변경. 자리 비운 사이 남이 못 바꾸게 지금 비밀번호부터 확인하고,
- * 새 비밀번호는 가입과 같은 규칙으로 검사한다. 테스트 계정은 저장소가 거절한다.
+ * 비밀번호 변경(POST /me/password). 자리 비운 사이 남이 못 바꾸게 지금 비밀번호부터 확인하고,
+ * 새 비밀번호는 가입과 같은 규칙으로 검사한다. 바꾸면 이 브라우저는 로그인이 유지되고(같은 브라우저의 다른 탭도) 다른 기기는 로그아웃된다.
  */
 export default function PasswordModal({ open, onClose, user }: PasswordModalProps) {
   return (
@@ -39,6 +39,8 @@ function PasswordForm({ onClose, user }: Omit<PasswordModalProps, "open">) {
   const [values, setValues] = useState(EMPTY_PASSWORDS);
   const [touched, setTouched] = useState<Partial<Record<PasswordField, boolean>>>({});
   const [warning, setWarning] = useState("");
+  // 서버가 짚은 칸(지금 비밀번호가 틀림 · 새 비밀번호 규칙). 그 칸을 고치면 지운다
+  const [remoteErrors, setRemoteErrors] = useState<Partial<Record<PasswordField, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDone, setIsDone] = useState(false);
 
@@ -47,7 +49,7 @@ function PasswordForm({ onClose, user }: Omit<PasswordModalProps, "open">) {
     next: RULES.password(values.next, { email: user?.email, nickname: user?.name }),
     confirm: validatePasswordConfirm(values.next, values.confirm),
   };
-  const visibleError = (field: PasswordField) => (touched[field] ? errors[field] : "");
+  const visibleError = (field: PasswordField) => remoteErrors[field] || (touched[field] ? errors[field] : "");
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -55,10 +57,13 @@ function PasswordForm({ onClose, user }: Omit<PasswordModalProps, "open">) {
     if (errors.current || errors.next || errors.confirm || isSubmitting || !user) return;
     setIsSubmitting(true);
     setWarning("");
-    const result = await changePassword(user.email, values.current, values.next);
+    const result = await changePassword(values.current, values.next);
     setIsSubmitting(false);
     if (!result.ok) {
-      setWarning(result.reason);
+      // 칸을 짚을 수 있으면 그 칸 옆에만, 아니면(잠김 · 소셜 전용 · 통신 실패) 아래에 한 번
+      if (result.field) setRemoteErrors({ [result.field]: result.reason });
+      else setWarning(result.reason);
+      if (result.field === "current") setValues((previous) => ({ ...previous, current: "" }));
       return;
     }
     setIsDone(true);
@@ -80,12 +85,14 @@ function PasswordForm({ onClose, user }: Omit<PasswordModalProps, "open">) {
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             const { value } = event.target;
             setValues((previous) => ({ ...previous, [field]: value }));
+            setRemoteErrors((previous) => ({ ...previous, [field]: "" }));
           }}
           onBlur={() => {
             if (values[field]) setTouched((previous) => ({ ...previous, [field]: true }));
           }}
           autoComplete={autoComplete}
-          maxLength={64}
+          // 서버와 같은 128자 — 64자에서 자르면 긴 비밀번호를 끝까지 못 넣고 그게 로그인 실패로 세어졌다(미르 11/27)
+          maxLength={MAX_LENGTH.password}
         />
       </label>
     );
@@ -94,7 +101,7 @@ function PasswordForm({ onClose, user }: Omit<PasswordModalProps, "open">) {
   return isDone ? (
     <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
       <p style={{ margin: 0, fontFamily: FONT.body, fontSize: "16px", color: COLOR.success }}>
-        ✓ 비밀번호를 바꿨습니다. 다음 로그인부터 새 비밀번호를 사용하세요.
+        ✓ 비밀번호를 바꿨습니다. 이 브라우저는 그대로 쓰시면 되고, 다른 기기에서는 로그아웃되었습니다.
       </p>
       <button type="button" className="button button--primary" style={modalPrimaryStyle} onClick={onClose}>
         <span className="button__label">확인</span>

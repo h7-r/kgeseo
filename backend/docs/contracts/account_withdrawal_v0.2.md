@@ -115,6 +115,8 @@
 | `admin_audit_logs` | 1년 보존 | `target_user_id` |
 | `social_onboarding_pendings`(그 회원 소셜 subject 의 가입 대기 · 이메일 포함) | 삭제 | provider + subject |
 | `login_throttles` 이메일 키(이메일 해시) | 삭제(IP 키는 남김) | 이메일 해시 |
+| `password_reset_codes`(비밀번호 찾기 코드 · 증표 해시, 11/25) | 삭제 | `app_user_id` |
+| `password_reset_verify_throttles`(비밀번호 찾기 코드 확인 실패, 11/27) | 삭제 | 이메일 해시 |
 | Google Forms 베타 설문 응답 | DB 밖 — §8 수동 삭제(탈퇴 뒤 7일 안) | 참가 번호 |
 
 자유 입력 정책: 서버는 NPC 자유 대화 원문을 저장하지 않는다. 원문에서 나온 해시(솔트 없는 SHA-256 · HMAC)와 퍼즐 입력 문자열을 탈퇴 때 지운다.

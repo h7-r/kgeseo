@@ -36,6 +36,7 @@ import { signOut, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
 import { IS_MOBILE_PLAY_READY } from "./gameStartStore";
+import MobileAccountSettings from "./MobileAccountSettings";
 import MobileInquiryForm from "./MobileInquiryForm";
 import MobilePage from "./MobilePage";
 import {
@@ -470,19 +471,8 @@ export function MobileMyPage() {
         </div>
       )}
       {tab === "inquiries" && <MobileInquiries inquiries={inquiries} />}
-      {tab === "account" &&
-        content.account.groups.map((group) => (
-          <section key={group.title}>
-            <h2 style={subheadingStyle}>{group.title}</h2>
-            {/* 모바일판은 계정 설정에 동작을 아직 안 붙였다(내보내기 · 비밀번호 변경은 데스크톱에서) — 쓸 수 있는 기능처럼 보이지 않게 전부 「준비 중」.
-                탈퇴는 서버(#177)는 있고 화면 연동은 미르 승인 뒤 */}
-            <Rows rows={group.items.map((item) => [item.label, "준비 중"] as const)} />
-          </section>
-        ))}
+      {tab === "account" && <MobileAccountSettings />}
       {tab === "subscription" && <Rows rows={content.subscription.plan} />}
-      <p style={{ ...bodyTextStyle, fontSize: "13px", color: COLOR.textDim }}>
-        계정 설정(비밀번호 변경 · 로그인 기록 · 탈퇴 등)은 준비 중입니다.
-      </p>
     </Shell>
   );
 }

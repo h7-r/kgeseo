@@ -10,7 +10,7 @@
   (로비 표시 규칙). 두 규칙은 일부러 다르다(조사관명은 자모 · 낱말 사이 한 칸 공백 허용, 정규화도 다름) — 통일하지 않는다.
 - 공유 정책을 실제로 쓰고 있는지 먼저 확인한다. 파일이 없거나 · 읽히지 않거나 · 돌고 있는 판정기가 그 파일로 만든 것과 다르면
   (= 내장 목록으로 돌고 있으면) 조회 전에 멈추고 종료 코드 3. 내장 목록 기준으로는 「점검 완료」를 내지 않는다.
-- DB 는 SELECT 만, 하나의 읽기 전용 트랜잭션(`SET TRANSACTION READ ONLY`)에서 회원 id 순으로 묶음 조회한다. 한 트랜잭션이라
+- DB 는 SELECT 만, 하나의 읽기 전용 트랜잭션(`REPEATABLE READ, READ ONLY`)에서 회원 id 순으로 묶음 조회한다. 한 트랜잭션이라
   모든 묶음이 같은 시점(첫 조회 때)의 스냅숏을 본다 — 그 뒤 가입 · 이름 변경은 이번 집계에 들어가지 않는다.
 - 출력은 건수뿐이다. 이름 · 이메일 · 회원 id · 해시는 내지 않는다(개별 대상 출력 옵션은 없다).
 - 종료 코드: 0 = 점검 완료(위반이 있어도 0 — 위반 여부는 `Violations found:` 줄로 본다), 2 = 잘못된 사용,
@@ -27,7 +27,9 @@ import sys
 import unicodedata
 from collections import Counter
 from dataclasses import dataclass, field
+from pathlib import Path
 
+POLICY_PATH = Path(__file__).resolve().parents[2] / "shared" / "nickname-policy.json"
 DEFAULT_BATCH_SIZE = 500
 MAX_BATCH_SIZE = 5000
 EXIT_OK, EXIT_USAGE, EXIT_POLICY, EXIT_DB = 0, 2, 3, 4
@@ -51,48 +53,41 @@ class Policy:
     evidence: dict
 
 
-def _index_signature(judge) -> tuple:
-    parts = []
-    for name in ("reserved", "forbidden_raw", "forbidden_grouped", "allow"):
-        index = getattr(judge, name)
-        parts.append((name, tuple(sorted((k, len(v)) for k, v in index.items()))))
-    return (judge.min_length, judge.max_length, tuple(parts))
+def _judge_state(judge) -> dict:
+    return {**vars(judge), "encoder": vars(judge.encoder)}
 
 
 def load_policy_or_fail() -> Policy:
-    """공유 정책 파일이 있고, JSON 으로 읽히고, 돌고 있는 판정기가 그 파일로 만든 것과 같은지 확인한다."""
-    # 정책 모듈은 불러오는 순간 파일을 읽는다. 파일이 없으면 모듈이 경고 로그(서버 안 전체 경로 포함)를 남기고 내장 목록으로
-    # 도는데, 이 점검은 그 상태를 아래에서 직접 FAIL 로 알리므로 불러오는 동안만 그 로그를 막는다(경로를 출력하지 않기 위해).
-    policy_logger = logging.getLogger("app.services.nickname_policy")
-    previous_level = policy_logger.level
-    policy_logger.setLevel(logging.ERROR)
-    try:
-        # 깨진 파일(빈 파일 · 잘못된 JSON · 필드 없음 · 디렉터리 등)이면 여기서 예외 — 종류만 남기고 FAIL 로 바꾼다
-        from app.api.v1 import lobby
-        from app.services import nickname_policy as npol
-    except Exception as error:  # noqa: BLE001
-        raise PolicyUnavailable(
-            f"policy modules could not load ({type(error).__name__})"
-        ) from None
-    finally:
-        policy_logger.setLevel(previous_level)
-    path = npol.POLICY_PATH
+    """Check the shared file before loading modules that build the app policy."""
+    path = POLICY_PATH
     if not path.is_file():
         raise PolicyUnavailable(f"{path.name} missing or not a file")
     try:
         raw = path.read_bytes()
-        json.loads(raw.decode("utf-8"))
+        parsed = json.loads(raw.decode("utf-8"))
     except (OSError, UnicodeDecodeError, ValueError):
         raise PolicyUnavailable(f"{path.name} unreadable") from None
+
+    # The service logs an absolute path if the file disappears during import.
+    policy_logger = logging.getLogger("app.services.nickname_policy")
+    previous_level = policy_logger.level
+    policy_logger.setLevel(logging.ERROR)
     try:
+        from app.services import nickname_policy as npol
+
+        if npol.POLICY_PATH != path:
+            raise PolicyUnavailable("shared policy path differs from the service path")
         loaded = npol.load_policy(path)
         if loaded is npol._FALLBACK_POLICY:  # noqa: SLF001
             raise PolicyUnavailable("loader returned the built-in fallback")
-        expected = npol.Judge(loaded)
-        if _index_signature(npol.JUDGE) != _index_signature(expected):
+        if loaded != parsed or _judge_state(npol.JUDGE) != _judge_state(
+            npol.Judge(parsed)
+        ):
             raise PolicyUnavailable(
-                "running policy differs from the shared file (fallback in use)"
+                "running policy differs from the shared file (fallback or stale policy)"
             )
+        from app.api.v1 import lobby
+
         fallback = npol.Judge(npol._FALLBACK_POLICY)  # noqa: SLF001
         evidence = {
             "file": path.name,
@@ -112,6 +107,8 @@ def load_policy_or_fail() -> Policy:
         raise PolicyUnavailable(
             f"{path.name} structure unusable ({type(error).__name__})"
         ) from None
+    finally:
+        policy_logger.setLevel(previous_level)
     return Policy(npol, lobby, npol.JUDGE, fallback, evidence)
 
 

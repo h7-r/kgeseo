@@ -1,7 +1,11 @@
 """기존 이름 정책 점검(scripts.audit_existing_names) — 정책 로딩 확인 · 판정 분류 · 출력. DB 없이(가짜 행)."""
 
+import shutil
+import subprocess
+import sys
 from collections import namedtuple
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 
@@ -36,7 +40,7 @@ def test_shared_policy_loads_and_matches_the_running_judge(policy):
 
 
 def test_missing_policy_file_stops_the_audit(monkeypatch, tmp_path):
-    monkeypatch.setattr(npol, "POLICY_PATH", tmp_path / "nickname-policy.json")
+    monkeypatch.setattr(audit, "POLICY_PATH", tmp_path / "nickname-policy.json")
     with pytest.raises(audit.PolicyUnavailable, match="missing or not a file"):
         audit.load_policy_or_fail()
 
@@ -45,7 +49,7 @@ def test_missing_policy_file_stops_the_audit(monkeypatch, tmp_path):
 def test_broken_policy_file_stops_the_audit(monkeypatch, tmp_path, content):
     broken = tmp_path / "nickname-policy.json"
     broken.write_text(content, encoding="utf-8")
-    monkeypatch.setattr(npol, "POLICY_PATH", broken)
+    monkeypatch.setattr(audit, "POLICY_PATH", broken)
     with pytest.raises(audit.PolicyUnavailable, match="unreadable"):
         audit.load_policy_or_fail()
 
@@ -66,7 +70,7 @@ def test_policy_failure_exits_3_without_opening_the_database(
         raise AssertionError("DB must not be opened")
 
     monkeypatch.setattr(session_module, "AsyncSessionLocal", boom)
-    monkeypatch.setattr(npol, "POLICY_PATH", tmp_path / "nickname-policy.json")
+    monkeypatch.setattr(audit, "POLICY_PATH", tmp_path / "nickname-policy.json")
     assert audit.main([]) == audit.EXIT_POLICY
     out = capsys.readouterr().out
     assert (
@@ -74,6 +78,54 @@ def test_policy_failure_exits_3_without_opening_the_database(
         and "Completed: FAIL" in out
     )
     assert str(tmp_path) not in out
+
+
+@pytest.mark.parametrize("content", [None, b"", b"{bad", b"{}"])
+def test_cli_with_missing_or_broken_policy_in_fresh_python(tmp_path, content):
+    backend = tmp_path / "backend"
+    source = Path(audit.__file__).resolve().parents[1]
+    shutil.copytree(
+        source / "app", backend / "app", ignore=shutil.ignore_patterns("__pycache__")
+    )
+    (backend / "scripts").mkdir()
+    shutil.copyfile(audit.__file__, backend / "scripts" / "audit_existing_names.py")
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    if content is not None:
+        (shared / "nickname-policy.json").write_bytes(content)
+
+    cli = """
+import runpy
+import sys
+
+class RejectDatabaseImport:
+    attempted = False
+
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == "app.db.session":
+            self.attempted = True
+            raise AssertionError("The failed audit must not load the DB session")
+
+guard = RejectDatabaseImport()
+sys.meta_path.insert(0, guard)
+try:
+    runpy.run_module("scripts.audit_existing_names", run_name="__main__")
+finally:
+    assert not guard.attempted
+"""
+    result = subprocess.run(
+        [sys.executable, "-B", "-X", "utf8", "-c", cli],
+        cwd=backend,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == audit.EXIT_POLICY, result
+    assert "Completed: FAIL" in result.stdout
+    assert str(tmp_path) not in result.stdout
+    assert result.stderr == ""
 
 
 @pytest.mark.parametrize(
@@ -156,6 +208,16 @@ def test_lobby_fallback_counts_and_invalid_account_nickname(policy):
         report.lobby_fallback_nickname_invalid,
     ) == (1, 2, 1)
     assert report.characters.unexplained == 0
+
+
+def test_nickname_reasons_match_the_public_validator(policy):
+    for name in ("??_?", "?gent_007", "? ??", "???", "?" * 13, "?\t??", "??"):
+        try:
+            npol.validate_nickname(name)
+            valid = True
+        except npol.InvalidNicknameError:
+            valid = False
+        assert valid == (not audit.site_reasons(npol, policy.shared_judge, name))
 
 
 def test_lobby_reason_mirror_matches_the_real_function(policy):

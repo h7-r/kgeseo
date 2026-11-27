@@ -84,20 +84,10 @@ async def seed(sessions):
 
 async def state(sessions):
     async with sessions() as db:
-        users = (
-            await db.execute(
-                select(
-                    AppUser.id, AppUser.nickname, AppUser.email, AppUser.updated_at
-                ).order_by(AppUser.id)
-            )
-        ).all()
+        users = (await db.execute(select(AppUser.__table__).order_by(AppUser.id))).all()
         chars = (
             await db.execute(
-                select(
-                    UserCharacter.app_user_id,
-                    UserCharacter.display_name,
-                    UserCharacter.updated_at,
-                ).order_by(UserCharacter.app_user_id)
+                select(UserCharacter.__table__).order_by(UserCharacter.app_user_id)
             )
         ).all()
     return [tuple(r) for r in users], [tuple(r) for r in chars]
@@ -134,11 +124,7 @@ def test_mysql_audit_counts_with_any_batch_size(on_test_db, capsys, batch):
         engine = sessions.kw["bind"].sync_engine
 
         def record(conn, cursor, statement, parameters, context, many):
-            statements.append(
-                statement.lstrip().split()[0].upper()
-                + " "
-                + statement.lstrip().split()[1].upper()
-            )
+            statements.append(" ".join(statement.upper().split()))
 
         event.listen(engine, "before_cursor_execute", record)
         try:
@@ -150,7 +136,10 @@ def test_mysql_audit_counts_with_any_batch_size(on_test_db, capsys, batch):
         assert code == audit.EXIT_OK
         assert await state(sessions) == before  # 바뀐 것 없음
         # 첫 문장은 읽기 전용 트랜잭션 선언, 나머지는 모두 SELECT · 끝의 ROLLBACK 뿐
-        assert statements[0] == "SET TRANSACTION"
+        assert (
+            statements[0]
+            == "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"
+        )
         assert all(s.startswith(("SELECT", "ROLLBACK")) for s in statements[1:]), (
             statements
         )
@@ -195,7 +184,11 @@ class WritesBetweenBatches:
     세션 기본 격리 수준을 READ COMMITTED 로 바꿔 둔다(이 연결의 세션 값만 — 전역 설정은 건드리지 않는다)."""
 
     def __init__(self, sessions, writes, *, read_committed):
-        self.sessions, self.writes, self.read_committed = sessions, writes, read_committed
+        self.sessions, self.writes, self.read_committed = (
+            sessions,
+            writes,
+            read_committed,
+        )
         self.wrote = False
 
     def __call__(self):

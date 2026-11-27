@@ -1,5 +1,5 @@
-import type { CSSProperties } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useState, type CSSProperties } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import ConsentGroup from "@/components/form/ConsentGroup";
 import InputLine, { type FieldBinding } from "@/components/form/InputLine";
@@ -28,14 +28,19 @@ import { QUERY, ROUTES, safeNextPath, withQuery, type RoutePath } from "@/naviga
 import type { AuthMode } from "@/pages/AuthPage";
 import { authenticate, signUp } from "@/services/account/authApi";
 import { TEST_ACCOUNT } from "@/services/account/testAccount";
-import {
-  IS_ACCOUNT_MANAGEMENT_READY,
-  STORAGE_UNAVAILABLE_REASON,
-  resetPassword,
-} from "@/services/account/manageAccount";
+import { STORAGE_UNAVAILABLE_REASON } from "@/services/account/manageAccount";
+import { completeReset, confirmResetCode, requestResetCode } from "@/services/account/passwordApi";
 import { holdOnboarding } from "@/services/account/socialAuthApi";
-import { clearResetState, readResetState, issueResetCode, verifyResetCode } from "@/services/passwordReset";
-import { signIn } from "@/services/session";
+import {
+  clearResetState,
+  passwordResetDoneState,
+  readPasswordResetDone,
+  readResetState,
+  rememberResetEmail,
+  rememberResetToken,
+  resendWaitSeconds,
+} from "@/services/passwordReset";
+import { endLocalSession, signIn } from "@/services/session";
 import { COLOR, GRADIENT, SHADOW, surfaceFillStyle } from "@/styles/tokens";
 
 import { AUTH_FIELDS, AUTH_MODES } from "./authModes";
@@ -61,7 +66,10 @@ interface AuthFormProps {
 export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
   const config = AUTH_MODES[mode];
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
+  // 비밀번호 찾기를 막 마치고 왔으면 로그인 카드 위에 한 번 알린다
+  const afterReset = mode === "login" ? readPasswordResetDone(location.state) : null;
   // 막혔던 화면으로 돌아가기. 사이트 안 주소만 받는다 — 아니면 열린 리다이렉트가 된다.
   const returnTo = safeNextPath(searchParams.get(QUERY.next));
   // 재설정 2·3단계는 1단계에서 적은 이메일을 이어받는다.
@@ -74,9 +82,11 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
     asyncChecks: mode === "signup" ? SIGNUP_DUPLICATE_CHECKS : {},
     initialValues: carriedEmail
       ? { email: carriedEmail }
-      : mode === "login" && TEST_ACCOUNT
-        ? { email: TEST_ACCOUNT.email, password: TEST_ACCOUNT.password }
-        : null,
+      : afterReset?.email
+        ? { email: afterReset.email }
+        : mode === "login" && TEST_ACCOUNT
+          ? { email: TEST_ACCOUNT.email, password: TEST_ACCOUNT.password }
+          : null,
   });
   const { values } = form;
 
@@ -86,6 +96,8 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
   const { isSubmitting, run: runSubmit } = useSubmitLock();
   // 로그인은 실패하면 비밀번호를 비우므로 입력이 바뀌어도 안내를 남긴다.
   const [alertMessage, setAlertMessage] = useInputAlert(mode === "signup" ? [values, consent.consents] : []);
+  // 서버가 틀렸다고 한 인증코드. 칸을 고치면 값이 달라져 빨강이 저절로 풀린다
+  const [rejectedCode, setRejectedCode] = useState("");
 
   const handleSubmit = () =>
     runSubmit(async () => {
@@ -136,28 +148,45 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
           }
           signIn(result.user);
         } else if (mode === "forgotPassword") {
-          // 가입 안 된 메일이어도 똑같이 진행한다. 가입 여부를 드러내지 않는다.
-          issueResetCode(email);
-        } else if (mode === "verifyCode") {
-          const result = verifyResetCode(email, values.code ?? "");
+          // 가입 안 된 메일이어도 서버는 같은 답을 한다 — 화면도 똑같이 다음 단계로 간다.
+          const result = await requestResetCode(email);
           if (!result.ok) {
+            if (result.field) form.setRemoteError(result.field, result.reason);
             setAlertMessage(result.reason);
             return;
           }
+          rememberResetEmail(email);
+        } else if (mode === "verifyCode") {
+          const result = await confirmResetCode(email, values.code ?? "");
+          if (!result.ok) {
+            if (result.field === "code") setRejectedCode(values.code ?? "");
+            setAlertMessage(result.reason);
+            return;
+          }
+          rememberResetToken(email, result.resetToken);
         } else {
-          // 주소를 직접 쳐서 인증 단계를 건너뛰지 못하게 한다.
-          const state = readResetState();
-          if (!state?.verified) {
+          // 주소를 직접 쳐서 인증 단계를 건너뛰지 못하게 한다 — 증표는 코드를 맞혀야만 생긴다.
+          const token = readResetState()?.resetToken;
+          if (!token) {
             setAlertMessage("인증이 끝나지 않았거나 시간이 지났습니다. 비밀번호 찾기부터 다시 해 주세요.");
             return;
           }
-          const result = await resetPassword(state.email, values.newPassword ?? "");
-          // 가입 안 된 메일이어도 바뀌었다고만 한다. 이 화면으로 가입 여부를 캐지 못하게.
-          if (!result.ok && result.code !== "unknownEmail") {
+          const result = await completeReset(token, values.newPassword ?? "");
+          if (!result.ok) {
+            if (result.expired) clearResetState();
+            if (result.field) form.setRemoteError(result.field, result.reason);
             setAlertMessage(result.reason);
             return;
           }
+          const resetEmail = readResetState()?.email ?? "";
           clearResetState();
+          // 서버가 이 계정의 모든 세션을 끊었다 — 로그인한 채 찾기를 했어도 화면을 로그아웃으로 맞춘다
+          // (그러지 않으면 로그인 화면이 「이미 로그인」으로 홈에 튕겨 안내가 안 보였다, 11/25 검토)
+          endLocalSession();
+          form.clearFields(["newPassword", "passwordConfirm"]);
+          // 새 비밀번호를 저장하면 서버가 모든 기기의 로그인을 끊는다 — 로그인 화면에서 다시 들어오게 안내한다
+          navigate(config.next, { state: passwordResetDoneState(resetEmail) });
+          return;
         }
         // 휴대폰에서 가입을 막 마쳤으면 게임으로 바로 넘기지 않고 웹(홈)에 둔다 — 가로로 돌리고 「게임 시작」을 직접 누르게(11/7 미르)
         if (mode === "signup" && returnTo === ROUTES.play && isMobileLayout()) {
@@ -179,7 +208,6 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
   const bind = (name: FieldName): FieldBinding => ({ ...form.fieldProps(name), onEnter: submitOnEnter(handleSubmit) });
   const typo = mode !== "resetPassword" ? suggestEmailTypo(values.email) : "";
   const regionProps = form.fieldProps("region");
-  const resetState = readResetState();
 
   return (
     <div
@@ -275,26 +303,14 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
 
         {mode === "verifyCode" && (
           <>
-            <CodeBoxes {...bind("code")} />
-            {/* 메일 서버가 붙기 전까지만 받은 코드를 화면에 보여 준다. */}
-            {resetState ? (
-              <div style={testCodeBoxStyle} role="note">
-                <span>시험 운영 중이라 메일 대신 여기에 인증코드를 보여 드립니다</span>
-                <b style={{ fontFamily: FONT.mono, fontSize: "20px", letterSpacing: "4px", color: "#fde68a" }}>
-                  {resetState.code}
-                </b>
-              </div>
-            ) : (
-              <div style={testCodeBoxStyle} role="note">
-                <span>받은 인증코드가 없거나 시간이 지났습니다. 비밀번호 찾기부터 다시 해 주세요.</span>
-              </div>
-            )}
+            <CodeBoxes {...bind("code")} isRejected={Boolean(rejectedCode) && values.code === rejectedCode} />
+            <ResendCode email={values.email ?? ""} />
           </>
         )}
 
         {mode === "resetPassword" && (
           <>
-            <VerifiedCode code={resetState?.code} />
+            <VerifiedCode />
             <TextField
               variant="card"
               label="새 비밀번호"
@@ -330,6 +346,11 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
       {mode === "signup" && <Honeypot value={bot.honeypot} onChange={bot.setHoneypot} />}
 
       <div style={{ paddingTop: "24px", width: "100%", display: "flex", flexDirection: "column", gap: "14px" }}>
+        {afterReset && !alertMessage && (
+          <div style={successNoteStyle} role="status">
+            새 비밀번호로 바꿨습니다. 보안을 위해 모든 기기에서 로그아웃했으니 새 비밀번호로 로그인해 주세요.
+          </div>
+        )}
         {alertMessage && (
           <div ref={revealAlert} style={alertStyle} role="alert">
             {alertMessage}
@@ -377,7 +398,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
             <span style={footerPromptStyle}>아직 계정이 없으신가요?</span>
             <AuthLink label="회원가입" onClick={() => goTo(ROUTES.signup)} />
             <span style={footerPromptStyle}>&nbsp;·&nbsp;</span>
-            <PasswordResetLink onClick={() => goTo(ROUTES.forgotPassword)} />
+            <AuthLink label="비밀번호 찾기" onClick={() => goTo(ROUTES.forgotPassword)} />
           </>
         )}
         {mode === "signup" && (
@@ -385,7 +406,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
             <span style={footerPromptStyle}>이미 계정이 있으신가요?</span>
             <AuthLink label="로그인" isBold={false} onClick={() => goTo(ROUTES.login)} />
             <span style={footerPromptStyle}>&nbsp;·&nbsp;</span>
-            <PasswordResetLink onClick={() => goTo(ROUTES.forgotPassword)} />
+            <AuthLink label="비밀번호 찾기" onClick={() => goTo(ROUTES.forgotPassword)} />
           </>
         )}
         {(mode === "forgotPassword" || mode === "verifyCode" || mode === "resetPassword") && (
@@ -404,12 +425,6 @@ function focusFirstInvalidField() {
   requestAnimationFrame(() => {
     document.querySelector<HTMLInputElement>('input[aria-invalid="true"]')?.focus();
   });
-}
-
-// 비밀번호 찾기는 백엔드가 준비될 때까지 누를 수 없는 「준비 중」 표시로 둔다
-function PasswordResetLink({ onClick }: { onClick: () => void }) {
-  if (IS_ACCOUNT_MANAGEMENT_READY) return <AuthLink label="비밀번호 찾기" onClick={onClick} />;
-  return <span style={footerPromptStyle}>비밀번호 찾기 · 준비 중</span>;
 }
 
 function AuthLink({ label, isBold = true, onClick }: { label: string; isBold?: boolean; onClick: () => void }) {
@@ -461,18 +476,86 @@ const subtitleStyle: CSSProperties = {
   width: "100%",
 };
 
-const testCodeBoxStyle: CSSProperties = {
+/**
+ * 코드 입력 칸 아래 — 메일이 안 왔을 때 다시 받기. 서버도 같은 회원에게 60초에 한 번만 보내므로 화면도 그만큼 기다리게 한다.
+ * 가입 안 된 이메일이어도 똑같이 「보냈습니다」라고 한다(서버 답이 같다).
+ */
+function ResendCode({ email }: { email: string }) {
+  // 앞 화면에서 막 보냈으면 그만큼 기다린 채로 시작한다
+  const [waitSec, setWaitSec] = useState(() => resendWaitSeconds(email || readResetState()?.email || ""));
+  const [note, setNote] = useState("");
+  const [isSending, setIsSending] = useState(false);
+
+  useEffect(() => {
+    if (waitSec <= 0) return;
+    const timer = window.setTimeout(() => setWaitSec((sec) => sec - 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [waitSec]);
+
+  const resend = async () => {
+    const target = email.trim() || readResetState()?.email || "";
+    if (!target || isSending || waitSec > 0) return;
+    setIsSending(true);
+    const result = await requestResetCode(target);
+    setIsSending(false);
+    if (!result.ok) {
+      setNote(result.reason);
+      return;
+    }
+    rememberResetEmail(target);
+    // 서버는 60초 · 시간당 한도에 걸리면 같은 답을 하고 메일만 안 보낸다 — 단정하지 않는다(11/25 검토)
+    setNote("가입된 이메일이면 새 인증코드를 보냈습니다. 새 코드가 오면 앞서 받은 코드는 쓸 수 없습니다.");
+    setWaitSec(resendWaitSeconds(target));
+  };
+
+  return (
+    <div style={resendBoxStyle} role="note">
+      <span>{note || "메일이 오지 않았다면 스팸함을 확인해 주세요. 코드는 15분 동안 쓸 수 있습니다."}</span>
+      <button type="button" style={resendButtonStyle} onClick={resend} disabled={isSending || waitSec > 0}>
+        {waitSec > 0 ? `${waitSec}초 뒤 다시 받기` : isSending ? "보내는 중…" : "코드 다시 받기"}
+      </button>
+    </div>
+  );
+}
+
+const resendBoxStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  gap: "12px",
+  flexWrap: "wrap",
+  gap: "8px 12px",
   padding: "12px 16px",
   borderRadius: "10px",
-  border: "1px dashed rgba(251,191,36,0.45)",
-  background: "rgba(251,191,36,0.06)",
+  border: "1px solid rgba(111,134,191,0.35)",
+  background: "rgba(8,22,61,0.45)",
   fontFamily: FONT.mono,
   fontSize: "14px",
-  color: COLOR.warning,
+  lineHeight: 1.5,
+  color: COLOR.textMuted,
+};
+
+const resendButtonStyle: CSSProperties = {
+  flexShrink: 0,
+  padding: 0,
+  border: "none",
+  background: "none",
+  fontFamily: FONT.mono,
+  fontSize: "14px",
+  fontWeight: 700,
+  color: "#9fb4ea",
+  textDecoration: "underline",
+  textUnderlineOffset: "3px",
+  cursor: "pointer",
+};
+
+const successNoteStyle: CSSProperties = {
+  fontSize: "16px",
+  lineHeight: 1.5,
+  color: COLOR.success,
+  padding: "10px 14px",
+  borderRadius: "10px",
+  background: "rgba(74,222,128,0.08)",
+  border: "1px solid rgba(74,222,128,0.3)",
 };
 
 // 칸 하나가 아니라 폼 전체에 걸린 문제(「이메일 또는 비밀번호가 올바르지 않습니다」)를 보여 준다.
