@@ -275,7 +275,7 @@ checkpoint("cc-confirm-without-name", "이름 없이 확인 — 이름 탭으로
 fill("조사관 이름", "가", 300);
 checkpoint("cc-name-too-short", "이름 1자", ["2자 이상 입력해 주세요."]);
 fill("조사관 이름", "abc!@", 300);
-checkpoint("cc-name-bad-chars", "허용 안 되는 문자", ["한글·영문·숫자를 쓸 수 있습니다."]);
+checkpoint("cc-name-bad-chars", "허용 안 되는 문자", ["한글·영문·숫자·언더바(_)를 쓸 수 있습니다."]);
 fill("조사관 이름", "가나다라마바사아자차카타파", 300);
 checkpoint("cc-name-too-long", "13자", ["12자까지 쓸 수 있습니다."]);
 fill("조사관 이름", "조사관", 200);
