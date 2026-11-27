@@ -6,7 +6,8 @@ name: deploy-backend
 on:
   push:
     branches: [main]
-    paths: ['backend/**', 'lobby/**', '.github/workflows/deploy-backend.yml']
+    # shared/ 는 금칙어 · 예약어 · 지역 공용 목록(백엔드가 ../shared 로 읽는다) — 그것만 바뀌어도 배포한다(11/27)
+    paths: ['backend/**', 'lobby/**', 'shared/**', '.github/workflows/deploy-backend.yml']
   workflow_dispatch:
 
 permissions:
@@ -41,7 +42,7 @@ jobs:
       - name: 배포 묶음 만들기
         run: |
           tar --exclude='backend/tests' --exclude='__pycache__' --exclude='backend/.env' \
-              --exclude='backend/.venv' -czf release.tgz backend \
+              --exclude='backend/.venv' -czf release.tgz backend shared \
               lobby/dist lobby/data lobby/package.json lobby/package-lock.json
           ls -lh release.tgz
 

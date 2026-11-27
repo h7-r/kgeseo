@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import json
 import logging
 from dataclasses import dataclass
 from importlib import import_module
@@ -84,6 +85,30 @@ def check_required_tables(connection: Connection) -> Check:
     return Check("PASS")
 
 
+def check_shared_policy() -> Check:
+    """공용 정책 JSON(금칙어 · 예약어 = nickname-policy.json, 가입 지역 = regions.json)이 배포 묶음에 있는지.
+
+    백엔드는 파일이 없으면 경고만 남기고 옛 내장 목록(금칙어 10개 · 예약어 9개)으로 돌아 조용히 약해진다 — 11/27 운영에서
+    배포 묶음에 shared/ 가 빠진 채 몇 주를 그렇게 돌았다. 여기서 FAIL 이면 deploy.sh 가 이전 릴리스로 되돌린다(미르 11/27).
+    """
+    from app.services import nickname_policy, registration_input_policy
+
+    unreadable = []
+    for path in (nickname_policy.POLICY_PATH, registration_input_policy.REGIONS_PATH):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            unreadable.append(path.name)
+            continue
+        if not data:
+            unreadable.append(path.name)
+    if unreadable:
+        return Check(
+            "FAIL", "shared policy missing or unreadable: " + ", ".join(unreadable)
+        )
+    return Check("PASS")
+
+
 async def check_published_content(
     connection: AsyncConnection, root_setting: str
 ) -> Check:
@@ -117,7 +142,7 @@ async def check_published_content(
     return Check("PASS")
 
 
-async def run_checks(schema_only: bool) -> tuple[Check, Check, Check]:
+async def run_checks(schema_only: bool) -> tuple[Check, Check, Check, Check]:
     # Settings validation can include sensitive input values. Load settings
     # inside the CLI's redacted error boundary.
     from app.core.config import settings
@@ -126,6 +151,8 @@ async def run_checks(schema_only: bool) -> tuple[Check, Check, Check]:
     skipped = Check(
         "SKIP", "schema-only mode" if schema_only else "database unavailable"
     )
+    # DB 와 상관없이 늘 본다(--schema-only 여도) — 파일이 묶음에 있는지만
+    shared = check_shared_policy()
     try:
         scripts = ScriptDirectory.from_config(Config(ALEMBIC_INI))
         async with engine.connect() as connection:
@@ -147,10 +174,10 @@ async def run_checks(schema_only: bool) -> tuple[Check, Check, Check]:
                     )
                 except SQLAlchemyError:
                     content = Check("FAIL", "could not read publication records")
-            return alembic, tables, content
+            return alembic, tables, content, shared
     except SQLAlchemyError:
         unavailable = Check("FAIL", "database connection failed")
-        return unavailable, unavailable, skipped
+        return unavailable, unavailable, skipped, shared
     finally:
         await engine.dispose()
 
@@ -189,7 +216,9 @@ def main(argv: list[str] | None = None) -> int:
         logging.disable(previous_logging_level)
 
     for label, result in zip(
-        ("Alembic", "Required Tables", "Published Content"), results, strict=True
+        ("Alembic", "Required Tables", "Published Content", "Shared Policy"),
+        results,
+        strict=True,
     ):
         detail = f" ({result.detail})" if result.detail else ""
         print(f"{label}: {result.status}{detail}")
