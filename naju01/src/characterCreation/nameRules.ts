@@ -14,9 +14,10 @@ export interface NameRules {
 export const DEFAULT_NAME_RULES: NameRules = {
   min: 2,
   max: 12,
-  // 한글·영문·숫자와 가운데 한 칸 공백만
-  allowedPattern: "^[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9]+( [가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9]+)*$",
-  allowedHint: "한글·영문·숫자를 쓸 수 있습니다.",
+  // 한글·영문·숫자·언더바(_)와 가운데 한 칸 공백. 언더바만으로는 안 된다(맨 앞 (?=…)).
+  // 서버 로비 표 규칙(backend/app/api/v1/lobby.py INVESTIGATOR_NAME, 11/26 세진 #211)과 같은 식이다 — 하나만 바꾸면 로비에 계정 닉네임이 뜬다.
+  allowedPattern: "^(?=.*[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9])[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9_]+( [가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9_]+)*$",
+  allowedHint: "한글·영문·숫자·언더바(_)를 쓸 수 있습니다.",
 };
 
 export type NameFormatResult = { ok: true; name: string } | { ok: false; message: string; isEmpty?: boolean };
