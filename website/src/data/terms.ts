@@ -35,9 +35,15 @@ type TermsSection =
 const EFFECTIVE_DATE = "2026년 11월 12일";
 /**
  * 개인정보 처리방침의 시행일 — 방침만 고쳤을 때는 이 값만 올린다(제11조: 바꾸면 시행 7일 전부터 공지).
- * 2026-11-demo-v2(미르 11/23): 고객 문의 기록 보유기간 30일 → 1년 또는 서비스 종료일(12/31) 중 먼저. 서버에 30일 뒤 지우는 기능이 없었다. 문의에 남는 접속 IP 는 수집일부터 1년(미르 11/13)이라 기준일은 서로 다르다.
+ * 고칠 때마다 제11조 변경 이력에 한 줄을 더하고, 앞 판의 날짜는 아래처럼 따로 둔다.
+ * 12/4(미르 11/26): 비밀번호 찾기 메일을 AWS(SES)로 보내 위탁 항목에 「이메일 발송」을 더했다.
  */
-const PRIVACY_EFFECTIVE_DATE = "2026년 12월 1일";
+const PRIVACY_EFFECTIVE_DATE = "2026년 12월 4일";
+/**
+ * 앞 판(2026-11-demo-v2, 미르 11/23): 고객 문의 기록 보유기간 30일 → 1년 또는 서비스 종료일(12/31) 중 먼저. 서버에 30일 뒤 지우는 기능이 없었다.
+ * 문의에 남는 접속 IP 는 수집일부터 1년(미르 11/13)이라 기준일은 서로 다르다.
+ */
+const PRIVACY_INQUIRY_RETENTION_DATE = "2026년 12월 1일";
 
 /**
  * 시험운영 값(운영 주체 · 책임자 · 날짜 · 위탁 · 국외 이전 · 쿠키는 미르 11/11 확정). 보유기간은 임시로 정한 값이다.
@@ -50,7 +56,7 @@ const DEMO = {
   publishDate: EFFECTIVE_DATE,
   creditsUrl: "www.k-escape.com/credits",
   processors:
-    "Amazon Web Services(서버 · 데이터베이스 운영, 서울 리전) · Vercel(웹사이트 · 게임 호스팅) · Cloudflare(도메인 관리 · 문의 메일 전달)",
+    "Amazon Web Services(서버 · 데이터베이스 운영 · 이메일 발송, 서울 리전) · Vercel(웹사이트 · 게임 호스팅) · Cloudflare(도메인 관리 · 문의 메일 전달)",
   overseasTransfer:
     "회원 정보와 플레이 기록은 Amazon Web Services 서울 리전에 보관합니다. 다만 웹사이트 · 게임을 전달하는 Vercel(미국)과 도메인 · 메일 전달을 맡는 Cloudflare(미국)를 거치면서 접속 기록(IP 주소 · 접속 시각 등)이 해외 서버를 지날 수 있습니다",
   cookieTools:
@@ -273,7 +279,7 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
       kind: "body",
       lines: [
         "① 회사는 원활한 서비스 제공을 위하여 다음과 같이 개인정보 처리업무를 위탁할 수 있습니다.",
-        "   1. 서버·데이터베이스 운영 : Amazon Web Services(서울 리전)",
+        "   1. 서버·데이터베이스 운영, 이메일 발송(비밀번호 재설정 메일) : Amazon Web Services(서울 리전)",
         "   2. 웹사이트·게임 호스팅 : Vercel",
         "   3. 도메인 관리·문의 메일 전달 : Cloudflare",
         "② 회사는 위탁계약 체결 시 「개인정보 보호법」 제26조에 따라 위탁업무 수행목적 외 처리 금지, 기술적·관리적 보호조치, 재위탁 제한 등을 계약서에 명시합니다.",
@@ -333,7 +339,9 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
       kind: "body",
       lines: [
         `본 방침은 ${PRIVACY_EFFECTIVE_DATE}부터 적용되며, 내용의 추가·삭제·수정이 있는 경우에는 **시행 7일 전**부터 공지사항을 통하여 고지합니다.`,
-        `변경 이력 : ${PRIVACY_EFFECTIVE_DATE} — 고객 문의 및 권리행사 기록의 보유기간을 「문의 처리 완료일로부터 30일」에서 「문의 처리 완료일로부터 1년 또는 2026년 12월 31일 중 먼저 도래하는 시점까지」로 변경(이전 방침 시행일 ${EFFECTIVE_DATE}).`,
+        "변경 이력 :",
+        `   · ${PRIVACY_EFFECTIVE_DATE} — 개인정보 처리 위탁에 「이메일 발송(비밀번호 재설정 메일) : Amazon Web Services(서울 리전)」을 추가(비밀번호 찾기 기능 도입, 이전 방침 시행일 ${PRIVACY_INQUIRY_RETENTION_DATE}).`,
+        `   · ${PRIVACY_INQUIRY_RETENTION_DATE} — 고객 문의 및 권리행사 기록의 보유기간을 「문의 처리 완료일로부터 30일」에서 「문의 처리 완료일로부터 1년 또는 2026년 12월 31일 중 먼저 도래하는 시점까지」로 변경(이전 방침 시행일 ${EFFECTIVE_DATE}).`,
       ],
     },
     { kind: "article", text: "제12조 (시험운영의 개인정보 처리 안내)" },
