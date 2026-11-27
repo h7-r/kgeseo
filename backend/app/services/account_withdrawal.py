@@ -40,11 +40,13 @@ from app.models.guest_session import GuestSession
 from app.models.inquiry import Inquiry
 from app.models.interaction_event import InteractionEvent
 from app.models.npc_turn_idempotency import NpcTurnRequest
+from app.models.password_reset import PasswordResetCode
 from app.models.play_session import PlaySession
 from app.models.social_onboarding_pending import SocialOnboardingPending
 from app.services.guest_session import find_guest_session
 from app.services.local_auth import normalize_email, utc_now, verify_password
 from app.services.npc_turn_service import NPC_TURN_EVENT_TYPE
+from app.services.password_reset import verify_throttle_key
 from app.services.user_session import hash_session_token
 
 ADMIN_ROLE = "admin"
@@ -188,15 +190,25 @@ async def withdraw_member(
                     SocialOnboardingPending.provider_subject == subject,
                 )
             )
+        # 로그인 실패 · 비밀번호 찾기 코드 확인 실패(11/25) — 둘 다 이메일 해시 열쇠다
         await db.execute(
             delete(LoginThrottle).where(
-                LoginThrottle.key_hash == _login_throttle_key(original_email)
+                LoginThrottle.key_hash.in_(
+                    [
+                        _login_throttle_key(original_email),
+                        verify_throttle_key(original_email),
+                    ]
+                )
             )
         )
         await db.execute(
             delete(AuthIdentity).where(AuthIdentity.app_user_id == user_id)
         )
         await db.execute(delete(UserSession).where(UserSession.app_user_id == user_id))
+        # 비밀번호 찾기 코드(11/25) — 회원 행을 남기므로 FK CASCADE 로는 지워지지 않는다
+        await db.execute(
+            delete(PasswordResetCode).where(PasswordResetCode.app_user_id == user_id)
+        )
 
         now = utc_now()
         result = await db.execute(

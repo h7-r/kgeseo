@@ -114,7 +114,8 @@
 | `guest_sessions`(탈퇴 요청 쿠키의 게스트 하나, 11/19) | `revoked_at` 기록(행 · 만료 시각 · 그 게스트의 회차는 그대로) | 요청 쿠키 토큰 해시 |
 | `admin_audit_logs` | 1년 보존 | `target_user_id` |
 | `social_onboarding_pendings`(그 회원 소셜 subject 의 가입 대기 · 이메일 포함) | 삭제 | provider + subject |
-| `login_throttles` 이메일 키(이메일 해시) | 삭제(IP 키는 남김) | 이메일 해시 |
+| `login_throttles` 이메일 키(이메일 해시) · 비밀번호 찾기 코드 확인 키(11/25) | 삭제(IP 키는 남김) | 이메일 해시 |
+| `password_reset_codes`(비밀번호 찾기 코드 · 증표 해시, 11/25) | 삭제 | `app_user_id` |
 | Google Forms 베타 설문 응답 | DB 밖 — §8 수동 삭제(탈퇴 뒤 7일 안) | 참가 번호 |
 
 자유 입력 정책: 서버는 NPC 자유 대화 원문을 저장하지 않는다. 원문에서 나온 해시(솔트 없는 SHA-256 · HMAC)와 퍼즐 입력 문자열을 탈퇴 때 지운다.

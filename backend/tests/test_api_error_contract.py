@@ -47,6 +47,11 @@ EXPECTED_ERRORS = {
     ("GET", "/api/v1/me/items"): {401},
     # 11/17 회원 탈퇴 Phase 1 — 세션 · 비밀번호(401), Origin · 관리자 · 소셜 전용(403), 형식(422), 잠금(429)
     ("POST", "/api/v1/me/withdrawal"): {401, 403, 422, 429},
+    # 11/25 비밀번호 찾기 · 변경(계약 password_reset_v0.1). 찾기는 Origin(403) · 형식(422) · IP 빈도(429), 코드 · 증표 401, 메일 꺼짐 503
+    ("POST", "/api/v1/auth/password-reset/request"): {403, 422, 429, 503},
+    ("POST", "/api/v1/auth/password-reset/verify"): {401, 403, 422, 429},
+    ("POST", "/api/v1/auth/password-reset/complete"): {401, 403, 422, 429},
+    ("POST", "/api/v1/me/password"): {401, 403, 422, 429},
     ("POST", "/api/v1/lobby/ticket"): {401, 403, 429, 503},
     ("GET", "/api/v1/admin/users"): {401, 403, 422},
     ("GET", "/api/v1/admin/users/{user_id}"): {401, 403, 404, 422},
@@ -139,6 +144,8 @@ EXPECTED_ERRORS = {
 NO_CONTENT = {
     ("POST", "/api/v1/me/logout"),
     ("POST", "/api/v1/me/withdrawal"),
+    ("POST", "/api/v1/me/password"),
+    ("POST", "/api/v1/auth/password-reset/complete"),
     ("DELETE", "/api/v1/me/game-save"),
     ("DELETE", "/api/v1/admin/notices/{notice_id}"),
 }

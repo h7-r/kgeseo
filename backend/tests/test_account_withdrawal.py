@@ -370,7 +370,8 @@ def test_email_login_raced_by_withdrawal_answers_like_a_wrong_password(
     async def login_user(db, email, password):
         return member()
 
-    async def withdrawn(*_args):
+    # 이메일 로그인은 verified_password_hash 도 넘긴다(11/25 비밀번호 찾기 · 변경과 겹친 로그인 막기)
+    async def withdrawn(*_args, **_kwargs):
         raise WithdrawnAccountError
 
     monkeypatch.setattr(auth, "login_lock_remaining_seconds", none)

@@ -1,4 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+import logging
+
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    HTTPException,
+    Request,
+    Response,
+    status,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
@@ -14,17 +25,28 @@ from app.schemas.auth import (
     LocalRegisterRequest,
     NaverLoginRequest,
     NicknameExistsRequest,
+    PasswordResetAccepted,
+    PasswordResetCompleteRequest,
+    PasswordResetRequest,
+    PasswordResetVerifyRequest,
+    PasswordResetVerifyResponse,
     SocialOnboardingCompleteRequest,
     SocialOnboardingRequiredResponse,
     SocialUserResponse,
 )
-from app.services import local_auth
+from app.services import local_auth, password_reset
 from app.services.google_auth import (
     GoogleAuthConfigurationError,
     InvalidGoogleCredentialError,
     verify_google_credential,
 )
 from app.services.guest_session import transfer_guest_to_user
+from app.services.mailer import (
+    MailSendError,
+    MailUnavailableError,
+    mail_available,
+    send_mail,
+)
 from app.services.naver_auth import (
     InvalidNaverAuthorizationCodeError,
     InvalidNaverProfileError,
@@ -39,11 +61,15 @@ from app.services.registration_input_policy import (
     InvalidEmailError,
     InvalidPasswordError,
     InvalidRegionError,
+    validate_registration_email,
 )
 from app.services.request_rate_limit import (
     EMAIL_EXISTS,
     LOGIN,
     NICKNAME_EXISTS,
+    PASSWORD_RESET_COMPLETE,
+    PASSWORD_RESET_REQUEST,
+    PASSWORD_RESET_VERIFY,
     REGISTER,
     SOCIAL_GOOGLE,
     SOCIAL_NAVER,
@@ -60,6 +86,7 @@ from app.services.social_onboarding import (
     complete_onboarding,
 )
 from app.services.user_session import (
+    PasswordChangedDuringLoginError,
     WithdrawnAccountError,
     clear_login_failures,
     login_lock_remaining_seconds,
@@ -84,6 +111,7 @@ async def _establish_login(
     response: Response,
     user_id: str,
     refused: HTTPException | None = None,
+    verified_password_hash: str | None = None,
 ) -> None:
     """로그인 성공 공통 처리(11/6 PM): 로그인 세션 쿠키를 주고, 유효한 게스트 쿠키가 있으면 그 진행을 계정으로 옮긴다.
 
@@ -92,8 +120,10 @@ async def _establish_login(
     따로 드러내지 않는다(이메일 로그인 = 401 `Invalid email or password.`, 그 밖 = 409 문장).
     """
     try:
-        await start_session(db, response, user_id)
-    except WithdrawnAccountError as error:
+        await start_session(
+            db, response, user_id, verified_password_hash=verified_password_hash
+        )
+    except (WithdrawnAccountError, PasswordChangedDuringLoginError) as error:
         raise (refused or _social_login_refused()) from error
     await transfer_guest_to_user(db, http_request, response, user_id)
 
@@ -350,6 +380,9 @@ async def login_local_account(
             headers={"Cache-Control": "no-store"},
         ) from error
 
+    # 방금 확인한 해시 — 실패 기록 정리(커밋)보다 먼저, 같은 스냅숏에서 읽는다. 세션을 만들기 전에 비밀번호가 바뀌었으면
+    # (찾기 완료 · 변경과 겹친 로그인) start_session 이 거절한다(11/25)
+    verified_password_hash = await local_auth.local_password_hash(db, user.id)
     await clear_login_failures(db, http_request, request.email)
     await _establish_login(
         db,
@@ -361,6 +394,7 @@ async def login_local_account(
             detail="Invalid email or password.",
             headers={"Cache-Control": "no-store"},
         ),
+        verified_password_hash=verified_password_hash,
     )
     return LocalAuthResponse(user=local_auth.user_to_payload(user))
 
@@ -470,4 +504,128 @@ async def complete_social_account(
             status_code=409,
             detail="Social account login could not be completed.",
             headers={"Cache-Control": "no-store"},
+        ) from error
+
+
+# --- 비밀번호 찾기(계약 password_reset_v0.1, 11/25) ---
+
+logger = logging.getLogger("app.auth")
+
+
+async def _issue_reset_code(app: FastAPI, email: str) -> None:
+    """응답을 보낸 뒤에 코드를 만들고 메일을 보낸다(백그라운드 작업).
+
+    가입된 이메일만 DB 쓰기 · 메일이 있으므로, 이 일을 응답 안에서 하면 걸린 시간으로 가입 여부가 갈린다(11/25 검토).
+    요청의 DB 세션은 응답과 함께 닫히므로 새 세션을 연다 — 테스트가 `get_db` 를 바꿔 끼웠으면 그것을 따른다.
+    """
+    sessions = app.dependency_overrides.get(get_db, get_db)()
+    try:
+        db = await anext(sessions)
+        mail = await password_reset.request_password_reset(db, email)
+    except Exception as error:  # noqa: BLE001 — 응답은 이미 나갔다. 원인 종류만 남긴다(이메일은 남기지 않는다)
+        logger.error("password reset code was not issued: %s", type(error).__name__)
+        return
+    finally:
+        await sessions.aclose()
+    if mail is None:
+        return
+    try:
+        await send_mail(mail)
+    except (MailSendError, MailUnavailableError):
+        logger.error("password reset mail was not sent")
+
+
+def _no_store_error(status_code: int, code: str, message: str) -> HTTPException:
+    return HTTPException(
+        status_code=status_code,
+        detail={"code": code, "message": message},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.post(
+    "/password-reset/request",
+    response_model=PasswordResetAccepted,
+    responses=error_responses.PASSWORD_RESET_REQUEST,
+    dependencies=[Depends(limit_by_ip(PASSWORD_RESET_REQUEST))],
+)
+async def request_password_reset(
+    request: PasswordResetRequest,
+    http_request: Request,
+    background: BackgroundTasks,
+    response: Response,
+) -> PasswordResetAccepted:
+    """① 가입된 이메일이면 6자리 코드를 메일로 보낸다(15분). 없는 이메일 · 소셜 전용 · 탈퇴 계정도 같은 답이다.
+
+    같은 회원에게는 60초에 한 번 · 한 시간 5번 · 하루 10번까지만 보낸다(넘어도 같은 답, 메일만 안 간다).
+    새 코드를 보내면 앞의 코드는 못 쓴다. 계정 조회 · 코드 저장 · 메일은 모두 응답 뒤에 한다(같은 시간에 답하게).
+    """
+    response.headers["Cache-Control"] = "no-store"
+    # 시험 발송 기간(MAIL_TEST_RECIPIENTS)이면 목록 밖 이메일도 여기서 503 — 계정을 찾기 전이라 가입 여부와 상관없다
+    if not mail_available(request.email):
+        raise _no_store_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "mail_unavailable",
+            "지금은 메일을 보낼 수 없습니다. 고객센터로 문의해 주세요.",
+        )
+    try:
+        validate_registration_email(request.email)
+    except InvalidEmailError as error:
+        raise _no_store_error(
+            422, "invalid_email", "올바른 이메일 형식이 아닙니다."
+        ) from error
+    background.add_task(_issue_reset_code, http_request.app, request.email)
+    return PasswordResetAccepted()
+
+
+@router.post(
+    "/password-reset/verify",
+    response_model=PasswordResetVerifyResponse,
+    responses=error_responses.PASSWORD_RESET_VERIFY,
+    dependencies=[Depends(limit_by_ip(PASSWORD_RESET_VERIFY))],
+)
+async def verify_password_reset_code(
+    request: PasswordResetVerifyRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+) -> PasswordResetVerifyResponse:
+    """② 코드가 맞으면 새 비밀번호를 저장할 증표(10분, 한 번)를 준다. 틀린 코드 · 만료 · 시도 초과 · 없는 계정은 같은 401 이다."""
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        token = await password_reset.verify_reset_code(db, request.email, request.code)
+    except password_reset.InvalidResetCodeError as error:
+        raise _no_store_error(
+            status.HTTP_401_UNAUTHORIZED,
+            "invalid_reset_code",
+            "코드가 맞지 않거나 만료되었습니다. 새 코드를 받아 다시 시도해 주세요.",
+        ) from error
+    return PasswordResetVerifyResponse(reset_token=token)
+
+
+@router.post(
+    "/password-reset/complete",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=error_responses.PASSWORD_RESET_COMPLETE,
+    dependencies=[Depends(limit_by_ip(PASSWORD_RESET_COMPLETE))],
+)
+async def complete_password_reset(
+    request: PasswordResetCompleteRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """③ 증표로 새 비밀번호를 저장한다. 그 회원의 모든 기기에서 로그아웃되고, 로그인 실패 잠금이 풀린다. 로그인은 따로 한다."""
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        await password_reset.complete_password_reset(
+            db, request.reset_token, request.new_password
+        )
+    except password_reset.InvalidResetTokenError as error:
+        raise _no_store_error(
+            status.HTTP_401_UNAUTHORIZED,
+            "invalid_reset_token",
+            "재설정 시간이 지났습니다. 코드를 다시 받아 주세요.",
+        ) from error
+    except InvalidPasswordError as error:
+        raise _no_store_error(
+            422, "invalid_password", "비밀번호 형식을 확인해 주세요."
         ) from error
