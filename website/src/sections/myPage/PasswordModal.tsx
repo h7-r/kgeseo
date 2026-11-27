@@ -3,7 +3,7 @@ import { useState, type ChangeEvent, type CSSProperties, type FormEvent } from "
 import Modal from "@/components/Modal";
 import { modalPrimaryStyle, modalSecondaryStyle } from "@/components/modalButtonStyles";
 import { FONT } from "@/lib/style";
-import { validatePasswordConfirm, RULES } from "@/lib/validation";
+import { MAX_LENGTH, validatePasswordConfirm, RULES } from "@/lib/validation";
 import { changePassword } from "@/services/account/passwordApi";
 import type { SessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
@@ -19,7 +19,7 @@ interface PasswordModalProps {
 
 /**
  * 비밀번호 변경(POST /me/password). 자리 비운 사이 남이 못 바꾸게 지금 비밀번호부터 확인하고,
- * 새 비밀번호는 가입과 같은 규칙으로 검사한다. 바꾸면 이 창은 로그인이 유지되고 다른 기기는 로그아웃된다.
+ * 새 비밀번호는 가입과 같은 규칙으로 검사한다. 바꾸면 이 브라우저는 로그인이 유지되고(같은 브라우저의 다른 탭도) 다른 기기는 로그아웃된다.
  */
 export default function PasswordModal({ open, onClose, user }: PasswordModalProps) {
   return (
@@ -91,7 +91,8 @@ function PasswordForm({ onClose, user }: Omit<PasswordModalProps, "open">) {
             if (values[field]) setTouched((previous) => ({ ...previous, [field]: true }));
           }}
           autoComplete={autoComplete}
-          maxLength={64}
+          // 서버와 같은 128자 — 64자에서 자르면 긴 비밀번호를 끝까지 못 넣고 그게 로그인 실패로 세어졌다(미르 11/27)
+          maxLength={MAX_LENGTH.password}
         />
       </label>
     );
@@ -100,7 +101,7 @@ function PasswordForm({ onClose, user }: Omit<PasswordModalProps, "open">) {
   return isDone ? (
     <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
       <p style={{ margin: 0, fontFamily: FONT.body, fontSize: "16px", color: COLOR.success }}>
-        ✓ 비밀번호를 바꿨습니다. 이 창은 그대로 쓰시면 되고, 다른 기기에서는 로그아웃되었습니다.
+        ✓ 비밀번호를 바꿨습니다. 이 브라우저는 그대로 쓰시면 되고, 다른 기기에서는 로그아웃되었습니다.
       </p>
       <button type="button" className="button button--primary" style={modalPrimaryStyle} onClick={onClose}>
         <span className="button__label">확인</span>

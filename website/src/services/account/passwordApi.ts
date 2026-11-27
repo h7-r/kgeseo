@@ -16,8 +16,15 @@ const FALLBACK = "서버와 통신하지 못했습니다. 잠시 후 다시 시�
 /** 서버가 준 한국어 안내. 429 는 남은 시간을 넣은 문장으로, 그 밖은 detail.message, 없으면 기본 문장. */
 function failureReason(result: AuthResponse): string {
   if (result.ok) return "";
+  const message = serverMessage(result);
+  // 코드 확인 하루 잠금은 서버 문장이 다음에 할 일(내일 다시 · 고객센터)을 말한다 — 「n분 뒤」 문장으로 바꾸지 않는다(미르 11/27)
+  if (errorCode(result.body) === "reset_verify_locked" && message) return message;
   const limited = tooManyRequestsMessage(result);
   if (limited) return limited;
+  return message || FALLBACK;
+}
+
+function serverMessage(result: AuthResponse): string {
   const body = result.body;
   if (typeof body === "object" && body !== null && "detail" in body) {
     const detail = body.detail;
@@ -25,7 +32,7 @@ function failureReason(result: AuthResponse): string {
       return detail.message;
     }
   }
-  return FALLBACK;
+  return "";
 }
 
 /** ① 코드 메일 요청. 가입 안 된 이메일이어도 성공으로 온다. */
@@ -72,7 +79,7 @@ export async function completeReset(resetToken: string, newPassword: string): Pr
   };
 }
 
-/** 로그인한 채 비밀번호 바꾸기. 이 창은 로그인이 유지되고 다른 기기는 로그아웃된다. */
+/** 로그인한 채 비밀번호 바꾸기. 이 브라우저(같은 쿠키를 쓰는 다른 탭 포함)는 로그인이 유지되고 다른 기기는 로그아웃된다. */
 export async function changePassword(
   currentPassword: string,
   newPassword: string,

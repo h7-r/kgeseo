@@ -76,6 +76,24 @@ test("② 코드 확인 — 증표를 받고, 틀리면 코드 칸에 서버 문
   assert.equal(result.field, "code");
   assert.match(result.reason, /새 코드/);
 
+  // 하루 잠금 — 서버 문장(다음에 할 일)을 그대로, 「n분 뒤」로 바꾸지 않고 코드 칸에도 두지 않는다(미르 11/27)
+  answer(
+    429,
+    detail(
+      "reset_verify_locked",
+      "코드를 여러 번 틀려 오늘은 이 이메일로 코드를 확인할 수 없습니다. 내일 다시 시도하거나 고객센터로 문의해 주세요.",
+    ),
+    { "Retry-After": "86000" },
+  );
+  const locked = await api.confirmResetCode("a@example.com", "123456");
+  assert.equal(locked.ok, false);
+  assert.equal(locked.field, undefined);
+  assert.match(locked.reason, /내일 다시 시도/);
+  assert.match(locked.reason, /고객센터/);
+  // IP 요청 제한은 그대로 「n초 뒤」
+  answer(429, detail("rate_limited", "요청이 너무 많습니다."), { "Retry-After": "30" });
+  assert.match((await api.confirmResetCode("a@example.com", "123456")).reason, /30초/);
+
   // 모양이 어긋난 성공 답은 성공으로 치지 않는다
   answer(200, {});
   assert.equal((await api.confirmResetCode("a@example.com", "123456")).ok, false);
