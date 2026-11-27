@@ -181,6 +181,63 @@ def test_cli_bad_configuration_has_no_traceback_or_input_values():
     assert result.stderr == ""
 
 
+def test_shared_policy_passes_with_the_repository_files():
+    assert check.check_shared_policy() == check.Check("PASS")
+
+
+@pytest.mark.parametrize("which", ["policy", "regions"])
+def test_shared_policy_fails_when_a_file_is_missing_or_empty(
+    tmp_path, monkeypatch, which
+):
+    """배포 묶음에 shared/ 가 빠지면(11/27 운영) 백엔드는 조용히 내장 목록으로 돈다 — 점검은 FAIL 이어야 한다."""
+    from app.services import nickname_policy, registration_input_policy
+
+    target = (
+        (nickname_policy, "POLICY_PATH")
+        if which == "policy"
+        else (registration_input_policy, "REGIONS_PATH")
+    )
+    monkeypatch.setattr(*target, tmp_path / "missing.json")
+    result = check.check_shared_policy()
+    assert result.status == "FAIL" and "missing.json" in result.detail
+    assert str(tmp_path) not in result.detail
+
+    empty = tmp_path / "empty.json"
+    empty.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(*target, empty)
+    assert check.check_shared_policy().status == "FAIL"
+
+
+def test_cli_fails_overall_when_shared_policy_is_missing(monkeypatch, capsys, tmp_path):
+    from app.services import nickname_policy
+
+    connection = SimpleNamespace(
+        run_sync=AsyncMock(return_value=check.Check("PASS", "checked")),
+        scalar=AsyncMock(),
+    )
+
+    class Connection:
+        async def __aenter__(self):
+            return connection
+
+        async def __aexit__(self, *exc):
+            pass
+
+    monkeypatch.setattr(
+        nickname_policy, "POLICY_PATH", tmp_path / "nickname-policy.json"
+    )
+    monkeypatch.setattr(
+        session, "engine", SimpleNamespace(connect=Connection, dispose=AsyncMock())
+    )
+    assert check.main(["--schema-only"]) == 1
+    output = capsys.readouterr().out
+    assert (
+        "Shared Policy: FAIL (shared policy missing or unreadable: nickname-policy.json)"
+        in output
+    )
+    assert "Overall: FAIL" in output
+
+
 @pytest.mark.parametrize("args", [[], ["--schema-only"], ["--full"]])
 def test_cli_success_with_skipped_content(monkeypatch, capsys, args):
     connection = SimpleNamespace(
@@ -214,6 +271,7 @@ def test_cli_success_with_skipped_content(monkeypatch, capsys, args):
             in output
         )
         assert "Running App Restore: SKIP" in output
+    assert "Shared Policy: PASS" in output
     assert "Overall: PASS" in output
 
 

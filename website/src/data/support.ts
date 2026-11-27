@@ -1,5 +1,3 @@
-import { SUPPORT_EMAIL } from "@/data/contact";
-import { IS_ACCOUNT_MANAGEMENT_READY } from "@/services/account/manageAccount";
 import { COLOR } from "@/styles/tokens";
 
 /** 고객센터 공지사항·FAQ 목록. */
@@ -30,9 +28,8 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
   {
     category: "계정",
     question: "비밀번호를 잊어버렸어요. 어떻게 찾나요?",
-    answer: IS_ACCOUNT_MANAGEMENT_READY
-      ? "로그인 화면에서 「비밀번호 찾기」를 누르면 가입한 이메일로 인증코드 6자리를 보내 드립니다. 인증을 마치면 새 비밀번호를 설정할 수 있습니다."
-      : `비밀번호 찾기는 준비 중입니다. 그동안은 가입한 이메일을 적어 ${SUPPORT_EMAIL} 로 요청해 주세요.`,
+    answer:
+      "로그인 화면에서 「비밀번호 찾기」를 누르면 가입한 이메일로 인증코드 6자리를 보내 드립니다. 인증을 마치면 새 비밀번호를 설정할 수 있습니다. 구글 · 네이버로 가입한 계정은 비밀번호가 없으니 그 계정으로 로그인해 주세요.",
   },
   {
     category: "게임플레이",

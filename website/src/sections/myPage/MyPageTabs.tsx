@@ -2,7 +2,6 @@ import ComingSoonChip from "@/components/ComingSoonChip";
 import { MY_PAGE_CONTENT, type AccountAction } from "@/data/myPage";
 import { FONT } from "@/lib/style";
 import type { ExportMyDataResult } from "@/services/account/exportMyData";
-import { IS_ACCOUNT_MANAGEMENT_READY } from "@/services/account/manageAccount";
 import { COLOR } from "@/styles/tokens";
 
 import { darkCardStyle, darkRowStyle, labelTextStyle, strongValueTextStyle, subheadingStyle } from "./myPageStyles";
@@ -34,9 +33,7 @@ export function AccountTab({ hasPassword, exportState, onAction }: AccountTabPro
           {group.items.map(({ label, value: listedValue, action: listedAction }) => {
             // 소셜 전용 계정에는 바꿀 비밀번호가 없다(/me providers 에 local 없음)
             const isSocialOnlyPassword = listedAction === "changePassword" && hasPassword === false;
-            // 비밀번호 변경은 백엔드 API(BE-4)가 생길 때까지 「준비 중」. 탈퇴는 서버(#177)는 있고 연동은 미르 승인 뒤라 목록에서부터 준비 중
-            const isPending = !IS_ACCOUNT_MANAGEMENT_READY && listedAction === "changePassword";
-            const action = isPending || isSocialOnlyPassword ? undefined : listedAction;
+            const action = isSocialOnlyPassword ? undefined : listedAction;
             const value = action === "exportData" && exportState !== "idle" ? EXPORT_VALUE[exportState] : listedValue;
             return (
               <div

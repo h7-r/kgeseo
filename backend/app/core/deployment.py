@@ -42,6 +42,17 @@ def validate_deployment(settings):
         raise ValueError("production requires SESSION_COOKIE_SECURE=true")
     if not settings.cors_origins or any(not https_origin(origin) or origin.endswith("/") for origin in settings.cors_origins):
         raise ValueError("CORS_ORIGINS requires exact HTTPS origins without trailing slash")
+    # 메일(11/25): console 은 비밀번호 찾기 코드를 로그에 남기므로 운영 금지. smtp 면 보낼 곳 · 보내는 사람 · 암호화가 있어야 한다
+    if settings.mail_backend == "console":
+        raise ValueError("production cannot use MAIL_BACKEND=console")
+    if settings.mail_backend == "smtp" and (
+        not settings.smtp_host.strip()
+        or not settings.mail_from.strip()
+        or not (settings.smtp_starttls or settings.smtp_ssl)
+    ):
+        raise ValueError("MAIL_BACKEND=smtp requires SMTP_HOST, MAIL_FROM and STARTTLS or SSL")
+    if settings.mail_backend == "smtp" and len(settings.password_reset_code_secret.get_secret_value()) < 32:
+        raise ValueError("MAIL_BACKEND=smtp requires PASSWORD_RESET_CODE_SECRET of at least 32 characters")
     try:
         callback = urlsplit(settings.naver_redirect_uri)
         origin = f"{callback.scheme}://{callback.netloc}"

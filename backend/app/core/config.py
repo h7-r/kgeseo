@@ -56,6 +56,31 @@ class Settings(BaseSettings):
     rate_limit_inquiry_create: int = Field(default=5, ge=1)
     rate_limit_inquiry_window_sec: int = Field(default=600, ge=1, le=86400)
 
+    # 비밀번호 찾기(계약 password_reset_v0.1, 11/25). IP 당 창(초) 안 최대 요청 수 — 코드 메일 · 코드 확인 · 새 비밀번호 저장을 따로 센다
+    rate_limit_password_reset_request: int = Field(default=10, ge=1)
+    rate_limit_password_reset_verify: int = Field(default=30, ge=1)
+    rate_limit_password_reset_complete: int = Field(default=30, ge=1)
+
+    # 메일 발송(비밀번호 찾기 코드). disabled = 보내지 않음(비밀번호 찾기는 503 mail_unavailable) ·
+    # console = 서버 로그에 적기(개발 전용, production 에서는 시작되지 않는다) · smtp = SMTP 서버로 보내기(AWS SES SMTP · Gmail 등)
+    mail_backend: Literal["disabled", "console", "smtp"] = "disabled"
+    # 보내는 사람. 예: 왜곡 <no-reply@k-escape.com>(이름은 미르 11/26) — 발송 서비스에서 인증한 주소 · 도메인이어야 한다
+    mail_from: str = ""
+    smtp_host: str = ""
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_username: str = ""
+    smtp_password: SecretStr = SecretStr("")
+    # 587 은 STARTTLS, 465 는 처음부터 TLS(smtp_ssl=true). 둘 다 끄는 평문 발송은 production 에서 막는다
+    smtp_starttls: bool = True
+    smtp_ssl: bool = False
+    # 시험 발송 기간에 받을 수 있는 주소(쉼표로 구분). 비어 있으면 누구에게나 보낸다. 값이 있으면 목록 밖 이메일의 비밀번호 찾기는
+    # 메일 꺼짐과 같은 503(「고객센터로 문의」) — 입력한 이메일만 보고 정하므로 가입 여부는 드러나지 않는다.
+    # 처리방침상 AWS 메일 발송 위탁이 2026-12-04 시행이라 그 전에는 팀 계정만 넣어 시험하고, 시행일에 비우고 재시작한다(미르 11/27)
+    mail_test_recipients: str = ""
+    # 인증코드 해시에 섞는 서버 비밀값(HMAC-SHA256). 6자리 코드는 경우의 수가 백만이라 DB 를 읽으면 비밀값 없는 해시는 곧바로 풀린다(세진 11/27).
+    # 운영에서 MAIL_BACKEND=smtp 면 32자 이상이어야 시작된다. 바꾸면 살아 있던 코드(15분)만 못 쓰게 된다
+    password_reset_code_secret: SecretStr = SecretStr("")
+
     # 베타 분석 기록을 저장할지. false 면 받기만 하고 저장하지 않는다(`disabled: true` 응답 — 게임 화면은 그만 보낸다).
     beta_events_enabled: bool = True
 
