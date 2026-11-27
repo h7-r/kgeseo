@@ -33,6 +33,11 @@ class FakeAsyncSession:
         self.rollback_count = 0
         self.commit_error: Exception | None = None
         self.execute_error: Exception | None = None
+        # AsyncSession 과 같은 이름의 빈 상태(바꾸던 객체 없음 · 세션 캐시 없음) — 로그인 실패 기록이 확인한다
+        self.new: set[Any] = set()
+        self.dirty: set[Any] = set()
+        self.deleted: set[Any] = set()
+        self.identity_map: dict[Any, Any] = {}
 
     async def get(
         self,
