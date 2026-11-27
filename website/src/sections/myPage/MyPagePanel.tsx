@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from "react";
+import { useNavigate } from "react-router-dom";
 
 import TabBar from "@/components/TabBar";
 import { MY_PAGE_TABS, type AccountAction, type MyPageTabId } from "@/data/myPage";
@@ -6,18 +7,21 @@ import { FONT } from "@/lib/style";
 import { QUERY, ROUTES, launchGame, useSiteNavigate, withQuery } from "@/navigation/routes";
 import { downloadJson, exportFileName, exportMyData } from "@/services/account/exportMyData";
 import { hasPasswordSignIn } from "@/services/account/meProfile";
-import { signOut, useSessionUser } from "@/services/session";
+import { clearResetState } from "@/services/passwordReset";
+import { endLocalSession, signOut, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
 import { InquiriesTab } from "./InquiriesTab";
 import { AccountTab, SubscriptionTab, type ExportState } from "./MyPageTabs";
 import PasswordModal from "./PasswordModal";
+import WithdrawModal from "./WithdrawModal";
+import { WITHDRAWN_STATE } from "./withdrawnState";
 import ProfileCard, { type ProfileStat } from "./ProfileCard";
 import { AchievementsTab, ItemsTab, ProgressGate, ProgressTab } from "./ProgressTabs";
 import { useMyInquiries } from "./useMyInquiries";
 import { useMyProgress } from "./useMyProgress";
 
-type OpenModal = "password" | null;
+type OpenModal = "password" | "withdraw" | null;
 
 interface MyPagePanelProps {
   tab: MyPageTabId;
@@ -28,6 +32,8 @@ interface MyPagePanelProps {
 /** 마이페이지. 다섯 탭이 같은 껍데기를 쓰고 내용만 바뀐다. 이 구간만 바탕이 #11121a 계열이다. */
 export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps) {
   const navigate = useSiteNavigate();
+  // 라우터 state(작별 안내 표시)를 함께 넘길 때만 쓴다
+  const navigateWithState = useNavigate();
   // 로그인한 사람만 들어오는 화면이다(App 의 문지기).
   const user = useSessionUser();
   const startGame = () => launchGame(navigate);
@@ -69,9 +75,20 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
     navigate(ROUTES.home);
   };
 
+  // 서버가 쿠키를 이미 지웠다 — 홈으로 보내 작별 안내를 띄우고, 이 브라우저의 로그인 표시(다른 탭 포함)와
+  // 진행 중이던 비밀번호 찾기 값을 바로 거둔다
+  const handleWithdrawn = () => {
+    setOpenModal(null);
+    navigateWithState(ROUTES.home, { state: WITHDRAWN_STATE });
+    clearResetState();
+    endLocalSession();
+  };
+
   const handleAccountAction = (action: AccountAction) => {
     if (action === "signOut") handleSignOut();
     else if (action === "changePassword") setOpenModal("password");
+    else if (action === "withdraw") setOpenModal("withdraw");
+    else if (action === "requestByInquiry") navigate(withQuery(ROUTES.support, { [QUERY.tab]: "inquiry" }));
     else if (action === "exportData") void handleExport();
   };
 
@@ -127,6 +144,13 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
       </div>
 
       <PasswordModal open={openModal === "password"} onClose={closeModal} user={user} />
+      <WithdrawModal
+        open={openModal === "withdraw"}
+        hasPassword={user ? hasPasswordSignIn(user) : undefined}
+        user={user}
+        onClose={closeModal}
+        onWithdrawn={handleWithdrawn}
+      />
     </section>
   );
 }

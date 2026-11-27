@@ -83,6 +83,8 @@ FIELD_ERRORS = {
     "email": ("invalid_email", "올바른 이메일 형식이 아닙니다."),
     "password": ("invalid_password", "비밀번호 형식을 확인해 주세요."),
     "nickname": ("invalid_nickname", "사용할 수 없는 닉네임입니다."),
+    "code": ("invalid_reset_code", "인증 코드 6자리를 입력해 주세요."),
+    "new_password": ("invalid_password", "비밀번호 형식을 확인해 주세요."),
 }
 # Routes whose validation errors never echo inputs, with fields checked in order.
 SENSITIVE_INPUT_FIELDS = {
@@ -96,6 +98,11 @@ SENSITIVE_INPUT_FIELDS = {
     "/api/v1/auth/social-onboarding/complete": ("nickname",),
     # 회원 탈퇴(11/17) — 비밀번호 재확인 값을 오류 본문에 되돌려 보내지 않는다
     "/api/v1/me/withdrawal": ("password",),
+    # 비밀번호 찾기 · 변경(11/25) — 코드 · 증표 · 비밀번호를 오류 본문에 되돌려 보내지 않는다
+    "/api/v1/auth/password-reset/request": ("email",),
+    "/api/v1/auth/password-reset/verify": ("email", "code"),
+    "/api/v1/auth/password-reset/complete": ("new_password",),
+    "/api/v1/me/password": ("new_password",),
 }
 
 

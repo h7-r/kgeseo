@@ -150,7 +150,9 @@ def client(db_session: FakeAsyncSession) -> Iterator[TestClient]:
     )
 
     try:
-        with TestClient(app, headers={"Origin": "http://localhost:5175"}) as test_client:
+        with TestClient(
+            app, headers={"Origin": "http://localhost:5175"}
+        ) as test_client:
             yield test_client
     finally:
         app.dependency_overrides.pop(get_db, None)
@@ -168,7 +170,9 @@ async def _legacy_play_principal(request: Request) -> PlayPrincipal:
     실제 쿠키 · 소유권 · Origin 검사는 `real_play_auth` 표시 테스트가 MySQL 로 확인한다.
     """
     anonymous_session_id = None
-    if request.method == "POST" and request.url.path.rstrip("/").endswith("/play-sessions"):
+    if request.method == "POST" and request.url.path.rstrip("/").endswith(
+        "/play-sessions"
+    ):
         try:
             body = await request.json()
         except Exception:

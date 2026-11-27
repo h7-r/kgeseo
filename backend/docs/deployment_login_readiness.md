@@ -161,3 +161,28 @@ merge 마이그레이션이 필요하다. 운영자가 실제 DB를 백업·검�
      보낸 값을 버리고 실제 주소를 넣는다). 헤더가 빠지면 모든 사용자가 127.0.0.1 하나로 묶여 전체가 함께 막힌다.
   4. 배포 뒤 서버 로그에 실제 클라이언트 주소가 찍히는지(Uvicorn 접근 로그의 주소가 127.0.0.1 만이 아닌지).
 - 되돌리기: 이 PR 커밋을 되돌려 재배포한다(DB 변경 없음).
+
+## 비밀번호 찾기 · 변경 (2026-11-25): 메일 발송 · 새 표
+
+계약: `docs/contracts/password_reset_v0.1.md`. 이 배포에는 DB 변경이 있다.
+
+1. **마이그레이션**: `alembic upgrade head` — 새 표 `password_reset_codes` · `password_reset_verify_throttles`(revision `b7e4c2a9d1f3`) 둘만 만든다. 기존 표 · 행은 바꾸지 않는다.
+2. **메일 설정**(운영 `.env`, 넣고 `waegok-api` 재시작):
+   - `MAIL_BACKEND=smtp` · `MAIL_FROM="왜곡 <no-reply@k-escape.com>"` (큰따옴표 포함 — 공백 · `<>` 가 있다. 보내는 이름은 미르 11/26)
+   - **순서: 이 코드가 배포된 뒤에 넣는다.** 이전 코드는 모르는 설정 이름(`MAIL_*` · `SMTP_*`)이 있으면 API 가 시작되지 않는다.
+   - `SMTP_HOST=email-smtp.ap-northeast-2.amazonaws.com` · `SMTP_PORT=587` · `SMTP_STARTTLS=true` · `SMTP_SSL=false`
+   - `SMTP_USERNAME` · `SMTP_PASSWORD` = SES 콘솔 「SMTP 자격 증명」(IAM 사용자 키가 아니다)
+   - `PASSWORD_RESET_CODE_SECRET` = 인증코드 해시용 서버 비밀값, 32자 이상(서버에서 `openssl rand -hex 32`). 없으면 `MAIL_BACKEND=smtp` 로 시작되지 않는다.
+     바꾸면 살아 있던 코드(15분)만 못 쓰게 된다. 채팅 · PR 에 붙이지 않는다
+   - SES 는 처음에 샌드박스(인증한 주소로만 발송)다. 운영 전 **도메인 인증(DKIM)** 과 **프로덕션 액세스 요청**이 필요하다.
+   - 값이 없으면(`MAIL_BACKEND=disabled`, 기본) 비밀번호 찾기는 503 `mail_unavailable` 로 「고객센터로 문의」를 안내한다 — 다른 기능은 그대로다.
+   - `MAIL_BACKEND=console` 은 코드를 로그에 남기므로 production 에서는 API 가 시작되지 않는다.
+   - **12/4 전(처리방침 AWS 메일 발송 위탁 시행일)**: `MAIL_TEST_RECIPIENTS=팀주소1,팀주소2` 를 함께 넣는다. 목록 밖 이메일은 「고객센터로 문의」(503) —
+     일반 회원에게는 메일이 나가지 않는다. 받을 수 있는 실제 메일함(Gmail · 네이버 등)으로 가입한 팀 계정이어야 시험이 된다.
+   - **12/4**: `MAIL_TEST_RECIPIENTS` 줄을 지우고(또는 비우고) `waegok-api` 재시작 → 모든 회원에게 열린다.
+3. **배포 뒤 확인**:
+   1. 본인 이메일 계정으로 비밀번호 찾기 → 메일 도착(스팸함 포함) → 코드 → 새 비밀번호 → 다른 기기에서 로그아웃됐는지.
+   2. 없는 이메일로 찾기를 눌러도 같은 화면으로 넘어가는지(가입 여부가 드러나지 않는다).
+   3. 서버 로그에 `password reset mail was not sent` · `password reset code was not issued` 가 없는지.
+- 되돌리기: **먼저 운영 `.env` 에서 `MAIL_*` · `SMTP_*` 줄을 모두 뺀다** — 옛 코드는 모르는 설정 이름이 있으면 API 가 시작되지 않는다(위 2번 순서의 거꾸로).
+  그다음 코드를 되돌리고 `waegok-api` 재시작 → `/health/ready`. 표는 남겨 둬도 옛 코드가 읽지 않는다(지우려면 `alembic downgrade 93fb40166c08`).

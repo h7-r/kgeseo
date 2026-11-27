@@ -409,6 +409,67 @@ SOCIAL_ONBOARDING = {
 }
 
 
+# 비밀번호 찾기(계약 password_reset_v0.1, 11/25). 가입 여부를 드러내지 않게 없는 계정 · 틀린 코드를 같은 답으로 한다.
+PASSWORD_RESET_REQUEST = {
+    422: error(
+        CodedError,
+        "요청 형식 오류도 입력값을 되돌려 보내지 않는다(`email` 누락 · 형식은 `invalid_email`, 그 밖은 `invalid_input`)."
+        + _NO_STORE,
+        "invalid_email",
+        "invalid_input",
+    ),
+    **_rate_limited("10회, `RATE_LIMIT_PASSWORD_RESET_REQUEST`"),
+    503: error(
+        CodedError,
+        "서버에 메일 발송이 설정되지 않았다(`MAIL_BACKEND=disabled`). 가입 여부를 보기 전에 답한다."
+        + _NO_STORE,
+        "mail_unavailable",
+    ),
+}
+PASSWORD_RESET_VERIFY = {
+    401: error(
+        CodedError,
+        "코드가 틀렸다 · 만료됐다 · 시도가 5번을 넘었다 · 받은 코드가 없다 · 가입되지 않은 이메일이다(구분하지 않는다). "
+        "틀릴 때마다 그 코드의 실패 횟수가 오르고, 5번이 되면 새 코드를 받아야 한다."
+        + _NO_STORE,
+        "invalid_reset_code",
+    ),
+    422: error(
+        CodedError,
+        "요청 형식 오류도 입력값을 되돌려 보내지 않는다(이메일 = `invalid_email`, 6자리 숫자가 아닌 코드 = "
+        "`invalid_reset_code`, 그 밖 = `invalid_input`)." + _NO_STORE,
+        "invalid_email",
+        "invalid_reset_code",
+        "invalid_input",
+    ),
+    429: error(
+        CodedError,
+        "`code`로 구분한다. `reset_verify_locked`: 이 이메일의 코드 확인 실패가 하루 20번에 닿아 잠겼다(가입 여부와 상관없이 같다). "
+        "`message` 가 「내일 다시 시도하거나 고객센터로 문의」를 안내하고, `Retry-After` 헤더가 풀릴 때까지 남은 초다. "
+        "`rate_limited`: "
+        + _rate_limited_text("30회, `RATE_LIMIT_PASSWORD_RESET_VERIFY`")
+        + _NO_STORE,
+        "reset_verify_locked",
+        "rate_limited",
+    ),
+}
+PASSWORD_RESET_COMPLETE = {
+    401: error(
+        CodedError,
+        "재설정 증표가 없거나 만료됐거나(10분) 이미 썼다. 코드부터 다시 받는다."
+        + _NO_STORE,
+        "invalid_reset_token",
+    ),
+    422: error(
+        CodedError,
+        "새 비밀번호가 가입 규칙에 맞지 않다(`invalid_password` — 증표는 그대로 남아 다시 보낼 수 있다) · 그 밖 형식 오류"
+        "(`invalid_input`). 입력값을 되돌려 보내지 않는다." + _NO_STORE,
+        "invalid_password",
+        "invalid_input",
+    ),
+    **_rate_limited("30회, `RATE_LIMIT_PASSWORD_RESET_COMPLETE`"),
+}
+
 # --- Health ---
 
 HEALTH_READY = {
@@ -489,6 +550,32 @@ ME_WITHDRAWAL = {
         + _NO_STORE,
         "login_locked",
     ),
+}
+# 로그인한 회원의 비밀번호 변경(계약 password_reset_v0.1 §4, 11/25). 거절이면 아무것도 바꾸지 않는다.
+ME_PASSWORD = {
+    401: error(
+        ErrorMessage | CodedError,
+        "로그인 세션이 없거나 끝났다 · 지금 비밀번호가 틀렸다(`invalid_password`, 로그인 실패 집계에 더한다)."
+        + _NO_STORE,
+        "Login required.",
+        "invalid_password",
+    ),
+    403: error(
+        ErrorMessage | CodedError,
+        "다른 사이트에서 온 요청 · 이메일 비밀번호 수단이 없는 소셜 전용 회원(`no_local_password`)."
+        + _NO_STORE,
+        "Origin not allowed.",
+        "no_local_password",
+    ),
+    422: error(
+        CodedError,
+        "새 비밀번호가 가입 규칙에 맞지 않다(`invalid_password`) · 지금 비밀번호와 같다(`same_password`) · 그 밖 형식 오류"
+        "(`invalid_input`). 입력값을 되돌려 보내지 않는다." + _NO_STORE,
+        "invalid_password",
+        "same_password",
+        "invalid_input",
+    ),
+    429: ME_WITHDRAWAL[429],
 }
 CHARACTER_WRITE = {
     **_LOGIN_REQUIRED,

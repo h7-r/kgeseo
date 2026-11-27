@@ -44,6 +44,38 @@ class LocalRegisterRequest(BaseModel):
     consent: LocalRegisterConsent
 
 
+class PasswordResetRequest(BaseModel):
+    """비밀번호 찾기 ① — 코드를 받을 이메일."""
+
+    email: str = Field(min_length=1, max_length=254)
+
+
+class PasswordResetAccepted(BaseModel):
+    """가입 여부와 상관없이 같은 답이다. 가입된 이메일이면 코드 메일이 간다."""
+
+    status: Literal["accepted"] = "accepted"
+
+
+class PasswordResetVerifyRequest(BaseModel):
+    """비밀번호 찾기 ② — 메일로 받은 6자리 숫자."""
+
+    email: str = Field(min_length=1, max_length=254)
+    code: str = Field(pattern=r"^[0-9]{6}$", repr=False)
+
+
+class PasswordResetVerifyResponse(BaseModel):
+    """새 비밀번호를 저장할 때 한 번 쓰는 증표(10분)."""
+
+    reset_token: str
+
+
+class PasswordResetCompleteRequest(BaseModel):
+    """비밀번호 찾기 ③ — 증표와 새 비밀번호."""
+
+    reset_token: str = Field(min_length=1, max_length=128, repr=False)
+    new_password: str = Field(min_length=1, max_length=128, repr=False)
+
+
 class LocalLoginRequest(BaseModel):
     email: str = Field(min_length=1, max_length=254)
     password: str = Field(min_length=1, max_length=128)

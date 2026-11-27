@@ -13,15 +13,18 @@
 
 import asyncio
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
 import httpx
 import pytest
 from sqlalchemy import delete, or_, select, text
+from sqlalchemy.exc import OperationalError
 
+from app.api.v1 import auth, me
 from app.main import app
 from app.models.account_data import LoginThrottle
-from app.services import user_session
+from app.services import mailer, user_session
 from app.services.local_auth import normalize_email, utc_now
 from app.services.request_rate_limit import (
     SlidingWindowLimiter,
@@ -36,6 +39,7 @@ from app.services.user_session import (
     record_login_failure,
 )
 from tests.test_admin_api_mysql import mysql_run
+from tests.test_password_reset_mysql import COMPLETE, REQUEST, VERIFY, code_in
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("ADMIN_API_MYSQL_ISOLATED") != "1",
@@ -687,5 +691,252 @@ def test_mysql_successful_login_clears_while_several_failures_run():
         # 성공 삭제 뒤에 커밋된 실패만 남는다 — 0~4 회, 잠금 한도(5) 미만
         assert r is None or 1 <= r.failed_count <= 4
         assert r is None or r.locked_until is None
+
+    mysql_run(scenario)
+
+
+CHANGE = "/api/v1/me/password"
+WITHDRAWAL = "/api/v1/me/withdrawal"
+NEW_PASSWORD = "Harbor-Lamp-7316"
+
+
+@asynccontextmanager
+async def pause_request(monkeypatch, module, function, request, *, after=False):
+    """Hold an already-started API request immediately before the chosen operation."""
+    paused, resume = asyncio.Event(), asyncio.Event()
+    original = getattr(module, function)
+
+    async def gated(*args, **kwargs):
+        if after:
+            result = await original(*args, **kwargs)
+        paused.set()
+        await resume.wait()
+        return result if after else await original(*args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(module, function, gated)
+        task = asyncio.create_task(request)
+        try:
+            await asyncio.wait_for(paused.wait(), timeout=10)
+            yield task, resume
+        finally:
+            resume.set()
+            if not task.done():
+                await asyncio.wait_for(task, timeout=10)
+
+
+@pytest.mark.parametrize("reset_first", [True, False])
+def test_mysql_reset_completion_and_in_flight_login_failure(monkeypatch, reset_first):
+    outbox = []
+    monkeypatch.setattr(mailer, "outbox", outbox.append)
+
+    async def scenario(sessions):
+        email, ip = "reset-race@example.com", "198.51.100.80"
+        key = email_key(email)
+        await register(email, "MapleFern")
+        async with client(ip) as http:
+            assert (await http.post(REQUEST, json={"email": email})).status_code == 200
+            verified = await http.post(
+                VERIFY, json={"email": email, "code": code_in(outbox[0])}
+            )
+            assert verified.status_code == 200
+            payload = {
+                "reset_token": verified.json()["reset_token"],
+                "new_password": NEW_PASSWORD,
+            }
+            async with pause_request(
+                monkeypatch,
+                auth,
+                "record_login_failure",
+                http.post(LOGIN, json={"email": email, "password": WRONG}),
+            ) as (failed, resume):
+                now = utc_now()
+                locked_until = now + THROTTLE_WINDOW
+                await seed(sessions, key, MAX_FAILURES_PER_EMAIL, now, locked_until)
+                if not reset_first:
+                    resume.set()
+                    assert (await failed).status_code == 401
+                    locked = await row(sessions, key)
+                    assert (locked.failed_count, locked.locked_until) == (
+                        MAX_FAILURES_PER_EMAIL + 1,
+                        locked_until,
+                    )
+                assert (await http.post(COMPLETE, json=payload)).status_code == 204
+                assert await row(sessions, key) is None
+                resume.set()
+                assert (await failed).status_code == 401
+            final = await row(sessions, key)
+            if reset_first:
+                assert (final.failed_count, final.locked_until) == (1, None)
+            else:
+                assert final is None
+            assert (await row(sessions, ip_key(ip))).failed_count == 1
+
+    mysql_run(scenario)
+
+
+def test_mysql_password_change_and_login_failures_share_keys(monkeypatch, clock):
+    async def scenario(sessions):
+        email, ip = "change-race@example.com", "198.51.100.81"
+        key = email_key(email)
+        await register(email, "CedarLynx")
+        async with client(ip) as member, client(ip) as other:
+            assert (
+                await member.post(LOGIN, json={"email": email, "password": PASSWORD})
+            ).status_code == 200
+            await seed(sessions, key, MAX_FAILURES_PER_EMAIL - 2, NOW)
+            payload = {"current_password": WRONG, "new_password": NEW_PASSWORD}
+            async with pause_request(
+                monkeypatch,
+                me,
+                "record_login_failure",
+                member.post(CHANGE, json=payload),
+            ) as (failed, resume):
+                assert (
+                    await other.post(LOGIN, json={"email": email, "password": WRONG})
+                ).status_code == 401
+                resume.set()
+                response = await failed
+                assert response.status_code == 401
+                assert response.json()["detail"]["code"] == "invalid_password"
+            assert (await row(sessions, key)).failed_count == MAX_FAILURES_PER_EMAIL
+            assert (await row(sessions, key)).locked_until == NOW + THROTTLE_WINDOW
+            assert (await row(sessions, ip_key(ip))).failed_count == 2
+            clock["now"] = NOW + timedelta(microseconds=1)
+            response = await member.post(CHANGE, json=payload)
+            assert response.status_code == 429
+            assert response.json()["detail"]["code"] == "login_locked"
+            assert response.headers["Retry-After"] == "900"
+            assert (await row(sessions, key)).failed_count == MAX_FAILURES_PER_EMAIL
+
+    mysql_run(scenario)
+
+
+@pytest.mark.parametrize(
+    "stage", ["before_member_lock", "before_failure_write", "after_failure_write"]
+)
+def test_mysql_password_change_failure_and_withdrawal(monkeypatch, stage):
+    async def scenario(sessions):
+        email, ip = "change-withdraw@example.com", "198.51.100.82"
+        await register(email, "RiverFrost")
+        async with client(ip) as member, client(ip) as withdrawing:
+            for http in (member, withdrawing):
+                assert (
+                    await http.post(LOGIN, json={"email": email, "password": PASSWORD})
+                ).status_code == 200
+            if stage == "before_member_lock":
+                function = "change_password"
+            else:
+                function = "record_login_failure"
+            payload = {"current_password": WRONG, "new_password": NEW_PASSWORD}
+            async with pause_request(
+                monkeypatch,
+                me,
+                function,
+                member.post(CHANGE, json=payload),
+                after=stage == "after_failure_write",
+            ) as (changed, resume):
+                assert (
+                    await withdrawing.post(WITHDRAWAL, json={"password": PASSWORD})
+                ).status_code == 204
+                resume.set()
+                response = await changed
+            assert response.status_code == 401
+            if stage == "before_member_lock":
+                assert response.json()["detail"] == "Login required."
+            else:
+                assert response.json()["detail"]["code"] == "invalid_password"
+            assert (await member.get("/api/v1/me")).status_code == 401
+        remaining = await row(sessions, email_key(email))
+        if stage == "before_failure_write":
+            # An already validated wrong password is counted after the withdrawal commits.
+            assert (remaining.failed_count, remaining.locked_until) == (1, None)
+        else:
+            assert remaining is None
+        ip_row = await row(sessions, ip_key(ip))
+        if stage == "before_member_lock":
+            assert ip_row is None
+        else:
+            assert ip_row.failed_count == 1
+
+    mysql_run(scenario)
+
+
+@pytest.mark.parametrize("success_first", [True, False])
+def test_mysql_success_login_and_failure_in_both_commit_orders(
+    monkeypatch, success_first
+):
+    async def scenario(sessions):
+        email, ip = "success-order@example.com", "198.51.100.83"
+        key = email_key(email)
+        await register(email, "AmberPine")
+        await seed(sessions, key, 2, utc_now())
+        async with client(ip) as good, client(ip) as bad:
+            success = good.post(LOGIN, json={"email": email, "password": PASSWORD})
+            failure = bad.post(LOGIN, json={"email": email, "password": WRONG})
+            first, second = (success, failure) if success_first else (failure, success)
+            function = (
+                "record_login_failure" if success_first else "clear_login_failures"
+            )
+            async with pause_request(monkeypatch, auth, function, second) as (
+                pending,
+                resume,
+            ):
+                assert (await first).status_code == (200 if success_first else 401)
+                resume.set()
+                assert (await pending).status_code == (401 if success_first else 200)
+        remaining = await row(sessions, key)
+        if success_first:
+            assert remaining.failed_count == 1
+        else:
+            assert remaining is None
+        assert (await row(sessions, ip_key(ip))).failed_count == 1
+
+    mysql_run(scenario)
+
+
+def test_mysql_real_lock_timeout_retries_without_double_count(monkeypatch):
+    async def scenario(sessions):
+        email, ip = "timeout-retry@example.com", "198.51.100.84"
+        email_throttle, ip_throttle = email_key(email), ip_key(ip)
+        first, second = sorted((email_throttle, ip_throttle))
+        await seed(sessions, first, 1, utc_now())
+        await seed(sessions, second, 1, utc_now())
+        timed_out = asyncio.Event()
+        errors = []
+        engine = sessions.kw["bind"]
+        async with (
+            engine.connect() as connection,
+            sessions() as holder,
+            sessions(bind=connection) as writer,
+        ):
+            await holder.execute(
+                select(LoginThrottle)
+                .where(LoginThrottle.key_hash == second)
+                .with_for_update()
+            )
+            await writer.execute(text("SET SESSION innodb_lock_wait_timeout=1"))
+            original = writer.execute
+
+            async def observe(*args, **kwargs):
+                try:
+                    return await original(*args, **kwargs)
+                except OperationalError as error:
+                    errors.append(error.orig.args[0])
+                    timed_out.set()
+                    raise
+
+            monkeypatch.setattr(writer, "execute", observe)
+            write = asyncio.create_task(record_login_failure(writer, req(ip), email))
+            try:
+                await asyncio.wait_for(timed_out.wait(), timeout=10)
+            finally:
+                await holder.rollback()
+                await asyncio.wait_for(write, timeout=10)
+                await original(text("SET SESSION innodb_lock_wait_timeout=DEFAULT"))
+                await writer.rollback()
+        assert errors == [1205]
+        for key in (email_throttle, ip_throttle):
+            assert (await row(sessions, key)).failed_count == 2
 
     mysql_run(scenario)

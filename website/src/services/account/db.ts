@@ -1,58 +1,12 @@
 /**
- * 브라우저 안 계정 저장소(IndexedDB). 가입·로그인·중복 확인·탈퇴·저장본·문의는 백엔드가 맡고,
- * 비밀번호 변경·재설정만 아직 서버 API 가 없어 여기 흉내로 둔다(IS_ACCOUNT_MANAGEMENT_READY) — 진짜 인증이 아니다.
- *
- * 계정별 기록·설정·문의를 이메일 열쇠로 두던 accountData 표는 3판에서 지웠다(11/18) — 서버 값이 생겼거나(문의) 기능을 뺐고(메일 수신 · 오픈 알림),
- * 이메일 열쇠는 탈퇴 뒤 같은 이메일로 다시 가입하면 옛 값을 물려받았다.
- * 탈퇴(POST /me/withdrawal 204) 뒤 이 브라우저에서 지울 것: 세션(signOut 이 지움)뿐이다 — 이 표들에는 서버 가입자의 행이 없다.
- * 게임 출처(play)의 베타 기록 열쇠는 여기서 못 지운다 — /me 가 401 을 돌려줄 때 게임 쪽 규칙으로.
+ * 계정 화면이 함께 쓰는 작은 값. 가입 · 로그인 · 비밀번호 찾기 · 변경 · 탈퇴는 모두 서버가 맡는다.
+ * 이 파일에 있던 브라우저 안 계정 저장소(IndexedDB 흉내)는 비밀번호 기능이 서버로 옮겨 가며 지웠다(11/25).
  */
 
-import { TEST_ACCOUNT } from "./testAccount";
-
-const DB_NAME = "waegok-accounts";
-/** 한글 이름을 쓰던 이전 판의 DB. 로컬 시연용 계정뿐이라 옮기지 않고 지운다. */
-const LEGACY_DB_NAME = "왜곡계정";
-const DB_VERSION = 3;
-/** 2판까지 있던 계정별 기록·설정 표. 3판으로 올리며 지운다 */
-const RETIRED_STORE = "accountData";
-
-export const STORE = {
-  accounts: "accounts",
-  consents: "consents",
-  loginAttempts: "loginAttempts",
-} as const;
-
-type StoreName = (typeof STORE)[keyof typeof STORE];
-
-/** ERD app_user 와 같은 칸. region·isTest 는 ERD 에 없는 화면용 칸이다. */
-export interface AccountRecord {
-  id: string;
-  /** 소문자로 다듬은 값. 저장소의 열쇠다. */
-  email: string;
-  socialProvider: string | null;
-  /** "pbkdf2_sha256$반복$소금$해시" 한 줄 */
-  passwordHash: string;
-  name: string;
-  /** 닉네임 겹침 검사용 소문자 값. 고유 색인이 걸려 있다. */
-  nicknameKey: string;
-  region: string;
-  joinedAt: number;
-  isTest: boolean;
-}
-
+/** 가입 때 받는 동의 종류 */
 export type ConsentKind = "terms" | "privacyCollection" | "over14";
 
-export interface ConsentRecord {
-  id: string;
-  accountId: string;
-  kind: ConsentKind;
-  version: string;
-  agreed: boolean;
-  agreedAt: number;
-  withdrawnAt: number | null;
-}
-
+/** 서버와 같은 셈으로 다듬은 이메일(NFC · 앞뒤 공백 · 소문자) */
 export const normalizeEmail = (email: unknown) =>
   String(email || "")
     .normalize("NFC")
@@ -60,119 +14,15 @@ export const normalizeEmail = (email: unknown) =>
     .toLowerCase();
 
 /**
- * 표·색인을 한 번에 만든다. contains 검사가 있어 어느 판에서 올라와도 이 블록 하나로 된다.
- * 3판: accountData 표를 지운다(위 머리말).
+ * 옛 브라우저 계정 저장소(IndexedDB)를 지운다. 비밀번호 변경 · 찾기 흉내가 PBKDF2 해시 · 계정 기록을 여기 두었는데, 서버로 옮긴 뒤
+ * (11/25) 아무도 열지 않아 그대로 남았다 — 탈퇴 계약 §11 「브라우저 저장소의 계정 값 정리」 취지대로 부팅 때 거둔다.
+ * 없는 DB 를 지우는 것은 아무 일도 하지 않는다. 막힌 브라우저(사생활 보호 등)에서는 조용히 넘어간다.
  */
-function createSchema(db: IDBDatabase) {
-  if (db.objectStoreNames.contains(RETIRED_STORE)) db.deleteObjectStore(RETIRED_STORE);
-  if (!db.objectStoreNames.contains(STORE.accounts)) {
-    const accounts = db.createObjectStore(STORE.accounts, { keyPath: "email" });
-    // 화면에서 미리 막아도, 두 탭에서 동시에 가입하는 경우까지 막아 주는 마지막 벽이다.
-    accounts.createIndex("nicknameKey", "nicknameKey", { unique: true });
-  }
-  if (!db.objectStoreNames.contains(STORE.consents)) {
-    const consents = db.createObjectStore(STORE.consents, { keyPath: "id" });
-    consents.createIndex("accountId", "accountId");
-  }
-  if (!db.objectStoreNames.contains(STORE.loginAttempts)) {
-    db.createObjectStore(STORE.loginAttempts, { keyPath: "email" });
-  }
-}
-
-/**
- * 시연용 테스트 계정을 심거나(켜졌을 때) 치운다(꺼졌을 때). 비밀번호는 해시만 둔다.
- * 꺼졌을 때는 이메일을 몰라도 지울 수 있게 isTest 표시로 찾는다 — 배포본에는 테스트 계정 값이 없다.
- */
-function seedTestAccount(db: IDBDatabase): Promise<void> {
-  return new Promise((resolve) => {
-    const transaction = db.transaction(STORE.accounts, "readwrite");
-    const accounts = transaction.objectStore(STORE.accounts);
-    if (!TEST_ACCOUNT) {
-      // 전에 심은 것도 치운다. 남아 있으면 그 기기에선 누구나 그 계정으로 계정 관리 화면을 쓸 수 있다.
-      const cursor = accounts.openCursor();
-      cursor.onsuccess = () => {
-        const current = cursor.result;
-        if (!current) return;
-        const account = current.value as AccountRecord;
-        if (account.isTest) current.delete();
-        current.continue();
-      };
-    } else {
-      const testAccount: AccountRecord = {
-        id: TEST_ACCOUNT.id,
-        email: TEST_ACCOUNT.email,
-        socialProvider: null,
-        passwordHash: TEST_ACCOUNT.passwordHash,
-        name: TEST_ACCOUNT.name,
-        nicknameKey: TEST_ACCOUNT.name.toLowerCase(),
-        region: TEST_ACCOUNT.region,
-        joinedAt: Date.UTC(2026, 8, 1),
-        isTest: true,
-      };
-      const lookup = accounts.get(testAccount.email) as IDBRequest<AccountRecord | undefined>;
-      lookup.onsuccess = () => {
-        if (!lookup.result) accounts.put(testAccount);
-      };
-    }
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => resolve();
-    transaction.onabort = () => resolve();
-  });
-}
-
-// 사생활 보호 모드에서는 막히기도 한다.
-export function isStorageAvailable(): boolean {
-  return typeof indexedDB !== "undefined" && typeof crypto !== "undefined" && !!crypto.subtle;
-}
-
-let openPromise: Promise<IDBDatabase> | null = null;
-
-function openDatabase(): Promise<IDBDatabase> {
-  if (openPromise) return openPromise;
-  // 이전 판 DB 에 남은 비밀번호 해시를 치운다. 없으면 아무 일도 일어나지 않는다.
+export function forgetOldBrowserAccountStore(): void {
   try {
-    indexedDB.deleteDatabase(LEGACY_DB_NAME);
+    if (typeof indexedDB === "undefined") return;
+    for (const name of ["waegok-accounts", "왜곡계정"]) indexedDB.deleteDatabase(name);
   } catch {
-    // 못 지워도 새 DB 는 열어야 한다.
+    // 저장소를 못 쓰는 브라우저 — 지울 것도 없다
   }
-  openPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => createSchema(request.result);
-    request.onsuccess = async () => {
-      const db = request.result;
-      // 다른 탭이 더 새 판으로 열면 닫아 준다. 안 닫으면 그쪽 업그레이드가 멈춘다.
-      db.onversionchange = () => {
-        db.close();
-        openPromise = null;
-      };
-      try {
-        await seedTestAccount(db);
-      } catch {
-        // 테스트 계정을 못 심어도 저장소는 써야 한다.
-      }
-      resolve(db);
-    };
-    request.onerror = () => {
-      openPromise = null;
-      reject(request.error);
-    };
-  });
-  return openPromise;
 }
-
-/** 표 하나에 요청 하나를 보내고 결과를 기다린다. */
-export async function runStoreRequest<T>(
-  storeName: StoreName,
-  mode: IDBTransactionMode,
-  action: (store: IDBObjectStore) => IDBRequest<T>,
-): Promise<T> {
-  const db = await openDatabase();
-  return new Promise((resolve, reject) => {
-    const request = action(db.transaction(storeName, mode).objectStore(storeName));
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-export const readAccount = (email: string) =>
-  runStoreRequest(STORE.accounts, "readonly", (store) => store.get(email) as IDBRequest<AccountRecord | undefined>);

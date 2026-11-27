@@ -22,6 +22,7 @@ from app.schemas.account_data import (
     GameSaveWrite,
     MeResponse,
     OwnedItem,
+    PasswordChangeRequest,
     WithdrawalRequest,
 )
 from app.schemas.inquiry import MyInquiry, MyInquiryList, MyInquiryReply
@@ -29,13 +30,22 @@ from app.services.account_withdrawal import WithdrawalRefused, withdraw_member
 from app.services.guest_session import GUEST_COOKIE, clear_guest_cookie
 from app.services.inquiry import replies_of
 from app.services.local_auth import utc_now
+from app.services.password_reset import (
+    InvalidCurrentPasswordError,
+    NoLocalPasswordError,
+    SamePasswordError,
+    change_password,
+)
+from app.services.registration_input_policy import InvalidPasswordError
 from app.services.user_session import (
     SESSION_COOKIE,
     SESSION_COOKIE_OPTIONS,
     WithdrawnAccountError,
+    clear_login_failures,
     current_user,
     end_session,
     ensure_member_for_write,
+    hash_session_token,
     login_lock_remaining_seconds,
     record_login_failure,
     require_same_origin,
@@ -174,6 +184,83 @@ async def logout(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     await end_session(db, request, response)
+
+
+def _locked_error(retry_after: int) -> HTTPException:
+    return HTTPException(
+        status.HTTP_429_TOO_MANY_REQUESTS,
+        detail={
+            "code": "login_locked",
+            "message": f"비밀번호 실패가 많아 잠시 막혔습니다. {wait_phrase(retry_after)} 다시 시도해 주세요.",
+        },
+        headers={"Cache-Control": "no-store", "Retry-After": str(retry_after)},
+    )
+
+
+def _coded(status_code: int, code: str, message: str) -> HTTPException:
+    return HTTPException(
+        status_code,
+        detail={"code": code, "message": message},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.post(
+    "/password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=error_responses.ME_PASSWORD,
+)
+async def change_my_password(
+    body: PasswordChangeRequest,
+    request: Request,
+    response: Response,
+    user: AppUser = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """비밀번호 변경(계약 password_reset_v0.1 §4). 지금 비밀번호를 확인하고, 이 브라우저의 세션만 남긴 채(같은 쿠키를 쓰는 탭 포함) 다른 기기는 로그아웃한다.
+
+    지금 비밀번호 실패는 로그인 · 탈퇴와 같은 이메일 집계에 더한다(이 창구로 비밀번호를 대입해 보지 못하게).
+    """
+    response.headers["Cache-Control"] = "no-store"
+    email = user.email
+    retry_after = await login_lock_remaining_seconds(db, request, email)
+    if retry_after is not None:
+        raise _locked_error(retry_after)
+    token = request.cookies.get(SESSION_COOKIE)
+    try:
+        await change_password(
+            db,
+            user,
+            body.current_password,
+            body.new_password,
+            keep_session_token_hash=hash_session_token(token) if token else None,
+        )
+    except WithdrawnAccountError as error:
+        # 같은 계정의 탈퇴가 먼저 끝났다(다른 창) — 세션이 끝난 것과 같다
+        raise login_required() from error
+    except NoLocalPasswordError as error:
+        raise _coded(
+            status.HTTP_403_FORBIDDEN,
+            "no_local_password",
+            "소셜 로그인으로 가입한 계정은 비밀번호가 없습니다.",
+        ) from error
+    except InvalidCurrentPasswordError as error:
+        await db.rollback()
+        await record_login_failure(db, request, email)
+        raise _coded(
+            status.HTTP_401_UNAUTHORIZED,
+            "invalid_password",
+            "현재 비밀번호가 맞지 않습니다.",
+        ) from error
+    except SamePasswordError as error:
+        raise _coded(
+            422, "same_password", "현재와 다른 비밀번호를 써 주세요."
+        ) from error
+    except InvalidPasswordError as error:
+        raise _coded(
+            422, "invalid_password", "비밀번호 형식을 확인해 주세요."
+        ) from error
+    await clear_login_failures(db, request, email)
 
 
 _WITHDRAWAL_REFUSALS = {

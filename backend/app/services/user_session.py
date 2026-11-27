@@ -17,6 +17,7 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.models.account_data import LoginThrottle, UserSession
 from app.models.app_user import AppUser
+from app.models.auth_identity import AuthIdentity
 from app.services.local_auth import normalize_email, utc_now
 
 # 운영(https)은 __Host- 쿠키다. Secure · Path=/ · Domain 없음을 브라우저가 강제해 API 주소에만 묶인다.
@@ -55,6 +56,12 @@ def _hash(value: str) -> str:
 
 class WithdrawnAccountError(Exception):
     """탈퇴한 계정에 세션을 내주거나 데이터를 쓰려 했다(탈퇴와 겹친 요청). 호출한 경로가 자기 오류 응답으로 바꾼다."""
+
+
+class PasswordChangedDuringLoginError(Exception):
+    """이메일 로그인이 확인한 비밀번호가 세션을 만들기 전에 바뀌었다(찾기 완료 · 변경과 겹친 로그인, 11/25).
+
+    옛 비밀번호로 확인한 로그인이 「모든 세션 끊기」 뒤에 새 세션을 남기지 못하게 한다. 호출한 경로가 로그인 실패로 답한다."""
 
 
 def _active_flag(user_id: str, *, share: bool):
@@ -96,7 +103,13 @@ def last_login_update(user_id: str, now: datetime):
     )
 
 
-async def start_session(db: AsyncSession, response: Response, user_id: str) -> None:
+async def start_session(
+    db: AsyncSession,
+    response: Response,
+    user_id: str,
+    *,
+    verified_password_hash: str | None = None,
+) -> None:
     """세션을 새로 만들어 HttpOnly 쿠키로 내려 준다. 원문 토큰은 DB 에 남지 않는다.
 
     새 세션 INSERT 와 회원의 `last_login_at` 갱신은 **한 트랜잭션**으로 커밋한다 — 둘 중 하나만 남는 일이 없다. 갱신이 실패하면
@@ -110,6 +123,11 @@ async def start_session(db: AsyncSession, response: Response, user_id: str) -> N
     탈퇴(11/17): UPDATE 로 회원 행을 쥔 다음 같은 행을 잠금 읽기로 다시 읽어 탈퇴 여부를 본다. 비밀번호 확인이 탈퇴 커밋 전에
     끝났더라도 UPDATE 가 탈퇴 트랜잭션을 기다린 뒤 최신 행을 보므로, 탈퇴한 계정이면 되돌리고 `WithdrawnAccountError` 를 던진다
     (세션 · 쿠키 · 최근 로그인 모두 남지 않는다). 잠그는 행 · 순서는 그대로라 교착이 새로 생기지 않는다.
+
+    비밀번호 찾기 · 변경(11/25): 이메일 로그인은 자기가 확인한 비밀번호 해시(`verified_password_hash`)를 넘긴다. 회원 행을 쥔
+    다음 이메일 수단의 해시를 잠금 읽기(최신 커밋)로 다시 보고, 다르면(그 사이 새 비밀번호 저장이 커밋됐다) 되돌리고
+    `PasswordChangedDuringLoginError` 를 던진다. 비밀번호를 바꾸는 쪽도 회원 행을 먼저 쥐므로 둘은 차례로 처리된다 —
+    시각 비교가 아니라 해시 비교라 시계 · 커밋 순서의 틈이 없다.
     """
     token = secrets.token_urlsafe(32)
     now = utc_now()
@@ -117,6 +135,20 @@ async def start_session(db: AsyncSession, response: Response, user_id: str) -> N
         await db.execute(last_login_update(user_id, now))
         if _is_withdrawn(await db.scalar(_active_flag(user_id, share=False))):
             raise WithdrawnAccountError
+        if verified_password_hash is not None:
+            identity = await db.scalar(
+                select(AuthIdentity)
+                .where(
+                    AuthIdentity.app_user_id == user_id,
+                    AuthIdentity.provider == "local",
+                )
+                .with_for_update(read=True)
+            )
+            if (
+                isinstance(identity, AuthIdentity)
+                and identity.password_hash != verified_password_hash
+            ):
+                raise PasswordChangedDuringLoginError
         db.add(
             UserSession(
                 id=str(uuid4()),
@@ -319,8 +351,8 @@ async def _write_throttle_rows(db: AsyncSession, statements) -> None:
     """실패 기록 문장들을 한 트랜잭션으로 커밋한다. MySQL 이 교착 · 잠금 대기 초과로 되돌리면 정해진 횟수만큼 처음부터
     다시 한다(되돌린 트랜잭션은 남긴 것이 없어 두 번 세지 않는다). 다른 오류 · 마지막 실패는 그대로 올린다 — 숨기지 않는다.
 
-    부르는 쪽은 바꾸던 데이터가 없는 상태여야 한다(로그인 · 탈퇴 · 비밀번호 변경 모두 실패를 확인한 뒤 되돌린 다음 부른다).
-    이 함수가 커밋 · 되돌리기를 하므로, 걸려 있던 다른 변경이 함께 커밋되거나 지워지지 않게 먼저 확인한다."""
+    호출자는 읽기만 했거나 앞선 트랜잭션을 끝낸 상태여야 한다. 미반영 ORM 변경은 여기서 막지만, 이미 실행한 Core SQL이나
+    flush한 변경은 이 검사로 알 수 없다. 로그인 실패는 읽기만 했고, 탈퇴 · 비밀번호 변경 실패는 먼저 rollback한다."""
     if db.new or db.dirty or db.deleted:
         raise RuntimeError(
             "login throttle writes need a session without pending changes"

@@ -103,7 +103,11 @@ def test_migration_adds_nullable_column_and_downgrade_guards_withdrawn_rows():
                 assert Path(datadir).resolve() == expected
                 assert not (await connection.execute(text("SHOW TABLES"))).all()
                 heads = script().get_heads()
-                assert heads == [REVISION]
+                # 단일 head 이고, 이 revision 은 그 조상이다(뒤에 비밀번호 찾기 b7e4c2a9d1f3 이 올라섰다, 11/25)
+                assert len(heads) == 1
+                assert REVISION in [
+                    rev.revision for rev in script().iterate_revisions(heads[0], "base")
+                ]
                 assert script().get_revision(REVISION).down_revision == "744dc740f81f"
                 initialized = True
 
