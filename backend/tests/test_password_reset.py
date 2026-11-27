@@ -287,3 +287,22 @@ def test_smtp_sends_with_starttls_and_hides_failures(monkeypatch, caplog):
             )
     # 받는 주소는 로그에 남기지 않는다
     assert "b@example.com" not in caplog.text
+
+
+def test_locked_retry_after_rounds_up_like_login():
+    """하루 잠금의 Retry-After 는 올림 — 로그인 잠금(user_session)과 같다. 버리면 1초 일찍 다시 보낸다(세진 11/27)."""
+    from datetime import datetime, timedelta
+
+    from app.models.password_reset import PasswordResetVerifyThrottle
+    from app.services import password_reset
+
+    now = datetime(2026, 12, 1, 12, 0, 0)
+    throttle = PasswordResetVerifyThrottle(
+        key_hash="k" * 64,
+        failed_count=20,
+        window_started_at=now,
+        locked_until=now + timedelta(seconds=90, milliseconds=200),
+    )
+    assert password_reset._locked_error(throttle, now).retry_after_sec == 91
+    throttle.locked_until = now + timedelta(milliseconds=10)
+    assert password_reset._locked_error(throttle, now).retry_after_sec == 1

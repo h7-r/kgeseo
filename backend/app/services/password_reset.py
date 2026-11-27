@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import math
 import secrets
 from datetime import datetime, timedelta
 from typing import NoReturn
@@ -133,7 +134,8 @@ def _locked_error(
     throttle: PasswordResetVerifyThrottle, now: datetime
 ) -> ResetVerifyLockedError:
     remaining = (throttle.locked_until or now) - now
-    return ResetVerifyLockedError(max(1, int(remaining.total_seconds())))
+    # 올림 — 로그인 잠금(user_session)과 같게. 버리면 1초 일찍 다시 보내 또 잠김을 받는다(세진 11/27)
+    return ResetVerifyLockedError(max(1, math.ceil(remaining.total_seconds())))
 
 
 def _is_locked(throttle: PasswordResetVerifyThrottle | None, now: datetime) -> bool:
