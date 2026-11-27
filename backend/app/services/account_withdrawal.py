@@ -40,7 +40,7 @@ from app.models.guest_session import GuestSession
 from app.models.inquiry import Inquiry
 from app.models.interaction_event import InteractionEvent
 from app.models.npc_turn_idempotency import NpcTurnRequest
-from app.models.password_reset import PasswordResetCode
+from app.models.password_reset import PasswordResetCode, PasswordResetVerifyThrottle
 from app.models.play_session import PlaySession
 from app.models.social_onboarding_pending import SocialOnboardingPending
 from app.services.guest_session import find_guest_session
@@ -115,10 +115,15 @@ async def withdraw_member(
         if user.role == ADMIN_ROLE:
             raise WithdrawalRefused("admin_cannot_withdraw")
 
+        # 잠금 읽기 — 일반 SELECT 는 요청 앞(current_user)에 잡힌 스냅숏이라, 그사이 커밋된 비밀번호 재설정 대신
+        # 옛 해시로 확인해 옛 비밀번호로 탈퇴가 됐다(미르 11/27 리뷰, 격리 MySQL 재현)
         identities = list(
             (
                 await db.scalars(
-                    select(AuthIdentity).where(AuthIdentity.app_user_id == user_id)
+                    select(AuthIdentity)
+                    .where(AuthIdentity.app_user_id == user_id)
+                    .with_for_update()
+                    .execution_options(populate_existing=True)
                 )
             ).all()
         )
@@ -190,15 +195,16 @@ async def withdraw_member(
                     SocialOnboardingPending.provider_subject == subject,
                 )
             )
-        # 로그인 실패 · 비밀번호 찾기 코드 확인 실패(11/25) — 둘 다 이메일 해시 열쇠다
         await db.execute(
             delete(LoginThrottle).where(
-                LoginThrottle.key_hash.in_(
-                    [
-                        _login_throttle_key(original_email),
-                        verify_throttle_key(original_email),
-                    ]
-                )
+                LoginThrottle.key_hash == _login_throttle_key(original_email)
+            )
+        )
+        # 비밀번호 찾기 코드 확인 실패(이메일 해시 열쇠, 11/27 별도 표)
+        await db.execute(
+            delete(PasswordResetVerifyThrottle).where(
+                PasswordResetVerifyThrottle.key_hash
+                == verify_throttle_key(original_email)
             )
         )
         await db.execute(

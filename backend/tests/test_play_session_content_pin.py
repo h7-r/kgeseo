@@ -256,7 +256,7 @@ def test_new_revision_is_single_head_after_previous_head() -> None:
     # 관리자 감사 기록 확장(63566bb6005b, 11/16 세진 — admin_audit_logs 에 NULL 허용 열 넷), 그 위에
     # 공지사항(734021834040, 11/16 세진 — notices 새 표만), 그 위에 회원 최근 로그인(744dc740f81f, 11/16 세진 —
     # app_users.last_login_at 열 하나 + 기존 회원 백필), 그 위에 회원 탈퇴 시각(93fb40166c08, 11/17 세진 —
-    # app_users.deleted_at 열 하나), 그 위에 비밀번호 찾기 코드(b7e4c2a9d1f3, 11/25 해랑 — password_reset_codes 새 표만)가
+    # app_users.deleted_at 열 하나), 그 위에 비밀번호 찾기(b7e4c2a9d1f3, 11/25 · 11/27 해랑 — password_reset_codes · password_reset_verify_throttles 새 표 둘만)가
     # 지금 단일 head다.
     assert script.get_heads() == ["b7e4c2a9d1f3"]
     assert script.get_revision("b7e4c2a9d1f3").down_revision == "93fb40166c08"

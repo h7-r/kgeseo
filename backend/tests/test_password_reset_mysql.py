@@ -4,9 +4,11 @@
 - 찾기: 가입 여부를 드러내지 않음(없는 · 소셜 전용 · 탈퇴 계정도 같은 답, 소셜 전용은 로그인 안내 메일 · 나머지는 메일 없음) · 재발송 대기 · 시간당 한도 ·
   새 코드가 앞 코드를 무효로 · 틀린 코드 5번이면 맞는 코드도 거절 · 만료 · 증표 한 번만 · 규칙 위반이면 증표 유지 ·
   저장되면 모든 세션 끊김 · 로그인 잠금 해제 · 옛 비밀번호 거절 · 원문 코드 · 증표는 DB 에 없음
-- 변경: 틀린 지금 비밀번호(실패 집계) · 같은 비밀번호 · 규칙 위반 · 소셜 전용 403 · 이 창 세션은 남고 다른 세션만 끊김 ·
+- 변경: 틀린 지금 비밀번호(실패 집계) · 같은 비밀번호 · 규칙 위반 · 소셜 전용 403 · 이 브라우저 세션은 남고 다른 세션만 끊김 ·
   진행 중이던 찾기 증표 무효
 - 탈퇴하면 코드 행이 지워진다
+- 변경 · 탈퇴 요청이 스냅숏을 잡은 뒤 커밋된 재설정을 본다 — 옛 비밀번호로 통과하지 않는다(미르 11/27 리뷰)
+- 동시 요청(첫 확인 실패 여럿 · 확인 + 탈퇴 · 변경 + 탈퇴)이 500 을 내지 않는다 · 마이그레이션 되돌리기(세진 11/27)
 
 실행 조건 · 안전 장치는 `test_admin_api_mysql.py` 와 같다(`ADMIN_API_MYSQL_ISOLATED=1` · `ADMIN_API_MYSQL_URL` · `ADMIN_API_MYSQL_DATADIR`).
 """
@@ -26,8 +28,14 @@ from app.main import app
 from app.models.account_data import LoginThrottle, UserSession
 from app.models.app_user import AppUser
 from app.models.auth_identity import AuthIdentity
-from app.models.password_reset import PasswordResetCode
-from app.services import local_auth, mailer, password_reset, user_session
+from app.models.password_reset import PasswordResetCode, PasswordResetVerifyThrottle
+from app.services import (
+    account_withdrawal,
+    local_auth,
+    mailer,
+    password_reset,
+    user_session,
+)
 from app.services.local_auth import utc_now
 from app.services.request_rate_limit import (
     SlidingWindowLimiter,
@@ -35,6 +43,7 @@ from app.services.request_rate_limit import (
 )
 from app.services.user_session import current_user
 from tests.test_admin_api_mysql import mysql_run
+from tests.test_admin_is_test_mysql import _migration
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("ADMIN_API_MYSQL_ISOLATED") != "1",
@@ -541,7 +550,7 @@ def test_hardening_concurrency_daily_caps_token_survival_and_login_race(
                 ).status_code == 401
         async with sessions() as db:
             row = await db.get(
-                LoginThrottle, password_reset.verify_throttle_key(nobody)
+                PasswordResetVerifyThrottle, password_reset.verify_throttle_key(nobody)
             )
             assert row is not None and row.failed_count == 3
 
@@ -557,8 +566,11 @@ def test_hardening_concurrency_daily_caps_token_survival_and_login_race(
             await anon.post(REQUEST, json={"email": email})
             good = code_in(sent[-1])
             wrong = "000000" if good != "000000" else "111111"
+            answers = []
             for _ in range(20):
-                await anon.post(VERIFY, json={"email": email, "code": wrong})
+                answers.append(
+                    await anon.post(VERIFY, json={"email": email, "code": wrong})
+                )
                 # 코드 하나는 5번이면 죽으므로 새 코드를 받아 이어 센다
                 await age_codes(sessions, user_id, timedelta(hours=1, seconds=1))
                 async with sessions() as db:
@@ -571,6 +583,213 @@ def test_hardening_concurrency_daily_caps_token_survival_and_login_race(
                 await anon.post(REQUEST, json={"email": email})
             good = code_in(sent[-1])
             locked = await anon.post(VERIFY, json={"email": email, "code": good})
-        assert locked.status_code == 401
+        # 19번까지는 「코드가 틀림」, 20번째(잠긴 순간)부터는 잠금 안내 — 다음에 할 일을 보인다(미르 11/27)
+        assert [a.status_code for a in answers] == [401] * 19 + [429]
+        for answer in (answers[-1], locked):
+            assert answer.status_code == 429
+            detail = answer.json()["detail"]
+            assert detail["code"] == "reset_verify_locked"
+            assert "내일 다시 시도" in detail["message"]
+            assert "고객센터" in detail["message"]
+            assert 0 < int(answer.headers["retry-after"]) <= 86400
+            assert answer.headers["cache-control"] == "no-store"
+        # 로그인 실패 표에는 섞이지 않는다 — 관리자 「로그인 잠김」은 로그인만 센다
+        async with sessions() as db:
+            assert (
+                await db.scalar(
+                    select(func.count())
+                    .select_from(LoginThrottle)
+                    .where(
+                        LoginThrottle.key_hash
+                        == password_reset.verify_throttle_key(email)
+                    )
+                )
+            ) == 0
+
+    mysql_run(scenario)
+
+
+def test_change_and_withdrawal_see_a_reset_committed_after_their_snapshot(
+    real_auth_and_outbox,
+):
+    """세션 A 가 일반 읽기로 회원 · 수단을 올린 뒤(= current_user) 세션 B 의 재설정이 커밋되면,
+    A 의 변경 · 탈퇴는 옛 비밀번호로 통과하지 않는다(미르 11/27 리뷰 — 고치기 전엔 재설정한 비밀번호를 덮어쓰고 옛 비밀번호로 탈퇴됐다)."""
+    sent = real_auth_and_outbox
+    third_password = "Quiet-River-5820"
+
+    async def reset(email: str, new_password: str) -> None:
+        async with client() as anon:
+            assert (await anon.post(REQUEST, json={"email": email})).status_code == 200
+            token = (
+                await anon.post(
+                    VERIFY, json={"email": email, "code": code_in(sent[-1])}
+                )
+            ).json()["reset_token"]
+            assert (
+                await anon.post(
+                    COMPLETE, json={"reset_token": token, "new_password": new_password}
+                )
+            ).status_code == 204
+
+    async def snapshot_reader(sessions, email: str):
+        """current_user 처럼 일반 SELECT 로 회원 · 수단을 올려 이 트랜잭션의 스냅숏을 잡는다."""
+        a = sessions()
+        user = await a.scalar(select(AppUser).where(AppUser.email == email))
+        identity = await a.scalar(
+            select(AuthIdentity).where(
+                AuthIdentity.app_user_id == user.id,
+                AuthIdentity.provider == "local",
+            )
+        )
+        assert identity is not None and identity.password_hash
+        return a, user
+
+    async def scenario(sessions):
+        email = f"r{uuid4().hex[:9]}@example.com"
+        async with client() as member:
+            await register(member, email, "겹침회원")
+
+        # ① 변경: A 가 스냅숏을 잡음 → B 가 NEW_PASSWORD 로 재설정 커밋 → A 가 옛 비밀번호로 변경 시도
+        a, user = await snapshot_reader(sessions, email)
+        user_id = user.id  # 되돌리면 ORM 객체가 만료된다 — 닫은 뒤에도 쓰게 미리 꺼낸다
+        try:
+            await reset(email, NEW_PASSWORD)
+            with pytest.raises(password_reset.InvalidCurrentPasswordError):
+                await password_reset.change_password(
+                    a, user, PASSWORD, third_password, keep_session_token_hash=None
+                )
+        finally:
+            await a.close()
+        assert (await login(email, NEW_PASSWORD)).status_code == 200
+        assert (await login(email, third_password)).status_code == 401
+
+        # ② 탈퇴: A 가 스냅숏을 잡음 → B 가 third_password 로 재설정 커밋 → A 가 옛 비밀번호(NEW_PASSWORD)로 탈퇴 시도
+        await age_codes(sessions, user_id, timedelta(seconds=61))
+        a, user = await snapshot_reader(sessions, email)
+        try:
+            await reset(email, third_password)
+            with pytest.raises(account_withdrawal.WithdrawalRefused) as refused:
+                await account_withdrawal.withdraw_member(a, user_id, NEW_PASSWORD)
+            assert refused.value.code == "invalid_password"
+        finally:
+            await a.close()
+        async with sessions() as db:
+            assert (
+                await db.scalar(select(AppUser.deleted_at).where(AppUser.id == user_id))
+            ) is None
+        assert (await login(email, third_password)).status_code == 200
+
+    mysql_run(scenario)
+
+
+def test_concurrent_requests_never_answer_500(real_auth_and_outbox):
+    """세진 11/27 보강 시험 — 동시 요청에서 교착 · 낡은 행으로 500 이 나던 세 경우와 탈퇴 때 확인 실패 키 삭제.
+
+    ① 같은 이메일의 첫 코드 확인 실패 4개 동시(없는 이메일 · 가입 회원 둘 다) ② 코드 확인과 탈퇴 동시 ③ 비밀번호 변경과 탈퇴 동시.
+    """
+    # 같은 IP 에서 많이 보내므로 IP 한도는 이 시험에서 끈다(요청마다 새 한도기)
+    app.dependency_overrides[get_request_rate_limiter] = lambda: SlidingWindowLimiter()
+
+    async def throttle_count(sessions, email: str) -> int | None:
+        async with sessions() as db:
+            return await db.scalar(
+                select(PasswordResetVerifyThrottle.failed_count).where(
+                    PasswordResetVerifyThrottle.key_hash
+                    == password_reset.verify_throttle_key(email)
+                )
+            )
+
+    async def scenario(sessions):
+        # ① 첫 실패 동시 — 고치기 전엔 4개 동시 8회 중 7회 교착(1213 → 500)
+        for round_index in range(6):
+            stranger = f"n{round_index}{uuid4().hex[:8]}@example.com"
+            member_email = f"c{round_index}{uuid4().hex[:8]}@example.com"
+            async with client() as member:
+                await register(member, member_email, f"동시{round_index}회원")
+            async with client() as anon:
+                assert (
+                    await anon.post(REQUEST, json={"email": member_email})
+                ).status_code == 200
+                for email in (stranger, member_email):
+                    answers = await asyncio.gather(
+                        *(
+                            anon.post(VERIFY, json={"email": email, "code": "000000"})
+                            for _ in range(4)
+                        )
+                    )
+                    assert [a.status_code for a in answers] == [401] * 4, [
+                        a.text for a in answers
+                    ]
+                    assert await throttle_count(sessions, email) == 4
+
+        # ② 코드 확인과 탈퇴 동시 · ③ 비밀번호 변경과 탈퇴 동시 — 탈퇴는 끝나고, 다른 쪽은 401 이지 500 이 아니다
+        for round_index in range(4):
+            email = f"w{round_index}{uuid4().hex[:8]}@example.com"
+            async with client() as member:
+                await register(member, email, f"탈퇴경합{round_index}")
+                assert (
+                    await member.post(
+                        "/api/v1/auth/login",
+                        json={"email": email, "password": PASSWORD},
+                    )
+                ).status_code == 200
+                async with client() as anon:
+                    assert (
+                        await anon.post(REQUEST, json={"email": email})
+                    ).status_code == 200
+                    # 탈퇴 전의 확인 실패 하나 — 탈퇴하면 지워져야 한다
+                    assert (
+                        await anon.post(VERIFY, json={"email": email, "code": "000000"})
+                    ).status_code == 401
+                    assert await throttle_count(sessions, email) == 1
+                    racer = (
+                        anon.post(VERIFY, json={"email": email, "code": "000000"})
+                        if round_index % 2 == 0
+                        else member.post(
+                            CHANGE,
+                            json={
+                                "current_password": PASSWORD,
+                                "new_password": NEW_PASSWORD,
+                            },
+                        )
+                    )
+                    other, withdrawn = await asyncio.gather(
+                        racer,
+                        member.post(
+                            "/api/v1/me/withdrawal", json={"password": PASSWORD}
+                        ),
+                    )
+            assert other.status_code != 500, other.text
+            assert withdrawn.status_code != 500, withdrawn.text
+            if withdrawn.status_code != 204:
+                # 변경이 먼저 끝나 옛 비밀번호가 틀린 경우만 — 그래도 500 은 아니다
+                assert round_index % 2 == 1 and other.status_code == 204, withdrawn.text
+                continue
+            left = await throttle_count(sessions, email)
+            if round_index % 2 == 1:
+                # 탈퇴하면 확인 실패 키도 지워진다(코드 행과 함께)
+                assert left is None
+            else:
+                # 겹친 확인이 탈퇴 뒤에 처리되면 그 이메일은 「없는 이메일」이라 실패가 새로 한 줄 남는다(설계대로, 하루 뒤 파기).
+                # 탈퇴 전의 실패(1)에 더해지지는 않는다 — 2 가 나오면 지우지 못한 것이다
+                assert left in (None, 1)
+
+    mysql_run(scenario)
+
+
+def test_migration_downgrade_then_upgrade():
+    """되돌리기가 MySQL 에서 멈추지 않는다 — 색인을 먼저 지우면 FK 가 쓰는 색인이라 1553 이었다(세진 11/27)."""
+
+    async def scenario(sessions):
+        async with sessions() as db:
+            connection = await db.connection()
+            await connection.run_sync(_migration, "b7e4c2a9d1f3", "downgrade")
+            tables = (await connection.execute(text("SHOW TABLES"))).scalars().all()
+            assert "password_reset_codes" not in tables
+            assert "password_reset_verify_throttles" not in tables
+            await connection.run_sync(_migration, "b7e4c2a9d1f3", "upgrade")
+            tables = (await connection.execute(text("SHOW TABLES"))).scalars().all()
+            assert "password_reset_codes" in tables
+            assert "password_reset_verify_throttles" in tables
 
     mysql_run(scenario)

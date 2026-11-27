@@ -51,6 +51,8 @@ def validate_deployment(settings):
         or not (settings.smtp_starttls or settings.smtp_ssl)
     ):
         raise ValueError("MAIL_BACKEND=smtp requires SMTP_HOST, MAIL_FROM and STARTTLS or SSL")
+    if settings.mail_backend == "smtp" and len(settings.password_reset_code_secret.get_secret_value()) < 32:
+        raise ValueError("MAIL_BACKEND=smtp requires PASSWORD_RESET_CODE_SECRET of at least 32 characters")
     try:
         callback = urlsplit(settings.naver_redirect_uri)
         origin = f"{callback.scheme}://{callback.netloc}"

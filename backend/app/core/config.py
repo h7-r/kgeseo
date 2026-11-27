@@ -77,6 +77,9 @@ class Settings(BaseSettings):
     # 메일 꺼짐과 같은 503(「고객센터로 문의」) — 입력한 이메일만 보고 정하므로 가입 여부는 드러나지 않는다.
     # 처리방침상 AWS 메일 발송 위탁이 2026-12-04 시행이라 그 전에는 팀 계정만 넣어 시험하고, 시행일에 비우고 재시작한다(미르 11/27)
     mail_test_recipients: str = ""
+    # 인증코드 해시에 섞는 서버 비밀값(HMAC-SHA256). 6자리 코드는 경우의 수가 백만이라 DB 를 읽으면 비밀값 없는 해시는 곧바로 풀린다(세진 11/27).
+    # 운영에서 MAIL_BACKEND=smtp 면 32자 이상이어야 시작된다. 바꾸면 살아 있던 코드(15분)만 못 쓰게 된다
+    password_reset_code_secret: SecretStr = SecretStr("")
 
     # 베타 분석 기록을 저장할지. false 면 받기만 하고 저장하지 않는다(`disabled: true` 응답 — 게임 화면은 그만 보낸다).
     beta_events_enabled: bool = True

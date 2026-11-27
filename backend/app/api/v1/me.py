@@ -217,7 +217,7 @@ async def change_my_password(
     user: AppUser = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """비밀번호 변경(계약 password_reset_v0.1 §4). 지금 비밀번호를 확인하고, 이 창의 세션만 남긴 채 다른 기기는 로그아웃한다.
+    """비밀번호 변경(계약 password_reset_v0.1 §4). 지금 비밀번호를 확인하고, 이 브라우저의 세션만 남긴 채(같은 쿠키를 쓰는 탭 포함) 다른 기기는 로그아웃한다.
 
     지금 비밀번호 실패는 로그인 · 탈퇴와 같은 이메일 집계에 더한다(이 창구로 비밀번호를 대입해 보지 못하게).
     """

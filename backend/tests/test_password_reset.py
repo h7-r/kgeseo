@@ -9,11 +9,12 @@
 """
 
 import asyncio
+import hashlib
 import logging
 from email import message_from_bytes, policy
 
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 
 from app.core.config import settings
 from app.services import mailer
@@ -35,6 +36,18 @@ ORIGIN = {"Origin": "http://localhost:5173"}
             "smtp_starttls": False,
             "smtp_ssl": False,
         },
+        # 코드 해시 비밀값이 없거나 짧다(세진 11/27)
+        {
+            "mail_backend": "smtp",
+            "smtp_host": "smtp.example.invalid",
+            "mail_from": "no-reply@example.invalid",
+        },
+        {
+            "mail_backend": "smtp",
+            "smtp_host": "smtp.example.invalid",
+            "mail_from": "no-reply@example.invalid",
+            "password_reset_code_secret": "short",
+        },
     ],
 )
 def test_production_refuses_unsafe_mail_settings(changes):
@@ -51,8 +64,20 @@ def test_production_accepts_disabled_or_complete_smtp():
         mail_from="ESCAPE THE LEGEND <no-reply@example.invalid>",
         smtp_username="user",
         smtp_password="synthetic-only",
+        password_reset_code_secret="x" * 64,
     )
     assert smtp.smtp_port == 587 and smtp.smtp_starttls
+
+
+def test_code_hash_needs_the_server_secret(monkeypatch):
+    """같은 행 · 같은 코드라도 비밀값이 다르면 해시가 다르다 — DB 만으로는 백만 번 대입해도 맞출 수 없다(세진 11/27)."""
+    from app.services import password_reset
+
+    monkeypatch.setattr(settings, "password_reset_code_secret", SecretStr("a" * 64))
+    first = password_reset._code_hash("row-1", "123456")
+    monkeypatch.setattr(settings, "password_reset_code_secret", SecretStr("b" * 64))
+    assert password_reset._code_hash("row-1", "123456") != first
+    assert first != hashlib.sha256(b"row-1:123456").hexdigest()
 
 
 def test_request_answers_503_before_looking_up_the_account(client, monkeypatch):

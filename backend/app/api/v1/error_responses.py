@@ -442,7 +442,16 @@ PASSWORD_RESET_VERIFY = {
         "invalid_reset_code",
         "invalid_input",
     ),
-    **_rate_limited("30회, `RATE_LIMIT_PASSWORD_RESET_VERIFY`"),
+    429: error(
+        CodedError,
+        "`code`로 구분한다. `reset_verify_locked`: 이 이메일의 코드 확인 실패가 하루 20번에 닿아 잠겼다(가입 여부와 상관없이 같다). "
+        "`message` 가 「내일 다시 시도하거나 고객센터로 문의」를 안내하고, `Retry-After` 헤더가 풀릴 때까지 남은 초다. "
+        "`rate_limited`: "
+        + _rate_limited_text("30회, `RATE_LIMIT_PASSWORD_RESET_VERIFY`")
+        + _NO_STORE,
+        "reset_verify_locked",
+        "rate_limited",
+    ),
 }
 PASSWORD_RESET_COMPLETE = {
     401: error(

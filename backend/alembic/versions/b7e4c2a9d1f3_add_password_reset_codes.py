@@ -1,12 +1,14 @@
-"""비밀번호 찾기 코드 표 password_reset_codes(11/25, 계약 `docs/contracts/password_reset_v0.1.md`).
+"""비밀번호 찾기 표 둘 — password_reset_codes · password_reset_verify_throttles(11/25 · 11/27, 계약 `docs/contracts/password_reset_v0.1.md`).
 
 Revision ID: b7e4c2a9d1f3
 Revises: 93fb40166c08
 
-- 새 표 하나만 만든다. 기존 표 · 행은 바꾸지 않는다.
+- 새 표 둘만 만든다. 기존 표 · 행은 바꾸지 않는다.
+- password_reset_verify_throttles: 이메일당 코드 확인 실패 집계. 처음엔 login_throttles 를 같이 썼으나 관리자 「로그인 잠김」에 섞여
+  따로 뗐다(미르 11/27 — 이 revision 은 아직 배포 전이라 새 revision 없이 여기에 더했다).
 - 코드 · 증표 원문은 두지 않는다(SHA-256 해시만). 회원 행이 지워지면 함께 지워진다(FK CASCADE) — 탈퇴는 회원 행을 남기므로
   `account_withdrawal` 이 직접 지운다.
-- downgrade 는 표를 지운다. 살아 있는 코드는 길어야 25분짜리라 잃어도 사용자가 코드를 다시 받으면 된다.
+- downgrade 는 두 표를 지운다. 살아 있는 코드는 길어야 25분짜리라 잃어도 사용자가 코드를 다시 받으면 된다.
 """
 
 import sqlalchemy as sa
@@ -42,8 +44,22 @@ def upgrade() -> None:
     op.create_index(
         "ix_password_reset_codes_user", "password_reset_codes", ["app_user_id"]
     )
+    op.create_table(
+        "password_reset_verify_throttles",
+        sa.Column("key_hash", sa.CHAR(64), primary_key=True),
+        sa.Column("failed_count", sa.INTEGER(), nullable=False),
+        sa.Column("window_started_at", DATETIME(fsp=6), nullable=False),
+        sa.Column("locked_until", DATETIME(fsp=6), nullable=True),
+    )
+    # 파기(1일 지난 창)를 훑을 때 쓴다
+    op.create_index(
+        "ix_password_reset_verify_throttles_window",
+        "password_reset_verify_throttles",
+        ["window_started_at"],
+    )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_password_reset_codes_user", table_name="password_reset_codes")
+    # 표만 지운다 — 색인 · FK 는 함께 사라진다. 색인을 먼저 지우면 FK(app_user_id)가 쓰는 색인이라 MySQL 1553(세진 11/27)
+    op.drop_table("password_reset_verify_throttles")
     op.drop_table("password_reset_codes")

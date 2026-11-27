@@ -4,10 +4,11 @@
 - 가입 여부를 드러내지 않는다: ①은 없는 이메일 · 소셜 전용 · 탈퇴 계정에도 같은 답을 한다. 메일은 없는 · 탈퇴 계정엔 안 가고,
   소셜 전용 회원에겐 코드 대신 「구글 · 네이버로 로그인하세요」 안내가 간다(미르 11/26). ②는 틀린 코드 ·
   만료 · 시도 초과 · 코드 없음을 모두 같은 오류로 답한다. 메일은 응답 뒤에 보내 걸린 시간으로도 갈리지 않게 한다(API 의 몫).
-- 코드 · 증표 원문은 저장하지 않는다(SHA-256). 코드 해시에는 행 id 를 섞어 같은 코드라도 행마다 다르다.
+- 코드 · 증표 원문은 저장하지 않는다. 코드는 서버 비밀값을 쓴 HMAC-SHA256(행 id 를 섞어 같은 코드라도 행마다 다르다),
+  증표는 32바이트 난수라 SHA-256.
 - 새 비밀번호가 저장되면 그 회원의 로그인 세션을 모두 끊고, 이메일 로그인 실패 잠금을 푼다.
 
-변경은 로그인한 회원이 지금 비밀번호를 확인한 뒤 바꾼다. 이 창의 세션은 남기고 다른 기기의 세션만 끊는다.
+변경은 로그인한 회원이 지금 비밀번호를 확인한 뒤 바꾼다. 이 브라우저의 세션은 남기고 다른 기기의 세션만 끊는다.
 """
 
 from __future__ import annotations
@@ -16,15 +17,17 @@ import hashlib
 import hmac
 import secrets
 from datetime import datetime, timedelta
+from typing import NoReturn
 from uuid import uuid4
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.models.account_data import LoginThrottle, UserSession
 from app.models.app_user import AppUser
 from app.models.auth_identity import AuthIdentity
-from app.models.password_reset import PasswordResetCode
+from app.models.password_reset import PasswordResetCode, PasswordResetVerifyThrottle
 from app.services.local_auth import (
     get_local_identity_by_email,
     hash_password,
@@ -60,6 +63,14 @@ class InvalidResetCodeError(Exception):
     """코드가 틀렸거나 · 만료됐거나 · 시도가 많았거나 · 받은 코드가 없다(구분하지 않는다)."""
 
 
+class ResetVerifyLockedError(Exception):
+    """이 이메일의 코드 확인 실패가 하루 한도에 닿아 잠겼다. 가입 여부와 상관없이 같으므로 따로 알려도 된다 — 화면은 다음에 할 일을 보인다."""
+
+    def __init__(self, retry_after_sec: int) -> None:
+        super().__init__(retry_after_sec)
+        self.retry_after_sec = retry_after_sec
+
+
 class InvalidResetTokenError(Exception):
     """재설정 증표가 없거나 · 만료됐거나 · 이미 썼다."""
 
@@ -81,7 +92,9 @@ def _sha256(value: str) -> str:
 
 
 def _code_hash(row_id: str, code: str) -> str:
-    return _sha256(f"{row_id}:{code}")
+    # 6자리라 비밀값 없는 해시는 DB 를 읽으면 백만 번 대입으로 풀린다 — 서버 비밀값으로 HMAC(세진 11/27)
+    key = settings.password_reset_code_secret.get_secret_value().encode("utf-8")
+    return hmac.new(key, f"{row_id}:{code}".encode(), hashlib.sha256).hexdigest()
 
 
 def _login_throttle_key(email: str) -> str:
@@ -90,16 +103,19 @@ def _login_throttle_key(email: str) -> str:
 
 
 def verify_throttle_key(email: str) -> str:
-    """코드 확인 실패를 세는 열쇠(login_throttles 표를 같이 쓴다). 이메일 원문은 남기지 않는다."""
+    """코드 확인 실패를 세는 열쇠(password_reset_verify_throttles). 이메일 원문은 남기지 않는다."""
     return _sha256(f"password-reset-verify:{normalize_email(email)}")
 
 
 def _count_verify_failure(
-    throttle: LoginThrottle | None, db: AsyncSession, email: str, now: datetime
-) -> None:
+    throttle: PasswordResetVerifyThrottle | None,
+    db: AsyncSession,
+    email: str,
+    now: datetime,
+) -> PasswordResetVerifyThrottle:
     """코드 확인 실패 하나. 가입된 이메일이든 아니든 같은 일(행 하나 쓰기 + 커밋)을 해서 걸린 시간으로 갈리지 않게 한다."""
-    if not isinstance(throttle, LoginThrottle):
-        throttle = LoginThrottle(
+    if not isinstance(throttle, PasswordResetVerifyThrottle):
+        throttle = PasswordResetVerifyThrottle(
             key_hash=verify_throttle_key(email), failed_count=0, window_started_at=now
         )
         db.add(throttle)
@@ -110,6 +126,38 @@ def _count_verify_failure(
     throttle.failed_count += 1
     if throttle.failed_count >= MAX_VERIFY_FAILURES_PER_DAY:
         throttle.locked_until = throttle.window_started_at + VERIFY_WINDOW
+    return throttle
+
+
+def _locked_error(
+    throttle: PasswordResetVerifyThrottle, now: datetime
+) -> ResetVerifyLockedError:
+    remaining = (throttle.locked_until or now) - now
+    return ResetVerifyLockedError(max(1, int(remaining.total_seconds())))
+
+
+def _is_locked(throttle: PasswordResetVerifyThrottle | None, now: datetime) -> bool:
+    return (
+        isinstance(throttle, PasswordResetVerifyThrottle)
+        and throttle.locked_until is not None
+        and throttle.locked_until > now
+    )
+
+
+async def _fail_verify(
+    throttle: PasswordResetVerifyThrottle | None,
+    db: AsyncSession,
+    email: str,
+    now: datetime,
+) -> NoReturn:
+    """실패를 세고 커밋한 뒤 알맞은 오류를 던진다 — 이번 실패로 잠겼으면 잠금 안내(다음에 할 일)를 바로 보인다(미르 11/27)."""
+    throttle = _count_verify_failure(throttle, db, email, now)
+    locked = _is_locked(throttle, now)
+    error = _locked_error(throttle, now) if locked else None
+    await db.commit()
+    if error is not None:
+        raise error
+    raise InvalidResetCodeError
 
 
 def _mail_text(code: str) -> str:
@@ -262,21 +310,28 @@ async def verify_reset_code(db: AsyncSession, email: str, code: str) -> str:
     """코드를 맞히면 재설정 증표 원문을 돌려준다(한 번만 나간다). 틀리면 그 코드의 실패 횟수를 올린다."""
 
     now = utc_now()
-    throttle = await db.get(
-        LoginThrottle, verify_throttle_key(email), with_for_update=True
+    key = verify_throttle_key(email)
+    # 확인 실패 행을 먼저 만들어 커밋해 둔다(있으면 그대로). 없는 열쇠를 FOR UPDATE 로 읽고 INSERT 하면 같은 이메일의 첫 동시 요청끼리
+    # 간격 잠금이 엇갈려 교착(1213 → 500)이 났다(세진 11/27, 4개 동시 8회 중 7회). 있는 행을 잠그면 차례로 줄을 선다
+    await db.execute(
+        insert(PasswordResetVerifyThrottle)
+        .values(key_hash=key, failed_count=0, window_started_at=now)
+        .prefix_with("IGNORE", dialect="mysql")
+        .prefix_with("OR IGNORE", dialect="sqlite")
     )
-    if (
-        isinstance(throttle, LoginThrottle)
-        and throttle.locked_until is not None
-        and throttle.locked_until > now
-    ):
-        await db.rollback()
-        raise InvalidResetCodeError
+    await db.commit()
+    # 잠그는 순서: 회원 행 → 확인 실패 행 → 코드 행. 탈퇴(회원 행 → 확인 실패 행 삭제)와 같게 —
+    # 엇갈리면 같은 계정에서 둘이 겹칠 때 교착(1213)으로 한쪽이 500 을 받는다(미르 · 세진 11/27 리뷰)
     found = await _member_with_local_password(db, email)
+    throttle = await db.get(
+        PasswordResetVerifyThrottle, key, with_for_update=True, populate_existing=True
+    )
+    if _is_locked(throttle, now):
+        error = _locked_error(throttle, now)
+        await db.rollback()
+        raise error
     if found is None:
-        _count_verify_failure(throttle, db, email, now)
-        await db.commit()
-        raise InvalidResetCodeError
+        await _fail_verify(throttle, db, email, now)
     user, _ = found
     row = await db.scalar(
         select(PasswordResetCode)
@@ -291,14 +346,10 @@ async def verify_reset_code(db: AsyncSession, email: str, code: str) -> str:
         .with_for_update()
     )
     if row is None or row.failed_attempts >= MAX_FAILED_ATTEMPTS:
-        _count_verify_failure(throttle, db, email, now)
-        await db.commit()
-        raise InvalidResetCodeError
+        await _fail_verify(throttle, db, email, now)
     if not hmac.compare_digest(_code_hash(row.id, code), row.code_hash):
         row.failed_attempts += 1
-        _count_verify_failure(throttle, db, email, now)
-        await db.commit()
-        raise InvalidResetCodeError
+        await _fail_verify(throttle, db, email, now)
 
     token = secrets.token_urlsafe(32)
     row.token_hash = _sha256(token)
@@ -396,21 +447,30 @@ async def change_password(
     *,
     keep_session_token_hash: str | None,
 ) -> None:
-    """로그인한 회원의 비밀번호 변경. 지금 비밀번호가 맞아야 한다. 이 창의 세션만 남기고 다른 세션은 끊는다."""
+    """로그인한 회원의 비밀번호 변경. 지금 비밀번호가 맞아야 한다. 이 브라우저의 세션만 남기고 다른 세션은 끊는다."""
 
     # 회원 행을 먼저 쥔다 — 겹친 로그인(start_session)과 탈퇴가 이 변경과 차례로 처리된다(11/25 검토).
-    # 탈퇴가 먼저 끝났으면 수단이 지워졌으니 「소셜 전용」이 아니라 세션 끝으로 답하게 deleted_at 을 본다
+    # 탈퇴가 먼저 끝났으면 수단이 지워졌으니 「소셜 전용」이 아니라 세션 끝으로 답하게 deleted_at 을 본다.
+    # populate_existing: current_user 가 올려 둔 같은 ORM 객체를 다시 읽는다 — 없으면 잠근 뒤에도 옛 값(deleted_at)을 본다(미르 11/27 리뷰)
     member = await db.scalar(
-        select(AppUser).where(AppUser.id == user.id).with_for_update()
+        select(AppUser)
+        .where(AppUser.id == user.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if member is None or member.deleted_at is not None:
         await db.rollback()
         raise WithdrawnAccountError
+    # 잠금 읽기 — 일반 SELECT 는 current_user 때 잡힌 스냅숏을 봐서, 그사이 커밋된 재설정(complete) 대신 옛 해시로
+    # 확인하고 덮어썼다(미르 11/27 리뷰, 격리 MySQL 재현)
     identity = await db.scalar(
-        select(AuthIdentity).where(
+        select(AuthIdentity)
+        .where(
             AuthIdentity.app_user_id == user.id,
             AuthIdentity.provider == "local",
         )
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
     try:
         if identity is None or identity.password_hash is None:

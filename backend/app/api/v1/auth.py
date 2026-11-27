@@ -593,6 +593,20 @@ async def verify_password_reset_code(
     response.headers["Cache-Control"] = "no-store"
     try:
         token = await password_reset.verify_reset_code(db, request.email, request.code)
+    except password_reset.ResetVerifyLockedError as error:
+        # 이메일당 하루 20번 — 가입 여부와 상관없이 같은 잠금이라 따로 알린다. 다음에 할 일을 문장에 넣는다(미르 11/27)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "reset_verify_locked",
+                "message": "코드를 여러 번 틀려 오늘은 이 이메일로 코드를 확인할 수 없습니다. "
+                "내일 다시 시도하거나 고객센터로 문의해 주세요.",
+            },
+            headers={
+                "Cache-Control": "no-store",
+                "Retry-After": str(error.retry_after_sec),
+            },
+        ) from error
     except password_reset.InvalidResetCodeError as error:
         raise _no_store_error(
             status.HTTP_401_UNAUTHORIZED,
